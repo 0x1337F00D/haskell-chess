@@ -1,0 +1,260 @@
+{-# LANGUAGE PatternSynonyms #-}
+module Chess.Bitboard where
+
+import Data.Bits
+import Data.Word (Word64)
+import Data.List (foldl')
+
+import Chess.Types (Square(..))
+
+-- | Bitboard is a 64-bit value representing a set of squares.
+type Bitboard = Word64
+
+pattern BB_EMPTY :: Bitboard
+pattern BB_EMPTY = 0x0000000000000000
+
+pattern BB_ALL :: Bitboard
+pattern BB_ALL = 0xffffffffffffffff
+
+-- Square bitboard constants --------------------------------------------------
+-- The least significant bit is A1 and the most significant is H8.
+
+pattern BB_A1, BB_B1, BB_C1, BB_D1, BB_E1, BB_F1, BB_G1, BB_H1 :: Bitboard
+pattern BB_A1 = 0x0000000000000001
+pattern BB_B1 = 0x0000000000000002
+pattern BB_C1 = 0x0000000000000004
+pattern BB_D1 = 0x0000000000000008
+pattern BB_E1 = 0x0000000000000010
+pattern BB_F1 = 0x0000000000000020
+pattern BB_G1 = 0x0000000000000040
+pattern BB_H1 = 0x0000000000000080
+
+pattern BB_A2, BB_B2, BB_C2, BB_D2, BB_E2, BB_F2, BB_G2, BB_H2 :: Bitboard
+pattern BB_A2 = 0x0000000000000100
+pattern BB_B2 = 0x0000000000000200
+pattern BB_C2 = 0x0000000000000400
+pattern BB_D2 = 0x0000000000000800
+pattern BB_E2 = 0x0000000000001000
+pattern BB_F2 = 0x0000000000002000
+pattern BB_G2 = 0x0000000000004000
+pattern BB_H2 = 0x0000000000008000
+
+pattern BB_A3, BB_B3, BB_C3, BB_D3, BB_E3, BB_F3, BB_G3, BB_H3 :: Bitboard
+pattern BB_A3 = 0x0000000000010000
+pattern BB_B3 = 0x0000000000020000
+pattern BB_C3 = 0x0000000000040000
+pattern BB_D3 = 0x0000000000080000
+pattern BB_E3 = 0x0000000000100000
+pattern BB_F3 = 0x0000000000200000
+pattern BB_G3 = 0x0000000000400000
+pattern BB_H3 = 0x0000000000800000
+
+pattern BB_A4, BB_B4, BB_C4, BB_D4, BB_E4, BB_F4, BB_G4, BB_H4 :: Bitboard
+pattern BB_A4 = 0x0000000001000000
+pattern BB_B4 = 0x0000000002000000
+pattern BB_C4 = 0x0000000004000000
+pattern BB_D4 = 0x0000000008000000
+pattern BB_E4 = 0x0000000010000000
+pattern BB_F4 = 0x0000000020000000
+pattern BB_G4 = 0x0000000040000000
+pattern BB_H4 = 0x0000000080000000
+
+pattern BB_A5, BB_B5, BB_C5, BB_D5, BB_E5, BB_F5, BB_G5, BB_H5 :: Bitboard
+pattern BB_A5 = 0x0000000100000000
+pattern BB_B5 = 0x0000000200000000
+pattern BB_C5 = 0x0000000400000000
+pattern BB_D5 = 0x0000000800000000
+pattern BB_E5 = 0x0000001000000000
+pattern BB_F5 = 0x0000002000000000
+pattern BB_G5 = 0x0000004000000000
+pattern BB_H5 = 0x0000008000000000
+
+pattern BB_A6, BB_B6, BB_C6, BB_D6, BB_E6, BB_F6, BB_G6, BB_H6 :: Bitboard
+pattern BB_A6 = 0x0000010000000000
+pattern BB_B6 = 0x0000020000000000
+pattern BB_C6 = 0x0000040000000000
+pattern BB_D6 = 0x0000080000000000
+pattern BB_E6 = 0x0000100000000000
+pattern BB_F6 = 0x0000200000000000
+pattern BB_G6 = 0x0000400000000000
+pattern BB_H6 = 0x0000800000000000
+
+pattern BB_A7, BB_B7, BB_C7, BB_D7, BB_E7, BB_F7, BB_G7, BB_H7 :: Bitboard
+pattern BB_A7 = 0x0001000000000000
+pattern BB_B7 = 0x0002000000000000
+pattern BB_C7 = 0x0004000000000000
+pattern BB_D7 = 0x0008000000000000
+pattern BB_E7 = 0x0010000000000000
+pattern BB_F7 = 0x0020000000000000
+pattern BB_G7 = 0x0040000000000000
+pattern BB_H7 = 0x0080000000000000
+
+pattern BB_A8, BB_B8, BB_C8, BB_D8, BB_E8, BB_F8, BB_G8, BB_H8 :: Bitboard
+pattern BB_A8 = 0x0100000000000000
+pattern BB_B8 = 0x0200000000000000
+pattern BB_C8 = 0x0400000000000000
+pattern BB_D8 = 0x0800000000000000
+pattern BB_E8 = 0x1000000000000000
+pattern BB_F8 = 0x2000000000000000
+pattern BB_G8 = 0x4000000000000000
+pattern BB_H8 = 0x8000000000000000
+
+bbSquares :: [Bitboard]
+bbSquares =
+  [ BB_A1, BB_B1, BB_C1, BB_D1, BB_E1, BB_F1, BB_G1, BB_H1
+  , BB_A2, BB_B2, BB_C2, BB_D2, BB_E2, BB_F2, BB_G2, BB_H2
+  , BB_A3, BB_B3, BB_C3, BB_D3, BB_E3, BB_F3, BB_G3, BB_H3
+  , BB_A4, BB_B4, BB_C4, BB_D4, BB_E4, BB_F4, BB_G4, BB_H4
+  , BB_A5, BB_B5, BB_C5, BB_D5, BB_E5, BB_F5, BB_G5, BB_H5
+  , BB_A6, BB_B6, BB_C6, BB_D6, BB_E6, BB_F6, BB_G6, BB_H6
+  , BB_A7, BB_B7, BB_C7, BB_D7, BB_E7, BB_F7, BB_G7, BB_H7
+  , BB_A8, BB_B8, BB_C8, BB_D8, BB_E8, BB_F8, BB_G8, BB_H8
+  ]
+
+-- Predefined square masks ----------------------------------------------------
+
+bbCorners :: Bitboard
+bbCorners = BB_A1 .|. BB_H1 .|. BB_A8 .|. BB_H8
+
+bbCenter :: Bitboard
+bbCenter = BB_D4 .|. BB_E4 .|. BB_D5 .|. BB_E5
+
+bbLightSquares :: Bitboard
+bbLightSquares = foldl' (.|.) 0
+  [bb | (i, bb) <- zip [0..] bbSquares, even ((i `div` 8) + (i `mod` 8))]
+
+bbDarkSquares :: Bitboard
+bbDarkSquares = foldl' (.|.) 0
+  [bb | (i, bb) <- zip [0..] bbSquares, odd ((i `div` 8) + (i `mod` 8))]
+
+-- File and rank masks --------------------------------------------------------
+
+bbFileA, bbFileB, bbFileC, bbFileD,
+  bbFileE, bbFileF, bbFileG, bbFileH :: Bitboard
+bbFileA = foldl' (.|.) 0 [bbSquares !! (0 + 8*r) | r <- [0..7]]
+bbFileB = foldl' (.|.) 0 [bbSquares !! (1 + 8*r) | r <- [0..7]]
+bbFileC = foldl' (.|.) 0 [bbSquares !! (2 + 8*r) | r <- [0..7]]
+bbFileD = foldl' (.|.) 0 [bbSquares !! (3 + 8*r) | r <- [0..7]]
+bbFileE = foldl' (.|.) 0 [bbSquares !! (4 + 8*r) | r <- [0..7]]
+bbFileF = foldl' (.|.) 0 [bbSquares !! (5 + 8*r) | r <- [0..7]]
+bbFileG = foldl' (.|.) 0 [bbSquares !! (6 + 8*r) | r <- [0..7]]
+bbFileH = foldl' (.|.) 0 [bbSquares !! (7 + 8*r) | r <- [0..7]]
+
+bbFiles :: [Bitboard]
+bbFiles =
+  [ bbFileA, bbFileB, bbFileC, bbFileD
+  , bbFileE, bbFileF, bbFileG, bbFileH
+  ]
+
+bbRank1, bbRank2, bbRank3, bbRank4,
+  bbRank5, bbRank6, bbRank7, bbRank8 :: Bitboard
+bbRank1 = foldl' (.|.) 0 [bbSquares !! (8*0 + f) | f <- [0..7]]
+bbRank2 = foldl' (.|.) 0 [bbSquares !! (8*1 + f) | f <- [0..7]]
+bbRank3 = foldl' (.|.) 0 [bbSquares !! (8*2 + f) | f <- [0..7]]
+bbRank4 = foldl' (.|.) 0 [bbSquares !! (8*3 + f) | f <- [0..7]]
+bbRank5 = foldl' (.|.) 0 [bbSquares !! (8*4 + f) | f <- [0..7]]
+bbRank6 = foldl' (.|.) 0 [bbSquares !! (8*5 + f) | f <- [0..7]]
+bbRank7 = foldl' (.|.) 0 [bbSquares !! (8*6 + f) | f <- [0..7]]
+bbRank8 = foldl' (.|.) 0 [bbSquares !! (8*7 + f) | f <- [0..7]]
+
+bbRanks :: [Bitboard]
+bbRanks =
+  [ bbRank1, bbRank2, bbRank3, bbRank4
+  , bbRank5, bbRank6, bbRank7, bbRank8
+  ]
+
+bbBackranks :: Bitboard
+bbBackranks = bbRank1 .|. bbRank8
+
+-- Bitboard operations --------------------------------------------------------
+
+-- | Index of least significant 1 bit, if any.
+lsb :: Bitboard -> Maybe Int
+lsb 0 = Nothing
+lsb bb = Just (countTrailingZeros bb)
+
+-- | Indices of bits in ascending order.
+scanForward :: Bitboard -> [Int]
+scanForward bb
+  | bb == 0   = []
+  | otherwise = let i = countTrailingZeros bb
+                    bb' = clearBit bb i
+                in i : scanForward bb'
+
+-- | Index of most significant 1 bit, if any.
+msb :: Bitboard -> Maybe Int
+msb 0 = Nothing
+msb bb = Just (63 - countLeadingZeros bb)
+
+-- | Indices of bits in descending order.
+scanReversed :: Bitboard -> [Int]
+scanReversed bb
+  | bb == 0   = []
+  | otherwise = let i = 63 - countLeadingZeros bb
+                    bb' = clearBit bb i
+                in i : scanReversed bb'
+
+-- | Population count of set bits.
+popcount :: Bitboard -> Int
+popcount = popCount
+
+-- Geometric transforms -------------------------------------------------------
+
+-- | Flip the board vertically (swap ranks).
+flipVertical :: Bitboard -> Bitboard
+flipVertical bb = foldl' setBitIf 0 [0..63]
+  where
+    setBitIf acc i = if testBit bb i
+                        then setBit acc ((7 - (i `div` 8)) * 8 + (i `mod` 8))
+                        else acc
+
+-- | Flip the board horizontally (swap files).
+flipHorizontal :: Bitboard -> Bitboard
+flipHorizontal bb = foldl' setBitIf 0 [0..63]
+  where
+    setBitIf acc i = if testBit bb i
+                        then setBit acc ((i `div` 8) * 8 + (7 - (i `mod` 8)))
+                        else acc
+
+-- | Flip the board along the main diagonal.
+flipDiagonal :: Bitboard -> Bitboard
+flipDiagonal bb = foldl' setBitIf 0 [0..63]
+  where
+    setBitIf acc i = if testBit bb i
+                        then let r = i `div` 8
+                                 f = i `mod` 8
+                             in setBit acc (f*8 + r)
+                        else acc
+
+-- | Flip the board along the anti-diagonal.
+flipAntiDiagonal :: Bitboard -> Bitboard
+flipAntiDiagonal bb = foldl' setBitIf 0 [0..63]
+  where
+    setBitIf acc i = if testBit bb i
+                        then let r = i `div` 8
+                                 f = i `mod` 8
+                             in setBit acc ((7-f)*8 + (7-r))
+                        else acc
+
+-- Shift operations -----------------------------------------------------------
+
+shiftDown, shift2Down, shiftUp, shift2Up :: Bitboard -> Bitboard
+shiftLeft, shiftRight :: Bitboard -> Bitboard
+shiftDownLeft, shiftDownRight, shiftUpLeft, shiftUpRight :: Bitboard -> Bitboard
+
+shiftDown bb     = bb `shiftR` 8
+shift2Down bb    = bb `shiftR` 16
+shiftUp bb       = (bb `shiftL` 8) .&. BB_ALL
+shift2Up bb      = (bb `shiftL` 16) .&. BB_ALL
+shiftLeft bb     = (bb `shiftL` 1) .&. complement bbFileA
+shiftRight bb    = (bb `shiftR` 1) .&. complement bbFileH
+shiftDownLeft bb = shiftDown bb .&. complement bbFileH
+shiftDownRight bb= shiftDown bb .&. complement bbFileA
+shiftUpLeft bb   = shiftUp bb   .&. complement bbFileH
+shiftUpRight bb  = shiftUp bb   .&. complement bbFileA
+
+-- Helpers -------------------------------------------------------------------
+
+bbFromSquare :: Square -> Bitboard
+bbFromSquare (Square i) = 1 `shiftL` i
+
