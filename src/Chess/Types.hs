@@ -10,6 +10,7 @@ import Data.Maybe (fromMaybe)
 import Data.List (elemIndex)
 import Data.Char (toLower, toUpper)
 import qualified Data.Map as M
+import qualified Data.Set as S
 
 -- | Color of a chess piece or side to move.
 data Color = White | Black
@@ -166,6 +167,47 @@ pattern H8 = Square 63
 -- | All squares from A1 to H8.
 squares :: [Square]
 squares = [Square n | n <- [0..63]]
+
+-- | Mirror a square by rotating the board 180 degrees.
+squareMirror :: Square -> Square
+squareMirror (Square n) = Square (63 - n)
+
+-- | Precomputed table of mirrored squares.
+squares180 :: [Square]
+squares180 = map squareMirror squares
+
+-- | Chebyshev distance between two squares.
+squareDistance :: Square -> Square -> Int
+squareDistance a b =
+  max (abs (squareFile a - squareFile b)) (abs (squareRank a - squareRank b))
+
+-- | Manhattan distance between two squares.
+squareManhattanDistance :: Square -> Square -> Int
+squareManhattanDistance a b =
+  abs (squareFile a - squareFile b) + abs (squareRank a - squareRank b)
+
+-- | Minimum number of knight moves between two squares using BFS.
+squareKnightDistance :: Square -> Square -> Int
+squareKnightDistance start goal = bfs S.empty [(sf,sr)] 0
+  where
+    (sf, sr) = (squareFile start, squareRank start)
+    target = (squareFile goal, squareRank goal)
+
+    bfs _ [] _ = 0  -- should not happen on an 8x8 board
+    bfs visited frontier d
+      | target `elem` frontier = d
+      | otherwise =
+          let visited' = S.union visited (S.fromList frontier)
+              next = S.toList . S.fromList $
+                       [ p | pos <- frontier, p <- knightSteps pos, not (S.member p visited') ]
+          in bfs visited' next (d+1)
+
+    knightSteps (f,r) =
+      filter onBoard [ (f+1,r+2), (f+2,r+1), (f+2,r-1), (f+1,r-2)
+                     , (f-1,r-2), (f-2,r-1), (f-2,r+1), (f-1,r+2) ]
+
+    onBoard (f,r) = f >= 0 && f < 8 && r >= 0 && r < 8
+
 
 squareFile :: Square -> Int
 squareFile (Square n) = n `mod` 8
