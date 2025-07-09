@@ -4,6 +4,7 @@ import Test.Hspec
 import Data.Bits
 import Chess.Types
 import Chess.Bitboard
+import Chess.SquareSet
 
 main :: IO ()
 main = hspec $ do
@@ -54,5 +55,26 @@ main = hspec $ do
         pawnAttacks White E2 .&. bbFromSquare D3 `shouldBe` bbFromSquare D3
       it "black pawn attacks from E7 include D6" $
         pawnAttacks Black E7 .&. bbFromSquare D6 `shouldBe` bbFromSquare D6
+
+  describe "SquareSet" $ do
+    let setAB = fromList [A1, B2]
+    it "toList . fromList roundtrip" $
+      toList setAB `shouldBe` [A1, B2]
+    it "member works" $
+      member A1 setAB `shouldBe` True
+    it "insert adds a square" $
+      insert C3 setAB `shouldBe` fromList [A1, B2, C3]
+    it "delete removes a square" $
+      delete A1 setAB `shouldBe` fromList [B2]
+    it "union combines sets" $
+      union setAB (fromList [C3]) `shouldBe` fromList [A1, B2, C3]
+    it "intersection" $
+      intersection setAB (fromList [A1]) `shouldBe` fromList [A1]
+    it "difference" $
+      difference setAB (fromList [A1]) `shouldBe` fromList [B2]
+    it "mirror of A1 is H8" $
+      mirror (fromList [A1]) `shouldBe` fromList [H8]
+    it "popSquare pops lowest" $
+      popSquare setAB `shouldBe` Just (A1, fromList [B2])
 
 
