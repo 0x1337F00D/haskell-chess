@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: haskell:9.4.4  # offizielles Docker-Image mit GHC 9.4.4 + Cabal
+      image: haskell:9.8.2  # offizielles Docker-Image mit GHC 9.8.2 + Cabal
     steps:
       - uses: actions/checkout@v3
 
