@@ -9,18 +9,25 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: haskell:9.4.4  # offizielles Docker-Image mit GHC 9.4.4 + Cabal
     steps:
       - uses: actions/checkout@v3
-      - uses: haskell-actions/setup@v2
-        with:
-          ghc-version: "9.4"
-          cabal-version: "3.8"
-      - name: Cache cabal
+
+      - name: Cache cabal store and build artifacts
         uses: actions/cache@v3
         with:
-          path: ~/.cabal/store
-          key: ${{ runner.os }}-cabal-${{ hashFiles('**/*.cabal') }}
+          path: |
+            ~/.cabal/store
+            dist-newstyle
+          key: ${{ runner.os }}-cabal-${{ hashFiles('**/*.cabal', 'cabal.project') }}
           restore-keys: ${{ runner.os }}-cabal-
-      - run: cabal update
-      - run: cabal build all
-      - run: cabal test all
+
+      - name: Update cabal package list
+        run: cabal update
+
+      - name: Build
+        run: cabal build all
+
+      - name: Test
+        run: cabal test all
