@@ -5,7 +5,7 @@ import Data.Bits
 import Data.Word (Word64)
 import Data.List (foldl')
 
-import Chess.Types (Square(..))
+import Chess.Types (Square(..), Color(..), squares)
 
 -- | Bitboard is a 64-bit value representing a set of squares.
 type Bitboard = Word64
@@ -257,4 +257,110 @@ shiftUpRight bb  = shiftUp bb   .&. complement bbFileA
 
 bbFromSquare :: Square -> Bitboard
 bbFromSquare (Square i) = 1 `shiftL` i
+
+-- Attack tables --------------------------------------------------------------
+
+-- | Generate knight attacks from a square using coordinate offsets.
+knightAttacksFrom :: Square -> Bitboard
+knightAttacksFrom (Square n) = foldl' (.|.) 0 [ bbFromSquare (Square idx)
+                                              | (df,dr) <- deltas
+                                              , let f = file + df
+                                                    r = rank + dr
+                                              , f >= 0, f < 8, r >= 0, r < 8
+                                              , let idx = r*8 + f ]
+  where
+    file = n `mod` 8
+    rank = n `div` 8
+    deltas = [ (1,2), (2,1), (2,-1), (1,-2)
+             , (-1,-2), (-2,-1), (-2,1), (-1,2) ]
+
+-- | Generate king attacks from a square.
+kingAttacksFrom :: Square -> Bitboard
+kingAttacksFrom (Square n) = foldl' (.|.) 0 [ bbFromSquare (Square idx)
+                                             | (df,dr) <- deltas
+                                             , let f = file + df
+                                                   r = rank + dr
+                                             , f >= 0, f < 8, r >= 0, r < 8
+                                             , let idx = r*8 + f ]
+  where
+    file = n `mod` 8
+    rank = n `div` 8
+    deltas = [ (1,1), (1,0), (1,-1)
+             , (0,1),         (0,-1)
+             , (-1,1), (-1,0), (-1,-1) ]
+
+-- | Generate pawn attacks given a color from a square.
+pawnAttacksFrom :: Color -> Square -> Bitboard
+pawnAttacksFrom col (Square n) = foldl' (.|.) 0 [ bbFromSquare (Square idx)
+                                                 | (df,dr) <- deltas
+                                                 , let f = file + df
+                                                       r = rank + dr
+                                                 , f >= 0, f < 8, r >= 0, r < 8
+                                                 , let idx = r*8 + f ]
+  where
+    file = n `mod` 8
+    rank = n `div` 8
+    deltas = case col of
+               White -> [(-1,1),(1,1)]
+               Black -> [(-1,-1),(1,-1)]
+
+-- Precomputed attack arrays
+
+bbKnightAttacks :: [Bitboard]
+bbKnightAttacks = map knightAttacksFrom squares
+
+bbKingAttacks :: [Bitboard]
+bbKingAttacks = map kingAttacksFrom squares
+
+bbWhitePawnAttacks :: [Bitboard]
+bbWhitePawnAttacks = map (pawnAttacksFrom White) squares
+
+bbBlackPawnAttacks :: [Bitboard]
+bbBlackPawnAttacks = map (pawnAttacksFrom Black) squares
+
+-- | Lookup knight attacks for a square.
+knightAttacks :: Square -> Bitboard
+knightAttacks (Square i) = bbKnightAttacks !! i
+
+-- | Lookup king attacks for a square.
+kingAttacks :: Square -> Bitboard
+kingAttacks (Square i) = bbKingAttacks !! i
+
+-- | Lookup pawn attacks for a color and square.
+pawnAttacks :: Color -> Square -> Bitboard
+pawnAttacks White (Square i) = bbWhitePawnAttacks !! i
+pawnAttacks Black (Square i) = bbBlackPawnAttacks !! i
+
+-- Rays ----------------------------------------------------------------------
+
+-- | Bitboard of squares in a ray from one square to another, including the
+-- target but excluding the origin. Zero if not aligned.
+ray :: Square -> Square -> Bitboard
+ray a@(Square ai) b@(Square bi)
+  | a == b = 0
+  | abs df == abs dr || df == 0 || dr == 0 = go (fileA+dfSign) (rankA+drSign) 0
+  | otherwise = 0
+  where
+    fileA = ai `mod` 8
+    rankA = ai `div` 8
+    fileB = bi `mod` 8
+    rankB = bi `div` 8
+    df = fileB - fileA
+    dr = rankB - rankA
+    dfSign = signum df
+    drSign = signum dr
+
+    go f r acc
+      | f == fileB && r == rankB = acc .|. bbFromSquare b
+      | f < 0 || f > 7 || r < 0 || r > 7 = 0
+      | otherwise =
+          let acc' = acc .|. bbFromSquare (Square (r*8 + f))
+          in go (f+dfSign) (r+drSign) acc'
+
+-- | Squares strictly between two aligned squares.
+between :: Square -> Square -> Bitboard
+between a b = case ray a b of
+                0 -> 0
+                bb -> bb `clearBit` (unSquare b)
+
 
