@@ -1,11 +1,13 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Chess.Types where
 
 import Control.Exception (Exception)
 
 import Data.Maybe (fromMaybe)
-import Data.List (elemIndex, elemIndices)
+import Data.List (elemIndex)
 import Data.Char (toLower, toUpper)
 import qualified Data.Map as M
 
@@ -69,7 +71,8 @@ unicodeSymbol c pt =
 
 -- | Squares represented as integers 0..63 (a1=0).
 newtype Square = Square { unSquare :: Int }
-  deriving (Eq, Ord, Enum)
+  deriving stock (Eq, Ord)
+  deriving newtype (Enum)
 
 instance Show Square where
   show = squareName
@@ -191,10 +194,6 @@ parseSquare [f,r] = do
   rank <- elemIndex r rankNames
   square (rank*8 + file)
 parseSquare _ = Nothing
-  where
-    elemIndex x xs = case elemIndices x xs of
-      (i:_) -> Just i
-      []    -> Nothing
 
 -- | Starting FEN string for standard chess.
 startingBoardFEN :: String
