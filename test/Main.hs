@@ -6,6 +6,7 @@ import Chess.Types
 import Chess.Bitboard
 import qualified Chess.SquareSet as SS
 import qualified Chess.Board.Base as Board
+import qualified Chess.Board.GameState as GS
 
 main :: IO ()
 main = hspec $ do
@@ -136,3 +137,35 @@ main = hspec $ do
         it "isAttackedBy checks attacks" $
            let b = Board.putPiece Board.empty E4 (Piece White Rook)
            in Board.isAttackedBy b White E8 `shouldBe` True
+
+  describe "Board.GameState" $ do
+    it "initial game state has correct defaults" $ do
+      let gs = GS.initialGameState
+      GS.turn gs `shouldBe` White
+      GS.castlingRights gs `shouldBe` GS.allCastling
+      GS.epSquare gs `shouldBe` Nothing
+      GS.halfmoveClock gs `shouldBe` 0
+      GS.fullmoveNumber gs `shouldBe` 1
+
+    it "canCastleKingside/Queenside checks bitboard correctly" $ do
+      let gs = GS.initialGameState
+      GS.canCastleKingside gs White `shouldBe` True
+      GS.canCastleQueenside gs White `shouldBe` True
+      GS.canCastleKingside gs Black `shouldBe` True
+      GS.canCastleQueenside gs Black `shouldBe` True
+
+    it "removeColorCastlingRights removes both rights for a color" $ do
+      let gs = GS.initialGameState
+          gs' = GS.removeColorCastlingRights gs White
+      GS.canCastleKingside gs' White `shouldBe` False
+      GS.canCastleQueenside gs' White `shouldBe` False
+      -- Black untouched
+      GS.canCastleKingside gs' Black `shouldBe` True
+      GS.canCastleQueenside gs' Black `shouldBe` True
+
+    it "removeCastlingRight removes specific right" $ do
+      let gs = GS.initialGameState
+          gs' = GS.removeCastlingRight gs H1
+      GS.canCastleKingside gs' White `shouldBe` False
+      GS.canCastleQueenside gs' White `shouldBe` True
+      GS.canCastleKingside gs' Black `shouldBe` True
