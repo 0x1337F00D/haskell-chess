@@ -1,0 +1,171 @@
+{-# LANGUAGE PatternSynonyms #-}
+module Chess.Board.Base where
+
+import Data.Bits ((.|.), (.&.), testBit, setBit, clearBit)
+import Data.List (foldl')
+
+import Chess.Types
+import Chess.Bitboard
+
+-- | A board representation with bitboards for each piece type and color.
+data Board = Board
+  { whitePawns   :: !Bitboard
+  , whiteKnights :: !Bitboard
+  , whiteBishops :: !Bitboard
+  , whiteRooks   :: !Bitboard
+  , whiteQueens  :: !Bitboard
+  , whiteKings   :: !Bitboard
+  , blackPawns   :: !Bitboard
+  , blackKnights :: !Bitboard
+  , blackBishops :: !Bitboard
+  , blackRooks   :: !Bitboard
+  , blackQueens  :: !Bitboard
+  , blackKings   :: !Bitboard
+  } deriving (Eq, Show)
+
+-- | An empty board.
+empty :: Board
+empty = Board 0 0 0 0 0 0 0 0 0 0 0 0
+
+-- | Get the bitboard for a specific piece type and color.
+pieceBitboard :: Board -> Color -> PieceType -> Bitboard
+pieceBitboard b White Pawn   = whitePawns b
+pieceBitboard b White Knight = whiteKnights b
+pieceBitboard b White Bishop = whiteBishops b
+pieceBitboard b White Rook   = whiteRooks b
+pieceBitboard b White Queen  = whiteQueens b
+pieceBitboard b White King   = whiteKings b
+pieceBitboard b Black Pawn   = blackPawns b
+pieceBitboard b Black Knight = blackKnights b
+pieceBitboard b Black Bishop = blackBishops b
+pieceBitboard b Black Rook   = blackRooks b
+pieceBitboard b Black Queen  = blackQueens b
+pieceBitboard b Black King   = blackKings b
+
+-- | Set the bitboard for a specific piece type and color.
+setPieceBitboard :: Board -> Color -> PieceType -> Bitboard -> Board
+setPieceBitboard b White Pawn   bb = b { whitePawns   = bb }
+setPieceBitboard b White Knight bb = b { whiteKnights = bb }
+setPieceBitboard b White Bishop bb = b { whiteBishops = bb }
+setPieceBitboard b White Rook   bb = b { whiteRooks   = bb }
+setPieceBitboard b White Queen  bb = b { whiteQueens  = bb }
+setPieceBitboard b White King   bb = b { whiteKings   = bb }
+setPieceBitboard b Black Pawn   bb = b { blackPawns   = bb }
+setPieceBitboard b Black Knight bb = b { blackKnights = bb }
+setPieceBitboard b Black Bishop bb = b { blackBishops = bb }
+setPieceBitboard b Black Rook   bb = b { blackRooks   = bb }
+setPieceBitboard b Black Queen  bb = b { blackQueens  = bb }
+setPieceBitboard b Black King   bb = b { blackKings   = bb }
+
+-- | Get the piece at a square, if any.
+pieceAt :: Board -> Square -> Maybe Piece
+pieceAt b sq
+  | testBit (whitePawns b) i   = Just (Piece White Pawn)
+  | testBit (whiteKnights b) i = Just (Piece White Knight)
+  | testBit (whiteBishops b) i = Just (Piece White Bishop)
+  | testBit (whiteRooks b) i   = Just (Piece White Rook)
+  | testBit (whiteQueens b) i  = Just (Piece White Queen)
+  | testBit (whiteKings b) i   = Just (Piece White King)
+  | testBit (blackPawns b) i   = Just (Piece Black Pawn)
+  | testBit (blackKnights b) i = Just (Piece Black Knight)
+  | testBit (blackBishops b) i = Just (Piece Black Bishop)
+  | testBit (blackRooks b) i   = Just (Piece Black Rook)
+  | testBit (blackQueens b) i  = Just (Piece Black Queen)
+  | testBit (blackKings b) i   = Just (Piece Black King)
+  | otherwise = Nothing
+  where i = unSquare sq
+
+-- | Get the color of the piece at a square, if any.
+colorAt :: Board -> Square -> Maybe Color
+colorAt b sq = fmap pieceColor (pieceAt b sq)
+
+-- | Place a piece on the board. Overwrites any existing piece at that square.
+putPiece :: Board -> Square -> Piece -> Board
+putPiece b sq piece =
+  let b' = removePieceAt b sq
+      bb = pieceBitboard b' (pieceColor piece) (pieceType piece)
+      bb' = setBit bb (unSquare sq)
+  in setPieceBitboard b' (pieceColor piece) (pieceType piece) bb'
+
+-- | Remove a piece from the board.
+removePieceAt :: Board -> Square -> Board
+removePieceAt b sq = b
+  { whitePawns   = clearBit (whitePawns b) i
+  , whiteKnights = clearBit (whiteKnights b) i
+  , whiteBishops = clearBit (whiteBishops b) i
+  , whiteRooks   = clearBit (whiteRooks b) i
+  , whiteQueens  = clearBit (whiteQueens b) i
+  , whiteKings   = clearBit (whiteKings b) i
+  , blackPawns   = clearBit (blackPawns b) i
+  , blackKnights = clearBit (blackKnights b) i
+  , blackBishops = clearBit (blackBishops b) i
+  , blackRooks   = clearBit (blackRooks b) i
+  , blackQueens  = clearBit (blackQueens b) i
+  , blackKings   = clearBit (blackKings b) i
+  }
+  where i = unSquare sq
+
+-- | Bitboard of all pieces.
+occupied :: Board -> Bitboard
+occupied b =
+  whitePawns b .|. whiteKnights b .|. whiteBishops b .|. whiteRooks b .|. whiteQueens b .|. whiteKings b .|.
+  blackPawns b .|. blackKnights b .|. blackBishops b .|. blackRooks b .|. blackQueens b .|. blackKings b
+
+-- | Bitboard of pieces by color.
+occupiedBy :: Board -> Color -> Bitboard
+occupiedBy b White =
+  whitePawns b .|. whiteKnights b .|. whiteBishops b .|. whiteRooks b .|. whiteQueens b .|. whiteKings b
+occupiedBy b Black =
+  blackPawns b .|. blackKnights b .|. blackBishops b .|. blackRooks b .|. blackQueens b .|. blackKings b
+
+-- Attacks --------------------------------------------------------------------
+
+-- | Attacks generated by the piece at the given square.
+-- For sliding pieces, this accounts for blocking by other pieces on the board.
+attacks :: Board -> Square -> Bitboard
+attacks b sq = case pieceAt b sq of
+  Nothing -> 0
+  Just (Piece c pt) -> case pt of
+    Pawn -> pawnAttacks c sq
+    Knight -> knightAttacks sq
+    King -> kingAttacks sq
+    Bishop -> bishopAttacks sq (occupied b)
+    Rook -> rookAttacks sq (occupied b)
+    Queen -> bishopAttacks sq (occupied b) .|. rookAttacks sq (occupied b)
+
+-- | Check if a square is attacked by any piece of the given color.
+isAttackedBy :: Board -> Color -> Square -> Bool
+isAttackedBy b color sq =
+  (pawnAttacks (oppositeColor color) sq .&. pieceBitboard b color Pawn /= 0) ||
+  (knightAttacks sq .&. pieceBitboard b color Knight /= 0) ||
+  (kingAttacks sq .&. pieceBitboard b color King /= 0) ||
+  (bishopAttacks sq (occupied b) .&. (pieceBitboard b color Bishop .|. pieceBitboard b color Queen) /= 0) ||
+  (rookAttacks sq (occupied b) .&. (pieceBitboard b color Rook .|. pieceBitboard b color Queen) /= 0)
+
+oppositeColor :: Color -> Color
+oppositeColor White = Black
+oppositeColor Black = White
+
+-- | Sliding piece attack generation.
+bishopAttacks :: Square -> Bitboard -> Bitboard
+bishopAttacks sq occ = foldl' (.|.) 0 [ attackRay sq dir occ | dir <- [(1,1), (1,-1), (-1,1), (-1,-1)] ]
+
+rookAttacks :: Square -> Bitboard -> Bitboard
+rookAttacks sq occ = foldl' (.|.) 0 [ attackRay sq dir occ | dir <- [(0,1), (0,-1), (1,0), (-1,0)] ]
+
+-- | Generate a ray of attacks in a direction (df, dr) stopping at the first blocker.
+-- The blocker is included in the bitboard.
+attackRay :: Square -> (Int, Int) -> Bitboard -> Bitboard
+attackRay (Square i) (df, dr) occ = go (f+df) (r+dr) 0
+  where
+    f = i `mod` 8
+    r = i `div` 8
+
+    go cf cr acc
+      | cf < 0 || cf > 7 || cr < 0 || cr > 7 = acc
+      | otherwise =
+          let cSq = cr*8 + cf
+              acc' = setBit acc cSq
+          in if testBit occ cSq
+             then acc' -- Hit a piece, stop (include it)
+             else go (cf+df) (cr+dr) acc'

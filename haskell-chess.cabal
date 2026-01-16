@@ -61,6 +61,7 @@ library
     exposed-modules:  Chess.Types
                     , Chess.Bitboard
                     , Chess.SquareSet
+                    , Chess.Board.Base
 
     -- Modules included in this library but not exported.
     other-modules:     MyLib
