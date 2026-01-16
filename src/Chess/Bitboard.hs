@@ -4,6 +4,7 @@ module Chess.Bitboard where
 import Data.Bits
 import Data.Word (Word64)
 import Data.List (foldl')
+import qualified Data.Vector.Unboxed as V
 
 import Chess.Types (Square(..), Color(..), squares)
 
@@ -306,30 +307,30 @@ pawnAttacksFrom col (Square n) = foldl' (.|.) 0 [ bbFromSquare (Square idx)
 
 -- Precomputed attack arrays
 
-bbKnightAttacks :: [Bitboard]
-bbKnightAttacks = map knightAttacksFrom squares
+bbKnightAttacks :: V.Vector Bitboard
+bbKnightAttacks = V.fromList $ map knightAttacksFrom squares
 
-bbKingAttacks :: [Bitboard]
-bbKingAttacks = map kingAttacksFrom squares
+bbKingAttacks :: V.Vector Bitboard
+bbKingAttacks = V.fromList $ map kingAttacksFrom squares
 
-bbWhitePawnAttacks :: [Bitboard]
-bbWhitePawnAttacks = map (pawnAttacksFrom White) squares
+bbWhitePawnAttacks :: V.Vector Bitboard
+bbWhitePawnAttacks = V.fromList $ map (pawnAttacksFrom White) squares
 
-bbBlackPawnAttacks :: [Bitboard]
-bbBlackPawnAttacks = map (pawnAttacksFrom Black) squares
+bbBlackPawnAttacks :: V.Vector Bitboard
+bbBlackPawnAttacks = V.fromList $ map (pawnAttacksFrom Black) squares
 
 -- | Lookup knight attacks for a square.
 knightAttacks :: Square -> Bitboard
-knightAttacks (Square i) = bbKnightAttacks !! i
+knightAttacks (Square i) = bbKnightAttacks V.! i
 
 -- | Lookup king attacks for a square.
 kingAttacks :: Square -> Bitboard
-kingAttacks (Square i) = bbKingAttacks !! i
+kingAttacks (Square i) = bbKingAttacks V.! i
 
 -- | Lookup pawn attacks for a color and square.
 pawnAttacks :: Color -> Square -> Bitboard
-pawnAttacks White (Square i) = bbWhitePawnAttacks !! i
-pawnAttacks Black (Square i) = bbBlackPawnAttacks !! i
+pawnAttacks White (Square i) = bbWhitePawnAttacks V.! i
+pawnAttacks Black (Square i) = bbBlackPawnAttacks V.! i
 
 -- Rays ----------------------------------------------------------------------
 
