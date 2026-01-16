@@ -314,10 +314,20 @@ charToPieceType c = case toUpper c of
   _   -> Nothing
 
 fromSymbol :: Char -> Maybe Piece
-fromSymbol ch = do
-    pt <- charToPieceType ch
-    let col = if ch `elem` ['a'..'z'] then Black else White
-    return (Piece col pt)
+fromSymbol ch = case ch of
+    'P' -> Just (Piece White Pawn)
+    'N' -> Just (Piece White Knight)
+    'B' -> Just (Piece White Bishop)
+    'R' -> Just (Piece White Rook)
+    'Q' -> Just (Piece White Queen)
+    'K' -> Just (Piece White King)
+    'p' -> Just (Piece Black Pawn)
+    'n' -> Just (Piece Black Knight)
+    'b' -> Just (Piece Black Bishop)
+    'r' -> Just (Piece Black Rook)
+    'q' -> Just (Piece Black Queen)
+    'k' -> Just (Piece Black King)
+    _   -> Nothing
 
 -- | Representation of a move. Only basic coordinates and optional
 -- promotion or drop piece are stored.
