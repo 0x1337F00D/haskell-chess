@@ -7,7 +7,7 @@ module Chess.Types where
 import Control.Exception (Exception)
 
 import Data.List (elemIndex)
-import Data.Char (toLower, toUpper)
+import Data.Char (toLower)
 import qualified Data.Map as M
 import qualified Data.Set as S
 
@@ -304,13 +304,19 @@ unicodeSymbolPiece :: Piece -> Char
 unicodeSymbolPiece (Piece c pt) = unicodeSymbol c pt
 
 charToPieceType :: Char -> Maybe PieceType
-charToPieceType c = case toUpper c of
+charToPieceType c = case c of
   'P' -> Just Pawn
   'N' -> Just Knight
   'B' -> Just Bishop
   'R' -> Just Rook
   'Q' -> Just Queen
   'K' -> Just King
+  'p' -> Just Pawn
+  'n' -> Just Knight
+  'b' -> Just Bishop
+  'r' -> Just Rook
+  'q' -> Just Queen
+  'k' -> Just King
   _   -> Nothing
 
 fromSymbol :: Char -> Maybe Piece
