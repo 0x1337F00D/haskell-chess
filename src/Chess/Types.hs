@@ -6,7 +6,6 @@ module Chess.Types where
 
 import Control.Exception (Exception)
 
-import Data.Maybe (fromMaybe)
 import Data.List (elemIndex)
 import Data.Char (toLower, toUpper)
 import qualified Data.Map as M
@@ -38,37 +37,44 @@ pieceTypes :: [PieceType]
 pieceTypes = [Pawn .. King]
 
 pieceSymbols :: M.Map PieceType Char
-pieceSymbols = M.fromList
-  [ (Pawn, 'P'), (Knight, 'N'), (Bishop, 'B')
-  , (Rook, 'R'), (Queen, 'Q'), (King, 'K')
-  ]
+pieceSymbols = M.fromList [(pt, pieceSymbol pt) | pt <- pieceTypes]
 
 pieceNames :: M.Map PieceType String
-pieceNames = M.fromList
-  [ (Pawn, "pawn"), (Knight, "knight"), (Bishop, "bishop")
-  , (Rook, "rook"), (Queen, "queen"), (King, "king")
-  ]
+pieceNames = M.fromList [(pt, pieceName pt) | pt <- pieceTypes]
 
 pieceSymbol :: PieceType -> Char
-pieceSymbol pt = fromMaybe '?' (M.lookup pt pieceSymbols)
+pieceSymbol Pawn = 'P'
+pieceSymbol Knight = 'N'
+pieceSymbol Bishop = 'B'
+pieceSymbol Rook = 'R'
+pieceSymbol Queen = 'Q'
+pieceSymbol King = 'K'
 
 pieceName :: PieceType -> String
-pieceName pt = fromMaybe "" (M.lookup pt pieceNames)
+pieceName Pawn = "pawn"
+pieceName Knight = "knight"
+pieceName Bishop = "bishop"
+pieceName Rook = "rook"
+pieceName Queen = "queen"
+pieceName King = "king"
 
 -- | Unicode symbols for pieces, keyed by color and piece type.
 unicodePieceSymbols :: M.Map (Color, PieceType) Char
-unicodePieceSymbols = M.fromList
-  [ ((White, Pawn), '♙'), ((White, Knight), '♘')
-  , ((White, Bishop), '♗'), ((White, Rook), '♖')
-  , ((White, Queen), '♕'), ((White, King), '♔')
-  , ((Black, Pawn), '♟'), ((Black, Knight), '♞')
-  , ((Black, Bishop), '♝'), ((Black, Rook), '♜')
-  , ((Black, Queen), '♛'), ((Black, King), '♚')
-  ]
+unicodePieceSymbols = M.fromList [((c, pt), unicodeSymbol c pt) | c <- colors, pt <- pieceTypes]
 
 unicodeSymbol :: Color -> PieceType -> Char
-unicodeSymbol c pt =
-  fromMaybe '?' (M.lookup (c, pt) unicodePieceSymbols)
+unicodeSymbol White Pawn = '♙'
+unicodeSymbol White Knight = '♘'
+unicodeSymbol White Bishop = '♗'
+unicodeSymbol White Rook = '♖'
+unicodeSymbol White Queen = '♕'
+unicodeSymbol White King = '♔'
+unicodeSymbol Black Pawn = '♟'
+unicodeSymbol Black Knight = '♞'
+unicodeSymbol Black Bishop = '♝'
+unicodeSymbol Black Rook = '♜'
+unicodeSymbol Black Queen = '♛'
+unicodeSymbol Black King = '♚'
 
 -- | Squares represented as integers 0..63 (a1=0).
 newtype Square = Square { unSquare :: Int }
@@ -297,6 +303,16 @@ symbol (Piece c pt) = case c of
 unicodeSymbolPiece :: Piece -> Char
 unicodeSymbolPiece (Piece c pt) = unicodeSymbol c pt
 
+charToPieceType :: Char -> Maybe PieceType
+charToPieceType c = case toUpper c of
+  'P' -> Just Pawn
+  'N' -> Just Knight
+  'B' -> Just Bishop
+  'R' -> Just Rook
+  'Q' -> Just Queen
+  'K' -> Just King
+  _   -> Nothing
+
 fromSymbol :: Char -> Maybe Piece
 fromSymbol ch = case ch of
     'P' -> Just (Piece White Pawn)
@@ -342,8 +358,6 @@ fromUci str = case splitAt 2 str of
         let (t, promoStr) = splitAt 2 tRest
         toSq <- parseSquare t
         let promo = case promoStr of
-                [c] -> lookup (toUpper c) (map swap (M.toList pieceSymbols))
+                [c] -> charToPieceType c
                 _   -> Nothing
         return $ Move (Just fromSq) (Just toSq) promo Nothing
-  where
-    swap (a,b) = (b,a)
