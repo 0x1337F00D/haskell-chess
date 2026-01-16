@@ -6,8 +6,7 @@ module Chess.Types where
 
 import Control.Exception (Exception)
 
-import Data.List (elemIndex)
-import Data.Char (toLower, toUpper)
+import Data.Char (toLower, toUpper, ord)
 import qualified Data.Map as M
 import qualified Data.Set as S
 
@@ -62,6 +61,8 @@ pieceName King = "king"
 unicodePieceSymbols :: M.Map (Color, PieceType) Char
 unicodePieceSymbols = M.fromList [((c, pt), unicodeSymbol c pt) | c <- colors, pt <- pieceTypes]
 
+-- | Get the unicode symbol for a piece.
+-- This function uses pattern matching for O(1) performance and zero allocation.
 unicodeSymbol :: Color -> PieceType -> Char
 unicodeSymbol White Pawn   = '♙'
 unicodeSymbol White Knight = '♘'
@@ -237,11 +238,16 @@ squareName (Square n) = [fileNames !! file, rankNames !! rank]
 
 -- | Parse square from algebraic notation.
 parseSquare :: String -> Maybe Square
-parseSquare [f,r] = do
-  file <- elemIndex f fileNames
-  rank <- elemIndex r rankNames
-  square (rank*8 + file)
+parseSquare [f,r] = parseSquare' f r
 parseSquare _ = Nothing
+
+parseSquare' :: Char -> Char -> Maybe Square
+parseSquare' f r = do
+  let file = ord f - ord 'a'
+      rank = ord r - ord '1'
+  if file >= 0 && file < 8 && rank >= 0 && rank < 8
+    then Just (Square (rank * 8 + file))
+    else Nothing
 
 -- | Starting FEN string for standard chess.
 startingBoardFEN :: String
@@ -352,12 +358,13 @@ uci _ = ""
 
 -- | Parse a move in long algebraic UCI form like "e2e4" or "e7e8q".
 fromUci :: String -> Maybe Move
-fromUci str = case splitAt 2 str of
-    (f,tRest) -> do
-        fromSq <- parseSquare f
-        let (t, promoStr) = splitAt 2 tRest
-        toSq <- parseSquare t
-        let promo = case promoStr of
-                [c] -> charToPieceType c
-                _   -> Nothing
-        return $ Move (Just fromSq) (Just toSq) promo Nothing
+fromUci [f1, r1, f2, r2] = do
+    fromSq <- parseSquare' f1 r1
+    toSq <- parseSquare' f2 r2
+    return $ Move (Just fromSq) (Just toSq) Nothing Nothing
+fromUci [f1, r1, f2, r2, p] = do
+    fromSq <- parseSquare' f1 r1
+    toSq <- parseSquare' f2 r2
+    promo <- charToPieceType p
+    return $ Move (Just fromSq) (Just toSq) (Just promo) Nothing
+fromUci _ = Nothing
