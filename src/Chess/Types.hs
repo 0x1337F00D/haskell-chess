@@ -63,18 +63,18 @@ unicodePieceSymbols :: M.Map (Color, PieceType) Char
 unicodePieceSymbols = M.fromList [((c, pt), unicodeSymbol c pt) | c <- colors, pt <- pieceTypes]
 
 unicodeSymbol :: Color -> PieceType -> Char
-unicodeSymbol White Pawn = '♙'
+unicodeSymbol White Pawn   = '♙'
 unicodeSymbol White Knight = '♘'
 unicodeSymbol White Bishop = '♗'
-unicodeSymbol White Rook = '♖'
-unicodeSymbol White Queen = '♕'
-unicodeSymbol White King = '♔'
-unicodeSymbol Black Pawn = '♟'
+unicodeSymbol White Rook   = '♖'
+unicodeSymbol White Queen  = '♕'
+unicodeSymbol White King   = '♔'
+unicodeSymbol Black Pawn   = '♟'
 unicodeSymbol Black Knight = '♞'
 unicodeSymbol Black Bishop = '♝'
-unicodeSymbol Black Rook = '♜'
-unicodeSymbol Black Queen = '♛'
-unicodeSymbol Black King = '♚'
+unicodeSymbol Black Rook   = '♜'
+unicodeSymbol Black Queen  = '♛'
+unicodeSymbol Black King   = '♚'
 
 -- | Squares represented as integers 0..63 (a1=0).
 newtype Square = Square { unSquare :: Int }

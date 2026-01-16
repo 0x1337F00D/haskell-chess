@@ -18,6 +18,12 @@ main = hspec $ do
     it "returns symbol for Queen" $
       pieceSymbol Queen `shouldBe` 'Q'
 
+  describe "unicodeSymbol" $ do
+    it "returns correct unicode symbol for White King" $
+      unicodeSymbol White King `shouldBe` '♔'
+    it "returns correct unicode symbol for Black Queen" $
+      unicodeSymbol Black Queen `shouldBe` '♛'
+
   describe "square parsing" $ do
     it "parses and shows a1" $
       fmap show (parseSquare "a1") `shouldBe` Just "a1"
