@@ -7,6 +7,7 @@ import Chess.Bitboard
 import qualified Chess.SquareSet as SS
 import qualified Chess.Board.Base as Board
 import qualified Chess.Board.GameState as GS
+import qualified Chess.Board.Fen as Fen
 
 main :: IO ()
 main = hspec $ do
@@ -169,3 +170,36 @@ main = hspec $ do
       GS.canCastleKingside gs' White `shouldBe` False
       GS.canCastleQueenside gs' White `shouldBe` True
       GS.canCastleKingside gs' Black `shouldBe` True
+
+  describe "Board.Fen" $ do
+    it "parses starting FEN correctly" $ do
+      let res = Fen.parseFen startingFEN
+      res `shouldNotBe` Nothing
+      let Just (b, gs) = res
+      -- Check a few pieces
+      Board.pieceAt b E1 `shouldBe` Just (Piece White King)
+      Board.pieceAt b E8 `shouldBe` Just (Piece Black King)
+      Board.pieceAt b A1 `shouldBe` Just (Piece White Rook)
+      -- Check game state
+      GS.turn gs `shouldBe` White
+      GS.castlingRights gs `shouldBe` GS.allCastling
+      GS.epSquare gs `shouldBe` Nothing
+
+    it "roundtrips starting FEN" $ do
+      let fenStr = startingFEN
+          Just (b, gs) = Fen.parseFen fenStr
+          fenStr' = Fen.fen b gs
+      fenStr' `shouldBe` fenStr
+
+    it "parses custom FEN with EP and castling" $ do
+      let fenStr = "rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR b KQkq e6 0 2"
+      let Just (b, gs) = Fen.parseFen fenStr
+      GS.turn gs `shouldBe` Black
+      GS.epSquare gs `shouldBe` Just E6
+      GS.fullmoveNumber gs `shouldBe` 2
+
+    it "roundtrips custom FEN" $ do
+      let fenStr = "rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR b KQkq e6 0 2"
+      let Just (b, gs) = Fen.parseFen fenStr
+      let fenStr' = Fen.fen b gs
+      fenStr' `shouldBe` fenStr
