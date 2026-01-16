@@ -110,5 +110,6 @@ test-suite haskell-chess-test
         base ^>=4.17.2.0,
         haskell-chess,
         hspec >= 2.11,
-        containers >= 0.6
+        containers >= 0.6,
+        vector >= 0.13
 
