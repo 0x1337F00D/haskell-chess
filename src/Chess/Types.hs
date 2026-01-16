@@ -8,7 +8,6 @@ import Control.Exception (Exception)
 
 import Data.List (elemIndex)
 import Data.Char (toLower, toUpper)
-import qualified Data.Map as M
 import qualified Data.Set as S
 
 -- | Color of a chess piece or side to move.
@@ -36,12 +35,6 @@ data PieceType
 pieceTypes :: [PieceType]
 pieceTypes = [Pawn .. King]
 
-pieceSymbols :: M.Map PieceType Char
-pieceSymbols = M.fromList [(pt, pieceSymbol pt) | pt <- pieceTypes]
-
-pieceNames :: M.Map PieceType String
-pieceNames = M.fromList [(pt, pieceName pt) | pt <- pieceTypes]
-
 pieceSymbol :: PieceType -> Char
 pieceSymbol Pawn = 'P'
 pieceSymbol Knight = 'N'
@@ -57,10 +50,6 @@ pieceName Bishop = "bishop"
 pieceName Rook = "rook"
 pieceName Queen = "queen"
 pieceName King = "king"
-
--- | Unicode symbols for pieces, keyed by color and piece type.
-unicodePieceSymbols :: M.Map (Color, PieceType) Char
-unicodePieceSymbols = M.fromList [((c, pt), unicodeSymbol c pt) | c <- colors, pt <- pieceTypes]
 
 unicodeSymbol :: Color -> PieceType -> Char
 unicodeSymbol White Pawn   = '♙'
