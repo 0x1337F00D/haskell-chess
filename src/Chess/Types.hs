@@ -7,7 +7,7 @@ module Chess.Types where
 import Control.Exception (Exception)
 
 import Data.List (elemIndex)
-import Data.Char (toLower, toUpper)
+import Data.Char (toLower, toUpper, chr, ord)
 import qualified Data.Map as M
 import qualified Data.Set as S
 
@@ -230,7 +230,7 @@ rankNames = ['1'..'8']
 
 -- | Convert square to algebraic notation (e.g. a1).
 squareName :: Square -> String
-squareName (Square n) = [fileNames !! file, rankNames !! rank]
+squareName (Square n) = [chr (ord 'a' + file), chr (ord '1' + rank)]
   where
     file = n `mod` 8
     rank = n `div` 8
