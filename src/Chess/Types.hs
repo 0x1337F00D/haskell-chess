@@ -6,6 +6,7 @@ module Chess.Types where
 
 import Control.Exception (Exception)
 
+import Data.Maybe (fromMaybe)
 import Data.List (elemIndex)
 import Data.Char (toLower, toUpper, chr, ord)
 import qualified Data.Map as M
@@ -36,41 +37,38 @@ data PieceType
 pieceTypes :: [PieceType]
 pieceTypes = [Pawn .. King]
 
+pieceSymbols :: M.Map PieceType Char
+pieceSymbols = M.fromList
+  [ (Pawn, 'P'), (Knight, 'N'), (Bishop, 'B')
+  , (Rook, 'R'), (Queen, 'Q'), (King, 'K')
+  ]
+
+pieceNames :: M.Map PieceType String
+pieceNames = M.fromList
+  [ (Pawn, "pawn"), (Knight, "knight"), (Bishop, "bishop")
+  , (Rook, "rook"), (Queen, "queen"), (King, "king")
+  ]
+
 pieceSymbol :: PieceType -> Char
-pieceSymbol Pawn = 'P'
-pieceSymbol Knight = 'N'
-pieceSymbol Bishop = 'B'
-pieceSymbol Rook = 'R'
-pieceSymbol Queen = 'Q'
-pieceSymbol King = 'K'
+pieceSymbol pt = fromMaybe '?' (M.lookup pt pieceSymbols)
 
 pieceName :: PieceType -> String
-pieceName Pawn = "pawn"
-pieceName Knight = "knight"
-pieceName Bishop = "bishop"
-pieceName Rook = "rook"
-pieceName Queen = "queen"
-pieceName King = "king"
+pieceName pt = fromMaybe "" (M.lookup pt pieceNames)
 
 -- | Unicode symbols for pieces, keyed by color and piece type.
 unicodePieceSymbols :: M.Map (Color, PieceType) Char
-unicodePieceSymbols = M.fromList [((c, pt), unicodeSymbol c pt) | c <- colors, pt <- pieceTypes]
+unicodePieceSymbols = M.fromList
+  [ ((White, Pawn), '♙'), ((White, Knight), '♘')
+  , ((White, Bishop), '♗'), ((White, Rook), '♖')
+  , ((White, Queen), '♕'), ((White, King), '♔')
+  , ((Black, Pawn), '♟'), ((Black, Knight), '♞')
+  , ((Black, Bishop), '♝'), ((Black, Rook), '♜')
+  , ((Black, Queen), '♛'), ((Black, King), '♚')
+  ]
 
--- | Get the unicode symbol for a piece.
--- This function uses pattern matching for O(1) performance and zero allocation.
 unicodeSymbol :: Color -> PieceType -> Char
-unicodeSymbol White Pawn   = '♙'
-unicodeSymbol White Knight = '♘'
-unicodeSymbol White Bishop = '♗'
-unicodeSymbol White Rook   = '♖'
-unicodeSymbol White Queen  = '♕'
-unicodeSymbol White King   = '♔'
-unicodeSymbol Black Pawn   = '♟'
-unicodeSymbol Black Knight = '♞'
-unicodeSymbol Black Bishop = '♝'
-unicodeSymbol Black Rook   = '♜'
-unicodeSymbol Black Queen  = '♛'
-unicodeSymbol Black King   = '♚'
+unicodeSymbol c pt =
+  fromMaybe '?' (M.lookup (c, pt) unicodePieceSymbols)
 
 -- | Squares represented as integers 0..63 (a1=0).
 newtype Square = Square { unSquare :: Int }
@@ -233,16 +231,11 @@ squareName (Square n) = [chr (ord 'a' + file), chr (ord '1' + rank)]
 
 -- | Parse square from algebraic notation.
 parseSquare :: String -> Maybe Square
-parseSquare [f,r] = parseSquare' f r
+parseSquare [f,r] = do
+  file <- elemIndex f fileNames
+  rank <- elemIndex r rankNames
+  square (rank*8 + file)
 parseSquare _ = Nothing
-
-parseSquare' :: Char -> Char -> Maybe Square
-parseSquare' f r = do
-  let file = ord f - ord 'a'
-      rank = ord r - ord '1'
-  if file >= 0 && file < 8 && rank >= 0 && rank < 8
-    then Just (Square (rank * 8 + file))
-    else Nothing
 
 -- | Starting FEN string for standard chess.
 startingBoardFEN :: String
@@ -315,20 +308,10 @@ charToPieceType c = case toUpper c of
   _   -> Nothing
 
 fromSymbol :: Char -> Maybe Piece
-fromSymbol ch = case ch of
-    'P' -> Just (Piece White Pawn)
-    'N' -> Just (Piece White Knight)
-    'B' -> Just (Piece White Bishop)
-    'R' -> Just (Piece White Rook)
-    'Q' -> Just (Piece White Queen)
-    'K' -> Just (Piece White King)
-    'p' -> Just (Piece Black Pawn)
-    'n' -> Just (Piece Black Knight)
-    'b' -> Just (Piece Black Bishop)
-    'r' -> Just (Piece Black Rook)
-    'q' -> Just (Piece Black Queen)
-    'k' -> Just (Piece Black King)
-    _   -> Nothing
+fromSymbol ch = do
+    pt <- charToPieceType ch
+    let col = if ch `elem` ['a'..'z'] then Black else White
+    return (Piece col pt)
 
 -- | Representation of a move. Only basic coordinates and optional
 -- promotion or drop piece are stored.
@@ -353,13 +336,12 @@ uci _ = ""
 
 -- | Parse a move in long algebraic UCI form like "e2e4" or "e7e8q".
 fromUci :: String -> Maybe Move
-fromUci [f1, r1, f2, r2] = do
-    fromSq <- parseSquare' f1 r1
-    toSq <- parseSquare' f2 r2
-    return $ Move (Just fromSq) (Just toSq) Nothing Nothing
-fromUci [f1, r1, f2, r2, p] = do
-    fromSq <- parseSquare' f1 r1
-    toSq <- parseSquare' f2 r2
-    promo <- charToPieceType p
-    return $ Move (Just fromSq) (Just toSq) (Just promo) Nothing
-fromUci _ = Nothing
+fromUci str = case splitAt 2 str of
+    (f,tRest) -> do
+        fromSq <- parseSquare f
+        let (t, promoStr) = splitAt 2 tRest
+        toSq <- parseSquare t
+        let promo = case promoStr of
+                [c] -> charToPieceType c
+                _   -> Nothing
+        return $ Move (Just fromSq) (Just toSq) promo Nothing
