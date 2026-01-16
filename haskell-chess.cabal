@@ -62,6 +62,7 @@ library
                     , Chess.Bitboard
                     , Chess.SquareSet
                     , Chess.Board.Base
+                    , Chess.Board.GameState
 
     -- Modules included in this library but not exported.
     other-modules:     MyLib
