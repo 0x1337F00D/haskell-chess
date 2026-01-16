@@ -61,6 +61,8 @@ pieceName King = "king"
 unicodePieceSymbols :: M.Map (Color, PieceType) Char
 unicodePieceSymbols = M.fromList [((c, pt), unicodeSymbol c pt) | c <- colors, pt <- pieceTypes]
 
+-- | Get the unicode symbol for a piece.
+-- This function uses pattern matching for O(1) performance and zero allocation.
 unicodeSymbol :: Color -> PieceType -> Char
 unicodeSymbol White Pawn   = '♙'
 unicodeSymbol White Knight = '♘'
