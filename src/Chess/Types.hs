@@ -35,12 +35,6 @@ data PieceType
 pieceTypes :: [PieceType]
 pieceTypes = [Pawn .. King]
 
-pieceSymbols :: M.Map PieceType Char
-pieceSymbols = M.fromList [(pt, pieceSymbol pt) | pt <- pieceTypes]
-
-pieceNames :: M.Map PieceType String
-pieceNames = M.fromList [(pt, pieceName pt) | pt <- pieceTypes]
-
 pieceSymbol :: PieceType -> Char
 pieceSymbol Pawn = 'P'
 pieceSymbol Knight = 'N'
