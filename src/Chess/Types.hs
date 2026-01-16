@@ -297,13 +297,21 @@ symbol (Piece c pt) = case c of
 unicodeSymbolPiece :: Piece -> Char
 unicodeSymbolPiece (Piece c pt) = unicodeSymbol c pt
 
+charToPieceType :: Char -> Maybe PieceType
+charToPieceType c = case toUpper c of
+  'P' -> Just Pawn
+  'N' -> Just Knight
+  'B' -> Just Bishop
+  'R' -> Just Rook
+  'Q' -> Just Queen
+  'K' -> Just King
+  _   -> Nothing
+
 fromSymbol :: Char -> Maybe Piece
 fromSymbol ch = do
-    pt <- lookup (toUpper ch) (map swap (M.toList pieceSymbols))
+    pt <- charToPieceType ch
     let col = if ch `elem` ['a'..'z'] then Black else White
     return (Piece col pt)
-  where
-    swap (a,b) = (b,a)
 
 -- | Representation of a move. Only basic coordinates and optional
 -- promotion or drop piece are stored.
@@ -334,8 +342,6 @@ fromUci str = case splitAt 2 str of
         let (t, promoStr) = splitAt 2 tRest
         toSq <- parseSquare t
         let promo = case promoStr of
-                [c] -> lookup (toUpper c) (map swap (M.toList pieceSymbols))
+                [c] -> charToPieceType c
                 _   -> Nothing
         return $ Move (Just fromSq) (Just toSq) promo Nothing
-  where
-    swap (a,b) = (b,a)
