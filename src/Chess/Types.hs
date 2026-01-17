@@ -8,7 +8,7 @@ import Control.Exception (Exception)
 
 import Data.Maybe (fromMaybe)
 import Data.List (elemIndex)
-import Data.Char (toLower, toUpper, chr, ord)
+import Data.Char (toLower, chr, ord)
 import qualified Data.Map as M
 import qualified Data.Set as S
 
@@ -258,6 +258,8 @@ data Termination
     = Normal
     | Checkmate
     | Stalemate
+    | FiftyMoves
+    | InsufficientMaterial
     | Timeout
     | Resignation
     deriving (Eq, Show)
