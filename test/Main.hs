@@ -1,6 +1,7 @@
 module Main (main) where
 
 import Test.Hspec
+import qualified ChessSpec
 import Data.Bits
 import Chess.Types
 import Chess.Bitboard
@@ -15,6 +16,7 @@ import qualified Chess.Board.San as San
 
 main :: IO ()
 main = hspec $ do
+  ChessSpec.spec
   describe "colorName" $ do
     it "returns white for White" $
       colorName White `shouldBe` "white"
