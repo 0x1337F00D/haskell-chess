@@ -70,6 +70,7 @@ library
                     , Chess.Board.San
                     , Chess.Board
                     , Chess
+                    , Chess.Pgn
 
     -- Modules included in this library but not exported.
     other-modules:     MyLib
@@ -108,6 +109,8 @@ test-suite haskell-chess-test
                     , Board.ValidationSpec
                     , Board.UciSpec
                     , Board.SanSpec
+                    , PerftSpec
+                    , PgnSpec
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:

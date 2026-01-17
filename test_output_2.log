@@ -1,0 +1,18 @@
+Build profile: -w ghc-9.4.7 -O1
+In order, the following will be built (use -v for more details):
+ - haskell-chess-0.1.0.0 (test:haskell-chess-test) (file test/PgnSpec.hs changed)
+Preprocessing test suite 'haskell-chess-test' for haskell-chess-0.1.0.0..
+Building test suite 'haskell-chess-test' for haskell-chess-0.1.0.0..
+[11 of 14] Compiling PgnSpec          ( test/PgnSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/t/haskell-chess-test/build/haskell-chess-test/haskell-chess-test-tmp/PgnSpec.o ) [Source file changed]
+
+test/PgnSpec.hs:21:17: error:
+    Ambiguous occurrence ‘result’
+    It could refer to
+       either ‘Chess.Board.result’,
+              imported from ‘Chess.Board’ at test/PgnSpec.hs:7:1-18
+              (and originally defined in ‘Chess.Types’)
+           or the field ‘result’ of record ‘Game’,
+              imported from ‘Chess.Pgn’ at test/PgnSpec.hs:8:1-16
+   |
+21 |                 result g `shouldBe` "1-0"
+   |                 ^^^^^^
