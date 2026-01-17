@@ -1,0 +1,135 @@
+module Chess.Board.Fen where
+
+import Control.Monad (foldM, guard)
+import Data.Char (isDigit, ord)
+import Data.List (intercalate)
+import Data.Bits ((.|.), testBit)
+import Text.Read (readMaybe)
+
+import Chess.Types
+import Chess.Bitboard
+import Chess.Board.Base (Board)
+import qualified Chess.Board.Base as Board
+import Chess.Board.GameState (GameState(..), CastlingRights)
+import qualified Chess.Board.GameState as GS
+
+-- | Parse a FEN string into a Board and GameState.
+parseFen :: String -> Maybe (Board, GameState)
+parseFen s = do
+  let parts = words s
+  guard (length parts >= 4)
+  let [boardStr, turnStr, castlingStr, epStr] = take 4 parts
+      halfmoveStr = if length parts > 4 then parts !! 4 else "0"
+      fullmoveStr = if length parts > 5 then parts !! 5 else "1"
+
+  board <- parseBoard boardStr
+  turnVal <- parseTurn turnStr
+  castling <- parseCastling castlingStr
+  ep <- parseEp epStr
+  halfmove <- readMaybe halfmoveStr
+  fullmove <- readMaybe fullmoveStr
+
+  let gs = GameState
+        { turn = turnVal
+        , castlingRights = castling
+        , epSquare = ep
+        , halfmoveClock = halfmove
+        , fullmoveNumber = fullmove
+        }
+  return (board, gs)
+
+-- | Serialize Board and GameState to FEN string.
+fen :: Board -> GameState -> String
+fen board gs = unwords
+  [ showBoard board
+  , showTurn (turn gs)
+  , showCastling (castlingRights gs)
+  , showEp (epSquare gs)
+  , show (halfmoveClock gs)
+  , show (fullmoveNumber gs)
+  ]
+
+-- Helper functions for parsing
+
+parseBoard :: String -> Maybe Board
+parseBoard s = do
+  let ranks = splitOn '/' s
+  if length ranks /= 8 then Nothing else do
+    let rankSquares = zip [7,6..0] ranks
+    foldM addRank Board.empty rankSquares
+  where
+    addRank b (r, str) = do
+      pieces <- parseRank r str
+      return $ foldl (\acc (sq, p) -> Board.putPiece acc sq p) b pieces
+
+    parseRank r str = go 0 str
+      where
+        go _ [] = Just []
+        go f (c:cs)
+          | f > 7 = Nothing -- too many files
+          | isDigit c =
+              let n = ord c - ord '0'
+              in if n < 1 || n > 8 then Nothing else go (f + n) cs
+          | otherwise = case fromSymbol c of
+              Just p -> do
+                rest <- go (f+1) cs
+                return $ (Square (r*8 + f), p) : rest
+              Nothing -> Nothing
+
+-- | Split a list by a delimiter.
+splitOn :: Eq a => a -> [a] -> [[a]]
+splitOn delimiter = foldr f [[]]
+  where f c l@(x:xs) | c == delimiter = [] : l
+                     | otherwise = (c:x) : xs
+        f _ [] = []
+
+parseTurn :: String -> Maybe Color
+parseTurn "w" = Just White
+parseTurn "b" = Just Black
+parseTurn _ = Nothing
+
+parseCastling :: String -> Maybe CastlingRights
+parseCastling "-" = Just GS.noCastling
+parseCastling s = foldM addRight GS.noCastling s
+  where
+    addRight acc 'K' = Just (acc .|. BB_H1)
+    addRight acc 'Q' = Just (acc .|. BB_A1)
+    addRight acc 'k' = Just (acc .|. BB_H8)
+    addRight acc 'q' = Just (acc .|. BB_A8)
+    addRight _ _ = Nothing
+
+parseEp :: String -> Maybe (Maybe Square)
+parseEp "-" = Just Nothing
+parseEp s = Just (parseSquare s)
+
+-- Helper functions for serialization
+
+showBoard :: Board -> String
+showBoard b = intercalate "/" [ showRank r | r <- [7,6..0] ]
+  where
+    showRank r = flushEmpty 0 [0..7]
+      where
+        flushEmpty n [] = if n > 0 then show n else ""
+        flushEmpty n (f:fs) =
+          case Board.pieceAt b (Square (r*8 + f)) of
+            Nothing -> flushEmpty (n+1) fs
+            Just p -> (if n > 0 then show n else "") ++ [symbol p] ++ flushEmpty 0 fs
+
+showTurn :: Color -> String
+showTurn White = "w"
+showTurn Black = "b"
+
+showCastling :: CastlingRights -> String
+showCastling cr
+  | cr == GS.noCastling = "-"
+  | otherwise =
+      let k = if testBit cr (unSquare H1) then "K" else ""
+          q = if testBit cr (unSquare A1) then "Q" else ""
+          bk = if testBit cr (unSquare H8) then "k" else ""
+          bq = if testBit cr (unSquare A8) then "q" else ""
+          res = k ++ q ++ bk ++ bq
+      in if null res then "-" else res
+
+showEp :: Maybe Square -> String
+showEp Nothing = "-"
+showEp (Just sq) = squareName sq
