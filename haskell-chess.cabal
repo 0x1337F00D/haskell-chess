@@ -74,7 +74,8 @@ library
     -- Other library packages from which modules are imported.
     build-depends:
         base ^>=4.17.2.0,
-        containers >= 0.6
+        containers >= 0.6,
+        vector >= 0.13
 
     -- Directories containing source files.
     hs-source-dirs:   src
