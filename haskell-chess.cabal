@@ -98,6 +98,16 @@ test-suite haskell-chess-test
 
     -- Modules included in this executable, other than Main.
     other-modules:    ChessSpec
+                    , TypesSpec
+                    , BitboardSpec
+                    , SquareSetSpec
+                    , Board.BaseSpec
+                    , Board.GameStateSpec
+                    , Board.FenSpec
+                    , Board.MoveGenSpec
+                    , Board.ValidationSpec
+                    , Board.UciSpec
+                    , Board.SanSpec
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
