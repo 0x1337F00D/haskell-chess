@@ -13,6 +13,8 @@ import qualified Board.MoveGenSpec
 import qualified Board.ValidationSpec
 import qualified Board.UciSpec
 import qualified Board.SanSpec
+import qualified PerftSpec
+import qualified PgnSpec
 
 main :: IO ()
 main = hspec $ do
@@ -27,3 +29,5 @@ main = hspec $ do
   Board.ValidationSpec.spec
   Board.UciSpec.spec
   Board.SanSpec.spec
+  PerftSpec.spec
+  -- PgnSpec.spec
