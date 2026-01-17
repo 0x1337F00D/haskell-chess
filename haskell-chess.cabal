@@ -65,6 +65,7 @@ library
                     , Chess.Board.GameState
                     , Chess.Board.Fen
                     , Chess.Board.MoveGen
+                    , Chess.Board.Validation
 
     -- Modules included in this library but not exported.
     other-modules:     MyLib
