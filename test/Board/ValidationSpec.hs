@@ -84,3 +84,27 @@ spec = do
       let fenStr = "8/8/8/8/8/4P3/3k4/4K3 w - - 0 1"
       let (Just (b, _)) = Fen.parseFen fenStr
       Validation.hasInsufficientMaterial b `shouldBe` False
+
+    it "detects insufficient material K+N vs K+B" $ do
+      -- White Knight, Black Bishop
+      let fenStr = "8/8/8/8/8/5b2/3k2N1/4K3 w - - 0 1"
+      let (Just (b, _)) = Fen.parseFen fenStr
+      Validation.hasInsufficientMaterial b `shouldBe` True
+
+    it "detects insufficient material K+B vs K+N" $ do
+      -- White Bishop, Black Knight
+      let fenStr = "8/8/8/8/8/5n2/3k2B1/4K3 w - - 0 1"
+      let (Just (b, _)) = Fen.parseFen fenStr
+      Validation.hasInsufficientMaterial b `shouldBe` True
+
+    it "detects SUFFICIENT material K+N vs K+N" $ do
+      -- White Knight, Black Knight
+      let fenStr = "8/8/8/8/8/5n2/3k2N1/4K3 w - - 0 1"
+      let (Just (b, _)) = Fen.parseFen fenStr
+      Validation.hasInsufficientMaterial b `shouldBe` False
+
+    it "detects SUFFICIENT material K+N+N vs K" $ do
+      -- 2 White Knights
+      let fenStr = "8/8/8/8/8/5N2/3k2N1/4K3 w - - 0 1"
+      let (Just (b, _)) = Fen.parseFen fenStr
+      Validation.hasInsufficientMaterial b `shouldBe` False
