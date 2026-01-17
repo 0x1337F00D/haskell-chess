@@ -66,6 +66,8 @@ library
                     , Chess.Board.Fen
                     , Chess.Board.MoveGen
                     , Chess.Board.Validation
+                    , Chess.Board.Uci
+                    , Chess.Board.San
 
     -- Modules included in this library but not exported.
     other-modules:     MyLib
