@@ -9,6 +9,8 @@ import Control.Exception (Exception)
 import Data.Maybe (fromMaybe)
 import Data.List (elemIndex)
 import Data.Char (toLower, chr, ord)
+import Data.Word (Word64)
+import Data.Bits
 import qualified Data.Map as M
 import qualified Data.Set as S
 
@@ -188,25 +190,36 @@ squareManhattanDistance a b =
 
 -- | Minimum number of knight moves between two squares using BFS.
 squareKnightDistance :: Square -> Square -> Int
-squareKnightDistance start goal = bfs S.empty [(sf,sr)] 0
+squareKnightDistance (Square start) (Square goal)
+  | start == goal = 0
+  | otherwise = bfs (bit start :: Word64) (bit start :: Word64) 0
   where
-    (sf, sr) = (squareFile start, squareRank start)
-    target = (squareFile goal, squareRank goal)
+    targetBB = bit goal :: Word64
 
-    bfs _ [] _ = 0  -- should not happen on an 8x8 board
     bfs visited frontier d
-      | target `elem` frontier = d
+      | (frontier .&. targetBB) /= 0 = d
+      | frontier == 0 = 0
       | otherwise =
-          let visited' = S.union visited (S.fromList frontier)
-              next = S.toList . S.fromList $
-                       [ p | pos <- frontier, p <- knightSteps pos, not (S.member p visited') ]
-          in bfs visited' next (d+1)
+          let notA  = 0xfefefefefefefefe
+              notB  = 0xfdfdfdfdfdfdfdfd
+              notH  = 0x7f7f7f7f7f7f7f7f
+              notG  = 0xbfbfbfbfbfbfbfbf
+              notAB = 0xfcfcfcfcfcfcfcfc
+              notGH = 0x3f3f3f3f3f3f3f3f
 
-    knightSteps (f,r) =
-      filter onBoard [ (f+1,r+2), (f+2,r+1), (f+2,r-1), (f+1,r-2)
-                     , (f-1,r-2), (f-2,r-1), (f-2,r+1), (f-1,r+2) ]
+              nextFrontierPotential =
+                  ((frontier `shiftL` 17) .&. notA) .|.
+                  ((frontier `shiftL` 15) .&. notH) .|.
+                  ((frontier `shiftL` 10) .&. notAB) .|.
+                  ((frontier `shiftL` 6)  .&. notGH) .|.
+                  ((frontier `shiftR` 17) .&. notH) .|.
+                  ((frontier `shiftR` 15) .&. notA) .|.
+                  ((frontier `shiftR` 10) .&. notGH) .|.
+                  ((frontier `shiftR` 6)  .&. notAB)
 
-    onBoard (f,r) = f >= 0 && f < 8 && r >= 0 && r < 8
+              visited' = visited .|. frontier
+              frontier' = nextFrontierPotential .&. complement visited'
+          in bfs visited' frontier' (d+1)
 
 
 squareFile :: Square -> Int
