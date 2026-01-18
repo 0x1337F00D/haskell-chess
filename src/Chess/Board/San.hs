@@ -111,7 +111,7 @@ rankChar :: Int -> Char
 rankChar r = rankNames !! r
 
 isEpCapture :: Board -> GameState -> Move -> Bool
-isEpCapture b gs (Move (Just from) (Just to) _ _) =
+isEpCapture b _ (Move (Just from) (Just to) _ _) =
     case pieceAt b from of
         Just (Piece _ Pawn) ->
              case pieceAt b to of
@@ -125,4 +125,30 @@ parseSan :: Board -> GameState -> String -> Maybe Move
 parseSan b gs str =
     let legal = legalMoves b gs
         cleanStr = filter (`notElem` "+#") str
-    in find (\m -> san b gs m == str || san b gs m == cleanStr) legal
+
+        matchesCandidate :: Move -> Bool
+        matchesCandidate m@(Move (Just from) (Just to) _ _) =
+             case cleanStr of
+                 "O-O" -> isKingSideCastle m
+                 "O-O-O" -> isQueenSideCastle m
+                 _ ->
+                     let (baseStr, _) = break (== '=') cleanStr
+                         targetStr = reverse $ take 2 $ reverse baseStr
+                         pt = if not (null baseStr) && head baseStr `elem` "NBRQK"
+                              then charToPieceType (head baseStr)
+                              else Just Pawn
+                     in case parseSquare targetStr of
+                         Just t -> to == t && fmap pieceType (pieceAt b from) == pt
+                         Nothing -> True
+        matchesCandidate _ = False
+
+        isKingSideCastle (Move (Just f) (Just t) _ _) =
+            fmap pieceType (pieceAt b f) == Just King && (squareFile t - squareFile f == 2)
+        isKingSideCastle _ = False
+
+        isQueenSideCastle (Move (Just f) (Just t) _ _) =
+            fmap pieceType (pieceAt b f) == Just King && (squareFile f - squareFile t == 2)
+        isQueenSideCastle _ = False
+
+        candidates = filter matchesCandidate legal
+    in find (\m -> san b gs m == str || san b gs m == cleanStr) candidates
