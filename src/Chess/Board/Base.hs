@@ -2,7 +2,6 @@
 module Chess.Board.Base where
 
 import Data.Bits ((.|.), (.&.), testBit, setBit, clearBit)
-import Data.List (foldl')
 
 import Chess.Types
 import Chess.Bitboard
@@ -21,11 +20,14 @@ data Board = Board
   , blackRooks   :: !Bitboard
   , blackQueens  :: !Bitboard
   , blackKings   :: !Bitboard
+  , occupiedWhite :: !Bitboard
+  , occupiedBlack :: !Bitboard
+  , occupiedTotal :: !Bitboard
   } deriving (Eq, Show)
 
 -- | An empty board.
 empty :: Board
-empty = Board 0 0 0 0 0 0 0 0 0 0 0 0
+empty = Board 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 
 -- | Get the bitboard for a specific piece type and color.
 pieceBitboard :: Board -> Color -> PieceType -> Bitboard
@@ -44,35 +46,45 @@ pieceBitboard b Black King   = blackKings b
 
 -- | Set the bitboard for a specific piece type and color.
 setPieceBitboard :: Board -> Color -> PieceType -> Bitboard -> Board
-setPieceBitboard b White Pawn   bb = b { whitePawns   = bb }
-setPieceBitboard b White Knight bb = b { whiteKnights = bb }
-setPieceBitboard b White Bishop bb = b { whiteBishops = bb }
-setPieceBitboard b White Rook   bb = b { whiteRooks   = bb }
-setPieceBitboard b White Queen  bb = b { whiteQueens  = bb }
-setPieceBitboard b White King   bb = b { whiteKings   = bb }
-setPieceBitboard b Black Pawn   bb = b { blackPawns   = bb }
-setPieceBitboard b Black Knight bb = b { blackKnights = bb }
-setPieceBitboard b Black Bishop bb = b { blackBishops = bb }
-setPieceBitboard b Black Rook   bb = b { blackRooks   = bb }
-setPieceBitboard b Black Queen  bb = b { blackQueens  = bb }
-setPieceBitboard b Black King   bb = b { blackKings   = bb }
+setPieceBitboard b c pt bb = updateOccupancy $ case (c, pt) of
+  (White, Pawn)   -> b { whitePawns   = bb }
+  (White, Knight) -> b { whiteKnights = bb }
+  (White, Bishop) -> b { whiteBishops = bb }
+  (White, Rook)   -> b { whiteRooks   = bb }
+  (White, Queen)  -> b { whiteQueens  = bb }
+  (White, King)   -> b { whiteKings   = bb }
+  (Black, Pawn)   -> b { blackPawns   = bb }
+  (Black, Knight) -> b { blackKnights = bb }
+  (Black, Bishop) -> b { blackBishops = bb }
+  (Black, Rook)   -> b { blackRooks   = bb }
+  (Black, Queen)  -> b { blackQueens  = bb }
+  (Black, King)   -> b { blackKings   = bb }
+
+-- | Update cached occupancy bitboards.
+updateOccupancy :: Board -> Board
+updateOccupancy b =
+  let white = whitePawns b .|. whiteKnights b .|. whiteBishops b .|. whiteRooks b .|. whiteQueens b .|. whiteKings b
+      black = blackPawns b .|. blackKnights b .|. blackBishops b .|. blackRooks b .|. blackQueens b .|. blackKings b
+  in b { occupiedWhite = white, occupiedBlack = black, occupiedTotal = white .|. black }
 
 -- | Get the piece at a square, if any.
 pieceAt :: Board -> Square -> Maybe Piece
 pieceAt b sq
-  | testBit (whitePawns b) i   = Just (Piece White Pawn)
-  | testBit (whiteKnights b) i = Just (Piece White Knight)
-  | testBit (whiteBishops b) i = Just (Piece White Bishop)
-  | testBit (whiteRooks b) i   = Just (Piece White Rook)
-  | testBit (whiteQueens b) i  = Just (Piece White Queen)
-  | testBit (whiteKings b) i   = Just (Piece White King)
-  | testBit (blackPawns b) i   = Just (Piece Black Pawn)
-  | testBit (blackKnights b) i = Just (Piece Black Knight)
-  | testBit (blackBishops b) i = Just (Piece Black Bishop)
-  | testBit (blackRooks b) i   = Just (Piece Black Rook)
-  | testBit (blackQueens b) i  = Just (Piece Black Queen)
-  | testBit (blackKings b) i   = Just (Piece Black King)
-  | otherwise = Nothing
+  | not (testBit (occupiedTotal b) i) = Nothing
+  | testBit (occupiedWhite b) i =
+      if testBit (whitePawns b) i then Just (Piece White Pawn)
+      else if testBit (whiteKnights b) i then Just (Piece White Knight)
+      else if testBit (whiteBishops b) i then Just (Piece White Bishop)
+      else if testBit (whiteRooks b) i then Just (Piece White Rook)
+      else if testBit (whiteQueens b) i then Just (Piece White Queen)
+      else Just (Piece White King)
+  | otherwise =
+      if testBit (blackPawns b) i then Just (Piece Black Pawn)
+      else if testBit (blackKnights b) i then Just (Piece Black Knight)
+      else if testBit (blackBishops b) i then Just (Piece Black Bishop)
+      else if testBit (blackRooks b) i then Just (Piece Black Rook)
+      else if testBit (blackQueens b) i then Just (Piece Black Queen)
+      else Just (Piece Black King)
   where i = unSquare sq
 
 -- | Get the color of the piece at a square, if any.
@@ -102,21 +114,20 @@ removePieceAt b sq = b
   , blackRooks   = clearBit (blackRooks b) i
   , blackQueens  = clearBit (blackQueens b) i
   , blackKings   = clearBit (blackKings b) i
+  , occupiedWhite = clearBit (occupiedWhite b) i
+  , occupiedBlack = clearBit (occupiedBlack b) i
+  , occupiedTotal = clearBit (occupiedTotal b) i
   }
   where i = unSquare sq
 
 -- | Bitboard of all pieces.
 occupied :: Board -> Bitboard
-occupied b =
-  whitePawns b .|. whiteKnights b .|. whiteBishops b .|. whiteRooks b .|. whiteQueens b .|. whiteKings b .|.
-  blackPawns b .|. blackKnights b .|. blackBishops b .|. blackRooks b .|. blackQueens b .|. blackKings b
+occupied = occupiedTotal
 
 -- | Bitboard of pieces by color.
 occupiedBy :: Board -> Color -> Bitboard
-occupiedBy b White =
-  whitePawns b .|. whiteKnights b .|. whiteBishops b .|. whiteRooks b .|. whiteQueens b .|. whiteKings b
-occupiedBy b Black =
-  blackPawns b .|. blackKnights b .|. blackBishops b .|. blackRooks b .|. blackQueens b .|. blackKings b
+occupiedBy b White = occupiedWhite b
+occupiedBy b Black = occupiedBlack b
 
 -- Attacks --------------------------------------------------------------------
 
@@ -145,3 +156,14 @@ isAttackedBy b color sq =
 oppositeColor :: Color -> Color
 oppositeColor White = Black
 oppositeColor Black = White
+
+-- | Sliding piece attack generation.
+bishopAttacks :: Square -> Bitboard -> Bitboard
+bishopAttacks sq occ =
+    rayAttacks sq 4 occ .|. rayAttacks sq 5 occ .|.
+    rayAttacks sq 6 occ .|. rayAttacks sq 7 occ
+
+rookAttacks :: Square -> Bitboard -> Bitboard
+rookAttacks sq occ =
+    rayAttacks sq 0 occ .|. rayAttacks sq 1 occ .|.
+    rayAttacks sq 2 occ .|. rayAttacks sq 3 occ
