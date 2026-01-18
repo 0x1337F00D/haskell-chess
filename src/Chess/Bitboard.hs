@@ -332,6 +332,74 @@ pawnAttacks :: Color -> Square -> Bitboard
 pawnAttacks White (Square i) = bbWhitePawnAttacks U.! i
 pawnAttacks Black (Square i) = bbBlackPawnAttacks U.! i
 
+-- Sliding Attack Generators --------------------------------------------------
+
+-- Directions indices
+-- 0: N (+8)
+-- 1: S (-8)
+-- 2: E (+1)
+-- 3: W (-1)
+-- 4: NE (+9)
+-- 5: NW (+7)
+-- 6: SE (-7)
+-- 7: SW (-9)
+
+-- | Precomputed rays for every square and 8 directions.
+-- Index = square * 8 + directionIndex
+bbRays :: U.Vector Bitboard
+bbRays = U.generate (64 * 8) $ \i ->
+    let sq = Square (i `div` 8)
+        dirIdx = i `mod` 8
+        (df, dr) = case dirIdx of
+            0 -> (0, 1)   -- N
+            1 -> (0, -1)  -- S
+            2 -> (1, 0)   -- E
+            3 -> (-1, 0)  -- W
+            4 -> (1, 1)   -- NE
+            5 -> (-1, 1)  -- NW
+            6 -> (1, -1)  -- SE
+            7 -> (-1, -1) -- SW
+            _ -> (0, 0)
+    in generateRay sq df dr
+
+generateRay :: Square -> Int -> Int -> Bitboard
+generateRay (Square i) df dr = go (f+df) (r+dr) 0
+  where
+    f = i `mod` 8
+    r = i `div` 8
+    go cf cr acc
+      | cf < 0 || cf > 7 || cr < 0 || cr > 7 = acc
+      | otherwise = go (cf+df) (cr+dr) (setBit acc (cr*8 + cf))
+
+-- | Get attacks for a sliding piece in a specific direction.
+getRayAttacks :: Square -> Int -> Bitboard -> Bitboard
+getRayAttacks (Square sq) dirIdx occ =
+    let mask = bbRays U.! (sq * 8 + dirIdx)
+        blockers = mask .&. occ
+    in if blockers == 0
+       then mask
+       else let b = if dirIdx `elem` [0, 2, 4, 5] -- Positive directions (N, E, NE, NW)
+                    then countTrailingZeros blockers -- lsb
+                    else 63 - countLeadingZeros blockers -- msb
+                blockerMask = bbRays U.! (b * 8 + dirIdx)
+            in mask `xor` blockerMask
+
+-- | Generate bishop attacks (diagonal).
+bishopAttacks :: Square -> Bitboard -> Bitboard
+bishopAttacks sq occ =
+    getRayAttacks sq 4 occ .|.
+    getRayAttacks sq 5 occ .|.
+    getRayAttacks sq 6 occ .|.
+    getRayAttacks sq 7 occ
+
+-- | Generate rook attacks (orthogonal).
+rookAttacks :: Square -> Bitboard -> Bitboard
+rookAttacks sq occ =
+    getRayAttacks sq 0 occ .|.
+    getRayAttacks sq 1 occ .|.
+    getRayAttacks sq 2 occ .|.
+    getRayAttacks sq 3 occ
+
 -- Rays ----------------------------------------------------------------------
 
 -- | Bitboard of squares in a ray from one square to another, including the

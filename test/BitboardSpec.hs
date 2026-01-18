@@ -28,3 +28,28 @@ spec = do
       pawnAttacks White E2 .&. bbFromSquare D3 `shouldBe` bbFromSquare D3
     it "black pawn attacks from E7 include D6" $
       pawnAttacks Black E7 .&. bbFromSquare D6 `shouldBe` bbFromSquare D6
+
+  describe "sliding attacks" $ do
+    it "bishop attacks from D4 (empty board)" $ do
+      let att = bishopAttacks D4 0
+      let expected = foldr (.|.) 0 $ map bbFromSquare [E5, F6, G7, H8, C5, B6, A7, E3, F2, G1, C3, B2, A1]
+      att `shouldBe` expected
+
+    it "bishop attacks from D4 with blocker at E5" $ do
+      let occ = bbFromSquare E5
+      let att = bishopAttacks D4 occ
+      let expected = foldr (.|.) 0 $ map bbFromSquare [E5, C5, B6, A7, E3, F2, G1, C3, B2, A1]
+      att `shouldBe` expected
+
+    it "rook attacks from D4 (empty board)" $ do
+      let att = rookAttacks D4 0
+      let expected = foldr (.|.) 0 $ map bbFromSquare
+            ([D5, D6, D7, D8] ++ [D3, D2, D1] ++ [E4, F4, G4, H4] ++ [C4, B4, A4])
+      att `shouldBe` expected
+
+    it "rook attacks from D4 with blocker at D6" $ do
+      let occ = bbFromSquare D6
+      let att = rookAttacks D4 occ
+      let expected = foldr (.|.) 0 $ map bbFromSquare
+            ([D5, D6] ++ [D3, D2, D1] ++ [E4, F4, G4, H4] ++ [C4, B4, A4])
+      att `shouldBe` expected

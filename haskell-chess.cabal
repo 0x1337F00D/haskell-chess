@@ -73,7 +73,7 @@ library
                     , Chess.Pgn
 
     -- Modules included in this library but not exported.
-    other-modules:     MyLib
+    -- other-modules:
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
