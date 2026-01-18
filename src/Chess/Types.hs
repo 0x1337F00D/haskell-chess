@@ -12,7 +12,6 @@ import Data.Char (toLower, chr, ord)
 import Data.Word (Word64)
 import Data.Bits
 import qualified Data.Map as M
-import qualified Data.Set as S
 
 -- | Color of a chess piece or side to move.
 data Color = White | Black
@@ -201,9 +200,7 @@ squareKnightDistance (Square start) (Square goal)
       | frontier == 0 = 0
       | otherwise =
           let notA  = 0xfefefefefefefefe
-              notB  = 0xfdfdfdfdfdfdfdfd
               notH  = 0x7f7f7f7f7f7f7f7f
-              notG  = 0xbfbfbfbfbfbfbfbf
               notAB = 0xfcfcfcfcfcfcfcfc
               notGH = 0x3f3f3f3f3f3f3f3f
 
