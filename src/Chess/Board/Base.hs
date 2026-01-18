@@ -145,27 +145,3 @@ isAttackedBy b color sq =
 oppositeColor :: Color -> Color
 oppositeColor White = Black
 oppositeColor Black = White
-
--- | Sliding piece attack generation.
-bishopAttacks :: Square -> Bitboard -> Bitboard
-bishopAttacks sq occ = foldl' (.|.) 0 [ attackRay sq dir occ | dir <- [(1,1), (1,-1), (-1,1), (-1,-1)] ]
-
-rookAttacks :: Square -> Bitboard -> Bitboard
-rookAttacks sq occ = foldl' (.|.) 0 [ attackRay sq dir occ | dir <- [(0,1), (0,-1), (1,0), (-1,0)] ]
-
--- | Generate a ray of attacks in a direction (df, dr) stopping at the first blocker.
--- The blocker is included in the bitboard.
-attackRay :: Square -> (Int, Int) -> Bitboard -> Bitboard
-attackRay (Square i) (df, dr) occ = go (f+df) (r+dr) 0
-  where
-    f = i `mod` 8
-    r = i `div` 8
-
-    go cf cr acc
-      | cf < 0 || cf > 7 || cr < 0 || cr > 7 = acc
-      | otherwise =
-          let cSq = cr*8 + cf
-              acc' = setBit acc cSq
-          in if testBit occ cSq
-             then acc' -- Hit a piece, stop (include it)
-             else go (cf+df) (cr+dr) acc'
