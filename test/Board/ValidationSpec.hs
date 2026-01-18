@@ -31,7 +31,7 @@ spec = do
       let fenStr = "rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3"
       let (Just (b, gs)) = Fen.parseFen fenStr
       Validation.isCheckmate b gs `shouldBe` True
-      Validation.outcome b gs `shouldBe` Just (Outcome Checkmate (Just Black))
+      Validation.outcome b gs [] `shouldBe` Just (Outcome Checkmate (Just Black))
 
     it "detects stalemate" $ do
       -- Stalemate position: 8/8/8/8/8/7k/7p/7K w - - 0 1
@@ -39,20 +39,28 @@ spec = do
       let (Just (b, gs)) = Fen.parseFen fenStr
       Validation.isStalemate b gs `shouldBe` True
       Validation.isCheckmate b gs `shouldBe` False
-      Validation.outcome b gs `shouldBe` Just (Outcome Stalemate Nothing)
+      Validation.outcome b gs [] `shouldBe` Just (Outcome Stalemate Nothing)
+
+    it "detects threefold repetition" $ do
+      let (Just (b, gs)) = Fen.parseFen startingFEN
+      let rep = Validation.PositionRep b (GS.turn gs) (GS.castlingRights gs) (GS.epSquare gs)
+      -- 2 repetitions in history + 1 current = 3
+      let history = [rep, rep]
+      Validation.isThreefoldRepetition b gs history `shouldBe` True
+      Validation.outcome b gs history `shouldBe` Just (Outcome ThreefoldRepetition Nothing)
 
     it "detects fifty moves" $ do
       let gs = GS.initialGameState { GS.halfmoveClock = 100 }
       Validation.isFiftyMoves gs `shouldBe` True
       -- Use starting board which has legal moves, so not stalemate
       let (Just (b, _)) = Fen.parseFen startingFEN
-      Validation.outcome b gs `shouldBe` Just (Outcome FiftyMoves Nothing)
+      Validation.outcome b gs [] `shouldBe` Just (Outcome FiftyMoves Nothing)
 
     it "detects insufficient material K vs K" $ do
       let fenStr = "8/8/8/8/8/8/3k4/4K3 w - - 0 1"
       let (Just (b, gs)) = Fen.parseFen fenStr
       Validation.hasInsufficientMaterial b `shouldBe` True
-      Validation.outcome b gs `shouldBe` Just (Outcome InsufficientMaterial Nothing)
+      Validation.outcome b gs [] `shouldBe` Just (Outcome InsufficientMaterial Nothing)
 
     it "detects insufficient material K+N vs K" $ do
       let fenStr = "8/8/8/8/8/5n2/3k4/4K3 w - - 0 1"

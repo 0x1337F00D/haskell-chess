@@ -61,6 +61,8 @@ parseTokenContent :: ReadP Token
 parseTokenContent =
     (parseComment >> return Comment)
     <++ (parseRav >> return Rav)
+    <++ (parseEscapeLine >> return Comment)
+    <++ (parseLineComment >> return Comment)
     <++ parseRealToken
 
 parseComment :: ReadP ()
@@ -68,6 +70,18 @@ parseComment = do
     _ <- char '{'
     _ <- munch (\c -> c /= '}')
     _ <- char '}'
+    return ()
+
+parseEscapeLine :: ReadP ()
+parseEscapeLine = do
+    _ <- char '%'
+    _ <- munch (\c -> c /= '\n')
+    return ()
+
+parseLineComment :: ReadP ()
+parseLineComment = do
+    _ <- char ';'
+    _ <- munch (\c -> c /= '\n')
     return ()
 
 parseRav :: ReadP ()
@@ -88,7 +102,7 @@ parseRealToken :: ReadP Token
 parseRealToken = do
     -- Read a word. Allow digits, letters, symbols commonly in SAN/Result.
     -- Stop at space, or comment delimiters.
-    s <- munch1 (\c -> not (isSpace c) && c `notElem` "{}()[]")
+    s <- munch1 (\c -> not (isSpace c) && c `notElem` "{}()[]%;")
     if isResult s then return (Result s)
     else if last s == '.' then return (MoveNum s)
     else return (San s)
