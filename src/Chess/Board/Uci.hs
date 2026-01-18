@@ -1,5 +1,6 @@
 module Chess.Board.Uci where
 
+import Control.Arrow
 import Data.Char (toLower)
 import Chess.Types
 
@@ -10,13 +11,18 @@ uci (Move (Just f) (Just t) promo _) =
 uci _ = ""
 
 -- | Parse a move in long algebraic UCI form like "e2e4" or "e7e8q".
+-- Implemented using Arrows for composability.
 fromUci :: String -> Maybe Move
-fromUci str = case splitAt 2 str of
-    (f,tRest) -> do
-        fromSq <- parseSquare f
-        let (t, promoStr) = splitAt 2 tRest
-        toSq <- parseSquare t
-        let promo = case promoStr of
-                [c] -> charToPieceType c
-                _   -> Nothing
-        return $ Move (Just fromSq) (Just toSq) promo Nothing
+fromUci = runKleisli $
+    Kleisli (Just . splitAt 2)
+    >>> first (Kleisli parseSquare)
+    >>> second (
+          Kleisli (Just . splitAt 2)
+          >>> first (Kleisli parseSquare)
+          >>> second (arr parsePromo)
+        )
+    >>> arr (\(f, (t, p)) -> Move (Just f) (Just t) p Nothing)
+  where
+    parsePromo :: String -> Maybe PieceType
+    parsePromo [c] = charToPieceType c
+    parsePromo _   = Nothing
