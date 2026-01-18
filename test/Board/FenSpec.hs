@@ -5,6 +5,21 @@ import Chess.Types
 import qualified Chess.Board.Base as Board
 import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.Fen as Fen
+import Data.List (dropWhileEnd)
+import Data.Char (isSpace)
+
+-- | Trim whitespace from both ends
+trim :: String -> String
+trim = dropWhile isSpace . dropWhileEnd isSpace
+
+-- | Parse just the FEN part from EPD line (before the ';')
+parseEpdFen :: String -> Maybe String
+parseEpdFen line
+    | null (trim line) = Nothing
+    | head line == '#' = Nothing
+    | otherwise =
+        let (fenPart, _) = break (== ';') line
+        in Just (trim fenPart)
 
 spec :: Spec
 spec = do
@@ -48,3 +63,23 @@ spec = do
       GS.canCastleQueenside gs White `shouldBe` False
       GS.canCastleKingside gs Black `shouldBe` False
       GS.canCastleQueenside gs Black `shouldBe` True
+
+    it "roundtrips all FENs from perftsuite.epd" $ do
+        content <- readFile "test/gamefiles/perftsuite.epd"
+        let fens = map parseEpdFen (lines content)
+        mapM_ checkRoundtrip fens
+
+    where
+        checkRoundtrip Nothing = return ()
+        checkRoundtrip (Just fenStr) = do
+            let mbRes = Fen.parseFen fenStr
+            case mbRes of
+                Nothing -> expectationFailure $ "Failed to parse FEN: " ++ fenStr
+                Just (b, gs) -> do
+                    let fenStr2 = Fen.fen b gs
+                    -- We check if they are equal.
+                    -- Note: Some FEN generators might behave differently regarding whitespace or en passant dash.
+                    -- But let's assume strict equality for now as pychess does.
+                    if fenStr2 /= fenStr
+                       then expectationFailure $ "Roundtrip failed.\nOriginal: " ++ fenStr ++ "\nGenerated: " ++ fenStr2
+                       else return ()

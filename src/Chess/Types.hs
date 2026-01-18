@@ -272,6 +272,8 @@ data Termination
     | Checkmate
     | Stalemate
     | FiftyMoves
+    | ThreefoldRepetition
+    | FivefoldRepetition
     | InsufficientMaterial
     | Timeout
     | Resignation
