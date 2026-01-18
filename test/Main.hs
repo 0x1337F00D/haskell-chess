@@ -14,11 +14,11 @@ import qualified Board.ValidationSpec
 import qualified Board.UciSpec
 import qualified Board.SanSpec
 import qualified PerftSpec
+import qualified PgnSpec
 import qualified GameTerminationSpec
 
 main :: IO ()
 main = hspec $ do
-  GameTerminationSpec.spec
   ChessSpec.spec
   TypesSpec.spec
   BitboardSpec.spec
@@ -31,4 +31,5 @@ main = hspec $ do
   Board.UciSpec.spec
   Board.SanSpec.spec
   PerftSpec.spec
-  -- PgnSpec.spec
+  GameTerminationSpec.spec
+  PgnSpec.spec
