@@ -363,3 +363,53 @@ between :: Square -> Square -> Bitboard
 between a b = case ray a b of
                 0 -> 0
                 bb -> bb `clearBit` (unSquare b)
+
+-- Fast Sliding Attacks -------------------------------------------------------
+
+-- | Precomputed rays for each square and direction.
+-- Index = square * 8 + dirIndex
+-- 0:N, 1:S, 2:E, 3:W, 4:NE, 5:NW, 6:SE, 7:SW
+bbRays :: U.Vector Bitboard
+bbRays = U.fromList [ rayFrom sq dir | sq <- squares, dir <- [0..7] ]
+
+-- | Generate a ray from a square in a given direction index.
+rayFrom :: Square -> Int -> Bitboard
+rayFrom (Square i) dirIdx =
+    let (df, dr) = case dirIdx of
+            0 -> (0, 1)   -- N
+            1 -> (0, -1)  -- S
+            2 -> (1, 0)   -- E
+            3 -> (-1, 0)  -- W
+            4 -> (1, 1)   -- NE
+            5 -> (-1, 1)  -- NW
+            6 -> (1, -1)  -- SE
+            7 -> (-1, -1) -- SW
+            _ -> (0,0)
+    in rayLoop (i `mod` 8) (i `div` 8) (df, dr) 0
+
+rayLoop :: Int -> Int -> (Int, Int) -> Bitboard -> Bitboard
+rayLoop f r (df, dr) acc =
+    let nf = f + df
+        nr = r + dr
+    in if nf >= 0 && nf < 8 && nr >= 0 && nr < 8
+       then rayLoop nf nr (df, dr) (acc `setBit` (nr*8 + nf))
+       else acc
+
+-- | Get attacks for a sliding piece ray using bitscan.
+-- This computes the ray attack set including the first blocker if any.
+rayAttacks :: Square -> Int -> Bitboard -> Bitboard
+rayAttacks (Square sq) dirIdx occ =
+    let rayMask = bbRays U.! (sq * 8 + dirIdx)
+        blockers = rayMask .&. occ
+    in if blockers == 0
+       then rayMask
+       else
+           let blocker = if isPositiveDir dirIdx
+                         then countTrailingZeros blockers
+                         else 63 - countLeadingZeros blockers
+               -- Ray from the blocker in the SAME direction
+               blockerRay = bbRays U.! (blocker * 8 + dirIdx)
+           in rayMask `xor` blockerRay
+
+isPositiveDir :: Int -> Bool
+isPositiveDir d = d `elem` [0, 2, 4, 5] -- N, E, NE, NW
