@@ -14,7 +14,7 @@ data Game = Game
 
 parsePgn :: String -> Either String [Game]
 parsePgn input =
-    case readP_to_S (skipSpaces >> parseGames <* eof) input of
+    case readP_to_S (skipSpaces >> parseGames <* skipSpaces <* eof) input of
         [] -> Left "Failed to parse PGN"
         ((games, _):_) -> Right games -- Take the first valid full parse
 
@@ -48,9 +48,19 @@ parseMoveText = do
     -- Parse tokens: move numbers, SANs, comments, RAVs, result
     tokens <- many1 parseToken
     let (ms, res) = extractMovesAndResult tokens
-    return (ms, res)
+    -- Enforce that we consumed a Result token to avoid ambiguity with optional tags of next game
+    -- We filter out comments/ravs from the end to find the result.
+    let meaningfulTokens = dropWhile isCommentOrRav (reverse tokens)
+    case meaningfulTokens of
+        (Result _:_) -> return (ms, res)
+        _ -> pfail
 
 data Token = MoveNum String | San String | Result String | Comment | Rav deriving (Show)
+
+isCommentOrRav :: Token -> Bool
+isCommentOrRav Comment = True
+isCommentOrRav Rav = True
+isCommentOrRav _ = False
 
 parseToken :: ReadP Token
 parseToken = do
