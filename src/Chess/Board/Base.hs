@@ -156,14 +156,3 @@ isAttackedBy b color sq =
 oppositeColor :: Color -> Color
 oppositeColor White = Black
 oppositeColor Black = White
-
--- | Sliding piece attack generation.
-bishopAttacks :: Square -> Bitboard -> Bitboard
-bishopAttacks sq occ =
-    rayAttacks sq 4 occ .|. rayAttacks sq 5 occ .|.
-    rayAttacks sq 6 occ .|. rayAttacks sq 7 occ
-
-rookAttacks :: Square -> Bitboard -> Bitboard
-rookAttacks sq occ =
-    rayAttacks sq 0 occ .|. rayAttacks sq 1 occ .|.
-    rayAttacks sq 2 occ .|. rayAttacks sq 3 occ

@@ -431,29 +431,3 @@ between :: Square -> Square -> Bitboard
 between a b = case ray a b of
                 0 -> 0
                 bb -> bb `clearBit` (unSquare b)
-
--- | Generate a ray from a square in a given direction (0..7).
--- 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW
-rayFrom :: Square -> Int -> Bitboard
-rayFrom (Square sq) dir = go (sq `mod` 8) (sq `div` 8) 0
-  where
-    (df, dr) = case dir of
-      0 -> (0, 1)   -- N
-      1 -> (1, 1)   -- NE
-      2 -> (1, 0)   -- E
-      3 -> (1, -1)  -- SE
-      4 -> (0, -1)  -- S
-      5 -> (-1, -1) -- SW
-      6 -> (-1, 0)  -- W
-      7 -> (-1, 1)  -- NW
-      _ -> (0, 0)
-
-    go f r acc
-      | f' < 0 || f' > 7 || r' < 0 || r' > 7 = acc
-      | otherwise = go f' r' (acc `setBit` (r' * 8 + f'))
-      where
-        f' = f + df
-        r' = r + dr
-
-bbRays :: U.Vector Bitboard
-bbRays = U.fromList [ rayFrom sq dir | sq <- squares, dir <- [0..7] ]
