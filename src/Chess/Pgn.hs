@@ -1,10 +1,14 @@
 module Chess.Pgn (
     Game(..),
-    parsePgn
+    parsePgn,
+    readGameMoves,
+    gameToUci
 ) where
 
 import Text.ParserCombinators.ReadP
 import Data.Char (isSpace)
+import qualified Chess.Board as Board
+import Chess.Types (Move)
 
 data Game = Game
   { tags :: [(String, String)]
@@ -127,3 +131,32 @@ extractMovesAndResult tokens =
                 (Result r : _) -> r
                 _ -> "*" -- default
     in (realMoves, res)
+
+-- | Converts a Game into a list of Moves by simulating the game.
+-- Handles both SAN and UCI move formats.
+-- Respects the "FEN" tag for initial position.
+readGameMoves :: Game -> Either String [Move]
+readGameMoves game = do
+    let initialPos = case lookup "FEN" (tags game) of
+            Just fenStr -> case Board.parseFen fenStr of
+                Just b -> b
+                Nothing -> Board.initialBoard -- Fallback to initial board if FEN invalid
+            Nothing -> Board.initialBoard
+
+    playMoves initialPos (moves game)
+
+playMoves :: Board.Board -> [String] -> Either String [Move]
+playMoves _ [] = Right []
+playMoves b (mStr:rest) =
+    let parsed = case Board.parseSan b mStr of
+                    Just m -> Just m
+                    Nothing -> Board.fromUci mStr
+    in case parsed of
+        Just m ->
+            let b' = Board.applyMove b m
+            in (m :) <$> playMoves b' rest
+        Nothing -> Left $ "Invalid move: " ++ mStr
+
+-- | Converts a Game into a list of UCI move strings.
+gameToUci :: Game -> Either String [String]
+gameToUci game = map Board.uci <$> readGameMoves game
