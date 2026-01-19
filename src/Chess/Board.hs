@@ -38,19 +38,24 @@ import qualified Chess.Board.Uci as Uci
 data Board = Board
   { pieces :: !Base.Board
   , state  :: !GS.GameState
+  , history :: ![Val.PositionRep]
   } deriving (Eq, Show)
 
 -- | The standard initial chess position.
 initialBoard :: Board
 initialBoard =
   case Fen.parseFen startingFEN of
-    Just (b, gs) -> Board b gs
+    Just (b, gs) -> Board b gs []
     Nothing      -> error "Internal error: Failed to parse starting FEN"
 
 -- | Apply a move to the board, updating pieces and game state (counters, rights, etc).
 applyMove :: Board -> Move -> Board
-applyMove (Board b gs) m@(Move (Just from) (Just to) _ _) =
+applyMove (Board b gs hist) m@(Move (Just from) (Just to) _ _) =
     let
+        -- 0. Update history
+        posRep = Val.PositionRep b (GS.turn gs) (GS.castlingRights gs) (GS.epSquare gs)
+        hist' = posRep : hist
+
         -- 1. Update pieces (using MoveGen's logic which handles capture/promo/castling/ep-capture piece placement)
         b' = MoveGen.applyMoveBoard b gs m
 
@@ -91,58 +96,62 @@ applyMove (Board b gs) m@(Move (Just from) (Just to) _ _) =
 
         nextTurn = Base.oppositeColor c
 
+        -- Optimization: Clear history if halfmove clock resets (pawn move or capture)
+        -- as previous positions cannot be reached again.
+        histFinal = if halfmove' == 0 then [] else hist'
+
     in Board b' (gs2 { GS.turn = nextTurn
                      , GS.epSquare = ep'
                      , GS.halfmoveClock = halfmove'
                      , GS.fullmoveNumber = fullmove'
-                     })
+                     }) histFinal
 applyMove b _ = b
 
 -- | Generate all legal moves for the current position.
 legalMoves :: Board -> [Move]
-legalMoves (Board b gs) = MoveGen.legalMoves b gs
+legalMoves (Board b gs _) = MoveGen.legalMoves b gs
 
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> [Move]
-pseudoLegalMoves (Board b gs) = MoveGen.pseudoLegalMoves b gs
+pseudoLegalMoves (Board b gs _) = MoveGen.pseudoLegalMoves b gs
 
 -- | Check if the side to move is in check.
 isCheck :: Board -> Bool
-isCheck (Board b gs) = Val.isCheck b gs
+isCheck (Board b gs _) = Val.isCheck b gs
 
 -- | Check if the side to move is checkmated.
 isCheckmate :: Board -> Bool
-isCheckmate (Board b gs) = Val.isCheckmate b gs
+isCheckmate (Board b gs _) = Val.isCheckmate b gs
 
 -- | Check if the game is in stalemate.
 isStalemate :: Board -> Bool
-isStalemate (Board b gs) = Val.isStalemate b gs
+isStalemate (Board b gs _) = Val.isStalemate b gs
 
 -- | Check if the game is drawn by insufficient material.
 hasInsufficientMaterial :: Board -> Bool
-hasInsufficientMaterial (Board b _) = Val.hasInsufficientMaterial b
+hasInsufficientMaterial (Board b _ _) = Val.hasInsufficientMaterial b
 
 -- | Determine the outcome of the game, if ended.
 outcome :: Board -> Maybe Outcome
-outcome (Board b gs) = Val.outcome b gs
+outcome (Board b gs h) = Val.outcome b gs h
 
 -- | Convert board to FEN string.
 fen :: Board -> String
-fen (Board b gs) = Fen.fen b gs
+fen (Board b gs _) = Fen.fen b gs
 
 -- | Parse FEN string to Board.
 parseFen :: String -> Maybe Board
 parseFen s = case Fen.parseFen s of
-    Just (b, gs) -> Just (Board b gs)
+    Just (b, gs) -> Just (Board b gs [])
     Nothing      -> Nothing
 
 -- | Convert move to SAN.
 san :: Board -> Move -> String
-san (Board b gs) m = San.san b gs m
+san (Board b gs _) m = San.san b gs m
 
 -- | Parse SAN string to Move.
 parseSan :: Board -> String -> Maybe Move
-parseSan (Board b gs) s = San.parseSan b gs s
+parseSan (Board b gs _) s = San.parseSan b gs s
 
 -- | Convert move to UCI.
 uci :: Move -> String

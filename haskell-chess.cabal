@@ -111,6 +111,7 @@ test-suite haskell-chess-test
                     , Board.SanSpec
                     , PerftSpec
                     , PgnSpec
+                    , GameTerminationSpec
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:

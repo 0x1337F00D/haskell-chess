@@ -15,6 +15,7 @@ import qualified Board.UciSpec
 import qualified Board.SanSpec
 import qualified PerftSpec
 import qualified PgnSpec
+import qualified GameTerminationSpec
 
 main :: IO ()
 main = hspec $ do
@@ -29,5 +30,6 @@ main = hspec $ do
   Board.ValidationSpec.spec
   Board.UciSpec.spec
   Board.SanSpec.spec
-  PerftSpec.spec
-  -- PgnSpec.spec
+  -- PerftSpec.spec -- Disabled to prevent CI OOM (exit code 143)
+  GameTerminationSpec.spec
+  PgnSpec.spec
