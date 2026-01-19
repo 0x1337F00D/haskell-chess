@@ -17,6 +17,7 @@ import qualified PerftSpec
 import qualified PgnSpec
 import qualified GameTerminationSpec
 import qualified Book.PolyglotSpec
+import qualified TimeSpec
 
 main :: IO ()
 main = hspec $ do
@@ -35,3 +36,4 @@ main = hspec $ do
   GameTerminationSpec.spec
   PgnSpec.spec
   Book.PolyglotSpec.spec
+  TimeSpec.spec
