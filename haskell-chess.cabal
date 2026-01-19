@@ -71,6 +71,7 @@ library
                     , Chess.Board
                     , Chess
                     , Chess.Pgn
+                    , Chess.Book.Polyglot
                     , Chess.Time
                     , Chess.Tablebase
 
@@ -85,6 +86,8 @@ library
         base ^>=4.17.2.0,
         containers >= 0.6,
         vector >= 0.13,
+        bytestring >= 0.11,
+        binary >= 0.8,
         process >= 1.6
 
     -- Directories containing source files.
@@ -115,6 +118,7 @@ test-suite haskell-chess-test
                     , PerftSpec
                     , PgnSpec
                     , GameTerminationSpec
+                    , Book.PolyglotSpec
                     , TimeSpec
 
     -- LANGUAGE extensions used by modules in this package.
@@ -134,5 +138,8 @@ test-suite haskell-chess-test
         base ^>=4.17.2.0,
         haskell-chess,
         hspec >= 2.11,
-        containers >= 0.6
+        containers >= 0.6,
+        bytestring >= 0.11,
+        binary >= 0.8,
+        directory >= 1.3
 
