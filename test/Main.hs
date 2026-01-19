@@ -18,9 +18,11 @@ import qualified PgnSpec
 import qualified GameTerminationSpec
 import qualified Book.PolyglotSpec
 import qualified TimeSpec
+import qualified CoreSpec
 
 main :: IO ()
 main = hspec $ do
+  CoreSpec.spec
   ChessSpec.spec
   TypesSpec.spec
   BitboardSpec.spec
