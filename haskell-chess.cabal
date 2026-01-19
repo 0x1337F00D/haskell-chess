@@ -87,7 +87,7 @@ library
         containers >= 0.6,
         vector >= 0.13,
         bytestring >= 0.11,
-        binary >= 0.8
+        binary >= 0.8,
         process >= 1.6
 
     -- Directories containing source files.
