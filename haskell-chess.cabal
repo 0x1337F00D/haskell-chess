@@ -72,6 +72,7 @@ library
                     , Chess
                     , Chess.Pgn
                     , Chess.Time
+                    , Chess.Tablebase
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -83,7 +84,8 @@ library
     build-depends:
         base ^>=4.17.2.0,
         containers >= 0.6,
-        vector >= 0.13
+        vector >= 0.13,
+        process >= 1.6
 
     -- Directories containing source files.
     hs-source-dirs:   src
