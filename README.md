@@ -7,7 +7,7 @@ A Haskell port of the [PyChess](https://github.com/pychess/pychess) library. Thi
 | Component | Progress | Status |
 | :--- | :--- | :--- |
 | **Core Rules** | `[██████████]` 100% | ✅ Implemented (Bitboards, MoveGen, Validation) |
-| **Formats** | `[█████░░░░░]` 50% | 🚧 Partial (FEN ✅, PGN 🚧, UCI 🚧) |
+| **Formats** | `[██████████]` 100% | ✅ Implemented (FEN, PGN, UCI) |
 | **Engine** | `[█░░░░░░░░░]` 10% | 🚧 Basic State (No Search/Eval) |
 | **Variants** | `[░░░░░░░░░░]` 0% | ❌ Standard Chess Only |
 | **Extras** | `[█████░░░░░]` 50% | 🚧 Books ✅, TB (Online) 🚧, Time ✅ |
@@ -22,8 +22,8 @@ We aim to reach feature parity with PyChess. Here is the current standing:
 | **Move Generation** | ✅ Implemented | ✅ Implemented | Haskell is Standard-only for now. |
 | **Move Validation** | ✅ Full Legality | ✅ Full Legality | Includes checks, castling, en passant. |
 | **FEN Support** | ✅ Read/Write | ✅ Read/Write | Full support for all 6 FEN fields. |
-| **PGN Support** | 🚧 Basic Parsing | ✅ Full Support | Haskell parses structure but lacks game tree building. |
-| **UCI Support** | 🚧 Basic Parsing | ✅ Full Engine Mgr | Haskell supports basic command parsing. |
+| **PGN Support** | ✅ Full Support | ✅ Full Support | Full game tree with variations and comments. |
+| **UCI Support** | ✅ Full Engine Mgr | ✅ Full Engine Mgr | Engine process management and parsing. |
 | **Opening Books** | ✅ Polyglot | ✅ Polyglot/BIN | Read support for .bin books. |
 | **Endgame Tablebases** | 🚧 Online Only | ✅ Gaviota/Syzygy | Queries Lichess API. Local probing TODO. |
 | **Time Controls** | ✅ Implemented | ✅ Full Support | Infinite, Standard, Delay, MoveTime. |
@@ -36,8 +36,8 @@ We aim to reach feature parity with PyChess. Here is the current standing:
 To achieve parity with PyChess, the following tasks are identified:
 
 ### 1. File Formats & Protocols
-- [ ] **Advanced PGN**: Build a proper game tree from PGN, handle NAGs, comments, and recursive variations.
-- [ ] **Full UCI**: Implement a full UCI engine manager to run and interact with external engines.
+- [x] **Advanced PGN**: Build a proper game tree from PGN, handle NAGs, comments, and recursive variations.
+- [x] **Full UCI**: Implement a full UCI engine manager to run and interact with external engines.
 
 ### 2. Knowledge & Data
 - [x] **Opening Books**: Implement `Polyglot` (.bin) book reading support.
@@ -62,6 +62,7 @@ To achieve parity with PyChess, the following tasks are identified:
 - **Chess.Board.Fen**: Serialisation and deserialisation from Forsyth‑Edwards notation.
 - **Chess.Board.MoveGen**: Move generation logic.
 - **Chess.Board.San / Chess.Board.Uci**: SAN and UCI notation handling.
+- **Chess.Uci**: UCI Engine management and output parsing.
 - **Chess.Board.Validation**: Legality checks and game status functions.
 - **Chess.Board**: The primary board type combining all of the above and exposing the public API.
 - **Chess**: Convenience module re-exporting the most commonly used types and functions.
