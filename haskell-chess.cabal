@@ -71,6 +71,7 @@ library
                     , Chess.Board
                     , Chess
                     , Chess.Pgn
+                    , Chess.Time
                     , Chess.Tablebase
 
     -- Modules included in this library but not exported.
@@ -114,6 +115,7 @@ test-suite haskell-chess-test
                     , PerftSpec
                     , PgnSpec
                     , GameTerminationSpec
+                    , TimeSpec
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
