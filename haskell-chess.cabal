@@ -71,6 +71,7 @@ library
                     , Chess.Board
                     , Chess
                     , Chess.Pgn
+                    , Chess.Book.Polyglot
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -82,7 +83,9 @@ library
     build-depends:
         base ^>=4.17.2.0,
         containers >= 0.6,
-        vector >= 0.13
+        vector >= 0.13,
+        bytestring >= 0.11,
+        binary >= 0.8
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -112,6 +115,7 @@ test-suite haskell-chess-test
                     , PerftSpec
                     , PgnSpec
                     , GameTerminationSpec
+                    , Book.PolyglotSpec
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -130,5 +134,8 @@ test-suite haskell-chess-test
         base ^>=4.17.2.0,
         haskell-chess,
         hspec >= 2.11,
-        containers >= 0.6
+        containers >= 0.6,
+        bytestring >= 0.11,
+        binary >= 0.8,
+        directory >= 1.3
 
