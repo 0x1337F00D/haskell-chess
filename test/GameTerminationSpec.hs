@@ -8,7 +8,7 @@ import Control.Monad (foldM)
 -- | Play a sequence of moves from a PGN game and return the final board.
 playGame :: Board -> Game -> IO Board
 playGame startBoard game = do
-    foldM playMove startBoard (moves game)
+    foldM playMove startBoard (map plySan (plies game))
   where
     playMove :: Board -> String -> IO Board
     playMove b sanStr = do
@@ -48,7 +48,7 @@ spec = do
             Left err -> expectationFailure $ "PGN Parse Error: " ++ err
             Right [] -> expectationFailure "No games found in bilbao.pgn"
             Right (game:_) -> do
-                let allMoves = moves game
+                let allMoves = map plySan (plies game)
                 let movesExceptLast = init allMoves
                 let lastMoveSan = last allMoves
 

@@ -71,6 +71,7 @@ library
                     , Chess.Board
                     , Chess
                     , Chess.Pgn
+                    , Chess.Uci
                     , Chess.Book.Polyglot
                     , Chess.Time
                     , Chess.Tablebase
@@ -122,6 +123,7 @@ test-suite haskell-chess-test
                     , Board.SanSpec
                     , PerftSpec
                     , PgnSpec
+                    , UciSpec
                     , GameTerminationSpec
                     , Book.PolyglotSpec
                     , TimeSpec
