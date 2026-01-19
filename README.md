@@ -10,7 +10,7 @@ A Haskell port of the [PyChess](https://github.com/pychess/pychess) library. Thi
 | **Formats** | `[█████░░░░░]` 50% | 🚧 Partial (FEN ✅, PGN 🚧, UCI 🚧) |
 | **Engine** | `[█░░░░░░░░░]` 10% | 🚧 Basic State (No Search/Eval) |
 | **Variants** | `[░░░░░░░░░░]` 0% | ❌ Standard Chess Only |
-| **Extras** | `[░░░░░░░░░░]` 0% | ❌ No Books/Tablebases |
+| **Extras** | `[█████░░░░░]` 50% | 🚧 Books ✅, TB (Online) 🚧, Time ✅ |
 
 ## Feature Comparison
 
@@ -24,9 +24,9 @@ We aim to reach feature parity with PyChess. Here is the current standing:
 | **FEN Support** | ✅ Read/Write | ✅ Read/Write | Full support for all 6 FEN fields. |
 | **PGN Support** | 🚧 Basic Parsing | ✅ Full Support | Haskell parses structure but lacks game tree building. |
 | **UCI Support** | 🚧 Basic Parsing | ✅ Full Engine Mgr | Haskell supports basic command parsing. |
-| **Opening Books** | ❌ Missing | ✅ Polyglot/BIN | Planned for future. |
-| **Endgame Tablebases** | ❌ Missing | ✅ Gaviota/Syzygy | Planned for future. |
-| **Time Controls** | ❌ Missing | ✅ Full Support | Only move counters implemented so far. |
+| **Opening Books** | ✅ Polyglot | ✅ Polyglot/BIN | Read support for .bin books. |
+| **Endgame Tablebases** | 🚧 Online Only | ✅ Gaviota/Syzygy | Queries Lichess API. Local probing TODO. |
+| **Time Controls** | ✅ Implemented | ✅ Full Support | Infinite, Standard, Delay, MoveTime. |
 | **Variants** | ❌ Standard Only | ✅ 30+ Variants | Atomic, Crazyhouse, Shogi, etc. |
 | **Evaluation** | ❌ Missing | ✅ Basic Eval | No static evaluation function yet. |
 | **Search** | ❌ Missing | ✅ Alphas/Beta | No search algorithm yet. |
@@ -40,13 +40,13 @@ To achieve parity with PyChess, the following tasks are identified:
 - [ ] **Full UCI**: Implement a full UCI engine manager to run and interact with external engines.
 
 ### 2. Knowledge & Data
-- [ ] **Opening Books**: Implement `Polyglot` (.bin) book reading support.
-- [ ] **Endgame Tablebases**: Add support for probing Syzygy (or Gaviota) tablebases.
+- [x] **Opening Books**: Implement `Polyglot` (.bin) book reading support.
+- [ ] **Endgame Tablebases**: Add support for probing Syzygy (or Gaviota) tablebases. (Partially implemented via Online API)
 
 ### 3. Engine Features
 - [ ] **Evaluation**: Implement a static evaluation function (material, position).
 - [ ] **Search**: Implement Alpha-Beta search with iterative deepening.
-- [ ] **Time Management**: Implement time control logic (time left, increment, move time).
+- [x] **Time Management**: Implement time control logic (time left, increment, move time).
 
 ### 4. Variants (Long Term)
 - [ ] Refactor `Board` and `MoveGen` to support non-standard rules.
