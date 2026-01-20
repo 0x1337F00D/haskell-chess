@@ -2,7 +2,10 @@
 module Chess.Pgn (
     Game(..),
     PgnNode(..),
+    GameTree(..),
+    GameNode(..),
     parsePgn,
+    buildGameTree,
     readGameMoves,
     gameToUci,
     moves,
@@ -15,6 +18,22 @@ import Data.List (intercalate)
 import qualified Chess.Board as Board
 import qualified Chess.Board.GameState as GS
 import Chess.Types (Move)
+
+-- | A tree of validated moves and positions.
+data GameTree = GameTree
+  { gtRoot :: Board.Board
+  , gtChildren :: [GameNode]
+  } deriving (Show, Eq)
+
+-- | A node in the validated game tree.
+data GameNode = GameNode
+  { gnMove :: Move
+  , gnTarget :: Board.Board -- ^ Position after move
+  , gnSan :: String
+  , gnComment :: Maybe String
+  , gnNags :: [Int]
+  , gnChildren :: [GameNode]
+  } deriving (Show, Eq)
 
 -- | A node in the PGN move tree.
 data PgnNode = PgnNode
@@ -194,6 +213,51 @@ parseResult = do
 
 isResult :: String -> Bool
 isResult s = s `elem` ["1-0", "0-1", "1/2-1/2", "*"]
+
+-- | Builds a proper game tree from a parsed Game, validating all moves and variations.
+buildGameTree :: Game -> Either String GameTree
+buildGameTree game = do
+    let initialPos = case lookup "FEN" (tags game) of
+            Just fenStr -> case Board.parseFen fenStr of
+                Just b -> b
+                Nothing -> Board.initialBoard
+            Nothing -> Board.initialBoard
+
+    nodes <- buildNodes initialPos (forest game)
+    return $ GameTree initialPos nodes
+
+buildNodes :: Board.Board -> [PgnNode] -> Either String [GameNode]
+buildNodes _ [] = Right []
+buildNodes b (n:rest) = do
+    -- 1. Parse and validate main move
+    move <- parseMove b (pnSan n)
+    let nextBoard = Board.applyMove b move
+
+    -- 2. Build main line children from 'rest'
+    mainChildren <- buildNodes nextBoard rest
+
+    -- 3. Build variation nodes (siblings)
+    -- Each variation is a list of PgnNodes starting from the *current* board 'b'
+    variationNodes <- concat <$> mapM (buildNodes b) (pnVariations n)
+
+    let node = GameNode
+            { gnMove = move
+            , gnTarget = nextBoard
+            , gnSan = pnSan n
+            , gnComment = pnComment n
+            , gnNags = pnNags n
+            , gnChildren = mainChildren
+            }
+
+    return (node : variationNodes)
+
+parseMove :: Board.Board -> String -> Either String Move
+parseMove b sanStr =
+    case Board.parseSan b sanStr of
+        Just m -> Right m
+        Nothing -> case Board.fromUci sanStr of
+            Just m -> Right m
+            Nothing -> Left $ "Invalid move: " ++ sanStr
 
 -- | Converts a Game into a list of Moves by simulating the game (main line).
 readGameMoves :: Game -> Either String [Move]
