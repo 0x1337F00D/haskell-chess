@@ -10,6 +10,9 @@ import Chess.Core.Board
 import Chess.Core.Game
 import Chess.Core.Move
 import Chess.Core.Rules
+import Chess.Core.Board.Internal (movePiece)
+import Chess.Core.Game.Internal (ActiveGame(..))
+import Chess.Core.Move.Internal (Move(..))
 import qualified Data.Map as Map
 
 spec :: Spec
@@ -45,7 +48,7 @@ spec = describe "Core Architecture" $ do
       isCheck b Black `shouldBe` False
 
     it "applyMove performs a move and switches turn" $ do
-      let ag :: ActiveGame 'White 'Safe
+      let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { gameBoard = initialBoard
                , castlingRights = CastlingRights True True True True
@@ -67,7 +70,7 @@ spec = describe "Core Architecture" $ do
         _ -> expectationFailure "Expected Continue"
 
     it "generateLegalMoves generates 20 moves for initial board" $ do
-      let ag :: ActiveGame 'White 'Safe
+      let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { gameBoard = initialBoard
                , castlingRights = CastlingRights True True True True
@@ -93,7 +96,7 @@ spec = describe "Core Architecture" $ do
       -- Ensure E1 is King (it is in initialBoard.whiteKing)
       -- Ensure H1 is Rook.
 
-      let ag :: ActiveGame 'White 'Safe
+      let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { gameBoard = b
                , castlingRights = CastlingRights True False False False
@@ -116,7 +119,7 @@ spec = describe "Core Architecture" $ do
             , blackPieces = Map.empty
             }
 
-      let ag :: ActiveGame 'White 'Safe
+      let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { gameBoard = b
                , castlingRights = CastlingRights False False False False

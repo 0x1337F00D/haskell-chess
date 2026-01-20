@@ -4,62 +4,24 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Chess.Core.Move where
+module Chess.Core.Move
+  ( Move -- Opaque
+  , moveFrom
+  , moveTo
+  , MoveResult(..) -- We can export MoveResult constructors as they are consumed by user
+  ) where
 
 import Chess.Core.Board
-import Chess.Core.Game
+import Chess.Core.Move.Internal
 
--- 5. Moves as Constructed Proofs
+moveFrom :: Move c -> Square
+moveFrom (StandardMove f _) = f
+moveFrom (CastlingMove f _) = f
+moveFrom (EnPassantMove f _) = f
+moveFrom (PromotionMove f _ _) = f
 
--- The Move type is exported abstractly (users can't construct it manually).
--- Internally, it utilizes a GADT.
-
-data Move (c :: Color) where
-  -- Standard Move: Normal move or capture
-  StandardMove ::
-    { smFrom :: Square
-    , smTo   :: Square
-    } -> Move c
-
-  -- Castling Move: Kingside or Queenside
-  -- We use the target file of the King (FileG or FileC) or the Rook's file?
-  -- Typically Castling is encoded by King's movement.
-  CastlingMove ::
-    { cmFrom :: Square
-    , cmTo   :: Square
-    } -> Move c
-
-  -- En Passant Move
-  EnPassantMove ::
-    { epFrom :: Square
-    , epTo   :: Square
-    } -> Move c
-
-  -- Promotion Move
-  PromotionMove ::
-    { pmFrom :: Square
-    , pmTo   :: Square
-    , pmPromotion :: PieceType -- Promotion choice (Queen, Rook, Bishop, Knight)
-    } -> Move c
-
-deriving instance Show (Move c)
-deriving instance Eq (Move c)
-
--- 6. Check, Mate, and the Existential Step
-
--- The Next State result wrapper
--- Indexed by the color of the *next* turn (the side that just received the move).
-data MoveResult (c :: Color) where
-  -- Checkmate: The side 'c' is in checkmate. The game is won by 'Opposite c'.
-  -- "Checkmate :: Winner c -> MoveResult c" in text might mean "Winner is defined relative to c"?
-  -- Or strictly, if it's checkmate, the game ends.
-  Checkmate :: Outcome -> MoveResult c
-
-  -- Stalemate: The side 'c' has no legal moves but is not in check. Draw.
-  Stalemate :: MoveResult c
-
-  -- Continue: The game continues. The side 'c' is to move.
-  -- Checks status is captured in the ActiveGame type.
-  Continue  :: ActiveGame c status -> MoveResult c
-
-deriving instance Show (MoveResult c)
+moveTo :: Move c -> Square
+moveTo (StandardMove _ t) = t
+moveTo (CastlingMove _ t) = t
+moveTo (EnPassantMove _ t) = t
+moveTo (PromotionMove _ t _) = t

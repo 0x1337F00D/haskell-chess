@@ -11,9 +11,9 @@
 
 module Chess.Core.Rules where
 
-import Chess.Core.Board
-import Chess.Core.Game
-import Chess.Core.Move
+import Chess.Core.Board.Internal
+import Chess.Core.Game.Internal
+import Chess.Core.Move.Internal
 
 import qualified Chess.Types as T
 import qualified Chess.Board.Base as Base
@@ -127,7 +127,7 @@ toBaseBoard b = Base.Board
     bOcc = bPawns .|. bKnights .|. bBishops .|. bRooks .|. bQueens .|. bKings
 
 -- | Convert ActiveGame to Engine GameState
-toGameState :: forall c s. KnownColor c => ActiveGame c s -> GS.GameState
+toGameState :: forall v c s. KnownColor c => ActiveGame v c s -> GS.GameState
 toGameState ag = GS.GameState
   { GS.turn = toColor (colorVal @c)
   , GS.castlingRights = toCastlingRights (castlingRights ag)
@@ -156,7 +156,7 @@ isCheck b c = Val.isCheck (toBaseBoard b) (dummyGameState c)
     dummyGameState col = GS.initialGameState { GS.turn = toColor col }
 
 -- Generate Legal Moves
-generateLegalMoves :: forall c s. KnownColor c => ActiveGame c s -> [Move c]
+generateLegalMoves :: forall v c s. KnownColor c => ActiveGame v c s -> [Move c]
 generateLegalMoves ag =
   let b = gameBoard ag
       baseBoard = toBaseBoard b
@@ -250,7 +250,7 @@ updateCastlingRights cr from to =
 
 -- Apply Move
 -- We require KnownColor c to handle GameState conversion and Turn switching logic.
-applyMove :: forall c s. (KnownColor c, KnownColor (Opposite c)) => Move c -> ActiveGame c s -> MoveResult (Opposite c)
+applyMove :: forall v c s. (KnownColor c, KnownColor (Opposite c)) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
 applyMove m ag =
   let
       -- 1. Update Board
@@ -308,10 +308,6 @@ applyMove m ag =
         , GS.epSquare = case newEP of
                           Nothing -> Nothing
                           Just f -> Just (toSquare (Square f (epRank (colorVal @(Opposite c)))))
-                          -- Note: EP Rank for next turn is based on WHO moved.
-                          -- If White moved 2 squares, next turn is Black.
-                          -- Black needs to know EP target is Rank 3.
-                          -- 'epRank (colorVal @(Opposite c))' (Black) returns Rank 3. Correct.
         , GS.halfmoveClock = newHMC
         , GS.fullmoveNumber = newFMN
         }
@@ -328,11 +324,11 @@ applyMove m ag =
                                   , enPassantTarget = newEP
                                   , halfMoveClock = newHMC
                                   , fullMoveNumber = newFMN
-                                  } :: ActiveGame (Opposite c) 'Checked)
+                                  } :: ActiveGame v (Opposite c) 'Checked)
        (False, True) -> Continue (ActiveGame
                                   { gameBoard = b'
                                   , castlingRights = newCR
                                   , enPassantTarget = newEP
                                   , halfMoveClock = newHMC
                                   , fullMoveNumber = newFMN
-                                  } :: ActiveGame (Opposite c) 'Safe)
+                                  } :: ActiveGame v (Opposite c) 'Safe)
