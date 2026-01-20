@@ -3,13 +3,13 @@ module Chess.Board.San where
 
 import Data.List (find)
 import Data.Maybe (isJust)
-import Data.Bits ((.&.), complement, (.|.))
+import Data.Bits ((.&.), complement, (.|.), testBit)
 
 import Chess.Types
-import Chess.Bitboard (bbFromSquare, pattern BB_A1, pattern BB_H1, pattern BB_A8, pattern BB_H8)
+import Chess.Bitboard (bbFromSquare, pattern BB_A1, pattern BB_H1, pattern BB_A8, pattern BB_H8, scanForward, pawnAttacks)
 import Chess.Board.Base
 import Chess.Board.GameState
-import Chess.Board.MoveGen
+import Chess.Board.MoveGen (isLegal, applyMoveBoard)
 import Chess.Board.Validation (isCheck, isCheckmate)
 
 -- | Convert a move to Standard Algebraic Notation (SAN).
@@ -89,10 +89,47 @@ isDoublePush b f t =
 midSquare :: Square -> Square -> Square
 midSquare f t = Square ((unSquare f + unSquare t) `div` 2)
 
+-- | Optimized candidate finder using bitboards.
 getCandidates :: Board -> GameState -> Piece -> Square -> [Square]
-getCandidates b gs p target =
-    let moves = legalMoves b gs
-    in [ f | Move f t _ <- moves, t == target, pieceAt b f == Just p ]
+getCandidates b gs (Piece c pt) target =
+    let candidates =
+            case pt of
+                Pawn -> getPawnCandidates
+                _    -> getPieceCandidates
+    in filter canMoveTo candidates
+  where
+    getPieceCandidates = map Square (scanForward (pieceBitboard b c pt))
+
+    getPawnCandidates = map Square (scanForward (pieceBitboard b c Pawn))
+
+    canMoveTo :: Square -> Bool
+    canMoveTo from =
+        let pseudo = case pt of
+                Pawn -> isPawnMove from
+                _    -> testBit (attacks b from) (unSquare target)
+        in pseudo && isLegal b gs (mkMove from)
+
+    mkMove from = Move from target promo
+    promo = if pt == Pawn && isPromotionRank target then Just Queen else Nothing
+    isPromotionRank s = (c == White && squareRank s == 7) || (c == Black && squareRank s == 0)
+
+    isPawnMove :: Square -> Bool
+    isPawnMove from =
+        -- Capture
+        (testBit (pawnAttacks c from) (unSquare target) &&
+           (isEpSquare target || (isJust (pieceAt b target) && colorAt b target /= Just c))) ||
+        -- Push
+        (squareFile from == squareFile target &&
+         not (isJust (pieceAt b target)) &&
+         (oneStep from == target ||
+          (twoStep from == target && isStartRank from && not (isJust (pieceAt b (oneStep from))))))
+
+    oneStep from = Square (unSquare from + (if c == White then 8 else -8))
+    twoStep from = Square (unSquare from + (if c == White then 16 else -16))
+
+    isStartRank s = (c == White && squareRank s == 1) || (c == Black && squareRank s == 6)
+
+    isEpSquare t = epSquare gs == Just t
 
 disambiguate :: Square -> [Square] -> String
 disambiguate src candidates
@@ -123,32 +160,43 @@ isEpCapture _ _ _ = False
 -- | Parse SAN string to Move.
 parseSan :: Board -> GameState -> String -> Maybe Move
 parseSan b gs str =
-    let legal = legalMoves b gs
-        cleanStr = filter (`notElem` "+#") str
+    let cleanStr = filter (`notElem` "+#") str
+        c = turn gs
 
-        matchesCandidate :: Move -> Bool
-        matchesCandidate m@(Move from to _ ) =
-             case cleanStr of
-                 "O-O" -> isKingSideCastle m
-                 "O-O-O" -> isQueenSideCastle m
-                 _ ->
-                     let (baseStr, _) = break (== '=') cleanStr
-                         targetStr = reverse $ take 2 $ reverse baseStr
-                         pt = if not (null baseStr) && head baseStr `elem` "NBRQK"
-                              then charToPieceType (head baseStr)
-                              else Just Pawn
-                     in case parseSquare targetStr of
-                         Just t -> to == t && fmap pieceType (pieceAt b from) == pt
-                         Nothing -> True
-        matchesCandidate _ = False
+        findMatch candidates = find (\m -> isLegal b gs m && (san b gs m == str || san b gs m == cleanStr)) candidates
 
-        isKingSideCastle (Move f t _ ) =
-            fmap pieceType (pieceAt b f) == Just King && (squareFile t - squareFile f == 2)
-        isKingSideCastle _ = False
+        rank = if c == White then 0 else 7
+        kingSq = Square (rank * 8 + 4)
 
-        isQueenSideCastle (Move f t _ ) =
-            fmap pieceType (pieceAt b f) == Just King && (squareFile f - squareFile t == 2)
-        isQueenSideCastle _ = False
+    in case cleanStr of
+        "O-O" ->
+            let dest = Square (rank * 8 + 6)
+                m = Move kingSq dest Nothing
+            in findMatch [m]
+        "O-O-O" ->
+            let dest = Square (rank * 8 + 2)
+                m = Move kingSq dest Nothing
+            in findMatch [m]
+        _ ->
+            let (baseStr, promoStr) = break (== '=') cleanStr
+                -- Handle promotion
+                promo = if null promoStr then Nothing
+                        else charToPieceType (head (tail promoStr))
 
-        candidates = filter matchesCandidate legal
-    in find (\m -> san b gs m == str || san b gs m == cleanStr) candidates
+                (pt, targetStr) =
+                     if not (null baseStr) && head baseStr `elem` "NBRQK"
+                     then (charToPieceType (head baseStr), tail baseStr)
+                     else (Just Pawn, baseStr)
+
+                (targetS) =
+                     if length targetStr >= 2
+                     then snd (splitAt (length targetStr - 2) targetStr)
+                     else targetStr
+
+            in case (pt, parseSquare targetS) of
+                (Just pType, Just target) ->
+                    let candidates = getCandidates b gs (Piece c pType) target
+                        moves = map (\from -> Move from target promo) candidates
+                    in findMatch moves
+
+                _ -> Nothing

@@ -38,7 +38,7 @@ main = hspec $ do
   Board.ValidationSpec.spec
   Board.UciSpec.spec
   Board.SanSpec.spec
-  -- PerftSpec.spec -- Disabled to prevent CI OOM (exit code 143)
+  PerftSpec.spec -- Enabled
   GameTerminationSpec.spec
   PgnSpec.spec
   Book.PolyglotSpec.spec
