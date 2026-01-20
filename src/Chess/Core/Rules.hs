@@ -18,6 +18,7 @@ import Chess.Core.Move
 import qualified Chess.Types as T
 import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
+import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
 import Data.Bits (setBit, (.&.), (.|.), complement, testBit)
@@ -45,6 +46,10 @@ toColor Black = T.Black
 toSquare :: Square -> T.Square
 toSquare (Square f r) = T.Square (fromEnum r * 8 + fromEnum f)
 
+-- | Convert Engine Square to Core Square
+fromSquare :: T.Square -> Square
+fromSquare (T.Square i) = Square (toEnum (i `mod` 8)) (toEnum (i `div` 8))
+
 -- | Convert Core PieceType to Engine PieceType
 toPieceType :: PieceType -> T.PieceType
 toPieceType King   = T.King
@@ -53,6 +58,15 @@ toPieceType Rook   = T.Rook
 toPieceType Bishop = T.Bishop
 toPieceType Knight = T.Knight
 toPieceType Pawn   = T.Pawn
+
+-- | Convert Engine PieceType to Core PieceType
+fromPieceType :: T.PieceType -> PieceType
+fromPieceType T.King   = King
+fromPieceType T.Queen  = Queen
+fromPieceType T.Rook   = Rook
+fromPieceType T.Bishop = Bishop
+fromPieceType T.Knight = Knight
+fromPieceType T.Pawn   = Pawn
 
 -- | Convert Core Board to Engine Board
 toBaseBoard :: Board -> Base.Board
@@ -142,8 +156,42 @@ isCheck b c = Val.isCheck (toBaseBoard b) (dummyGameState c)
     dummyGameState col = GS.initialGameState { GS.turn = toColor col }
 
 -- Generate Legal Moves
-generateLegalMoves :: ActiveGame c s -> [Move c]
-generateLegalMoves _ = [] -- Stub
+generateLegalMoves :: forall c s. KnownColor c => ActiveGame c s -> [Move c]
+generateLegalMoves ag =
+  let b = gameBoard ag
+      baseBoard = toBaseBoard b
+      gs = toGameState ag
+      baseMoves = MG.legalMoves baseBoard gs
+  in map (toCoreMove b) baseMoves
+
+toCoreMove :: Board -> T.Move -> Move c
+toCoreMove b (T.Move f t promo) =
+  let fromSq = fromSquare f
+      toSq = fromSquare t
+      p = getPieceAt fromSq b
+  in case (p, promo) of
+       (Just (SomePiece piece), Just pt) ->
+          PromotionMove fromSq toSq (fromPieceType pt)
+       (Just (SomePiece piece), Nothing) ->
+          if isCastlingMove piece fromSq toSq
+          then CastlingMove fromSq toSq
+          else if isEnPassantMove piece fromSq toSq b
+               then EnPassantMove fromSq toSq
+               else StandardMove fromSq toSq
+       _ -> error "Invalid move generated" -- Should not happen if logic is consistent
+toCoreMove _ T.NullMove = error "Null move generated"
+
+isCastlingMove :: Piece c -> Square -> Square -> Bool
+isCastlingMove p from to =
+  pieceType p == King && abs (fromEnum (getFile from) - fromEnum (getFile to)) == 2
+
+isEnPassantMove :: Piece c -> Square -> Square -> Board -> Bool
+isEnPassantMove p from to b =
+  pieceType p == Pawn &&
+  getFile from /= getFile to &&
+  case getPieceAt to b of
+    Nothing -> True
+    Just _ -> False
 
 -- Helpers for Apply Move
 mkPiece :: Color -> PieceType -> SomePiece

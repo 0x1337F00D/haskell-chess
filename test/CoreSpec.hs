@@ -65,3 +65,66 @@ spec = describe "Core Architecture" $ do
              Just (SomePiece WPawn) -> return ()
              _ -> expectationFailure "Expected White Pawn at E4 in next game state"
         _ -> expectationFailure "Expected Continue"
+
+    it "generateLegalMoves generates 20 moves for initial board" $ do
+      let ag :: ActiveGame 'White 'Safe
+          ag = ActiveGame
+               { gameBoard = initialBoard
+               , castlingRights = CastlingRights True True True True
+               , enPassantTarget = Nothing
+               , halfMoveClock = 0
+               , fullMoveNumber = 1
+               }
+      let moves = generateLegalMoves ag
+      length moves `shouldBe` 20
+      -- Check E2-E4 is present
+      let e2e4 = StandardMove (Square FileE Rank2) (Square FileE Rank4)
+      moves `shouldContain` [e2e4]
+
+    it "generateLegalMoves generates castling moves" $ do
+      -- Setup board for White King Side Castling
+      -- White King E1, Rook H1. Empty F1, G1.
+      -- Black King E8.
+      let b = initialBoard
+            { pawns = Map.empty
+            , whitePieces = Map.fromList [(Square FileH Rank1, MRook)]
+            , blackPieces = Map.empty
+            }
+      -- Ensure E1 is King (it is in initialBoard.whiteKing)
+      -- Ensure H1 is Rook.
+
+      let ag :: ActiveGame 'White 'Safe
+          ag = ActiveGame
+               { gameBoard = b
+               , castlingRights = CastlingRights True False False False
+               , enPassantTarget = Nothing
+               , halfMoveClock = 0
+               , fullMoveNumber = 1
+               }
+
+      let moves = generateLegalMoves ag
+      let castling = CastlingMove (Square FileE Rank1) (Square FileG Rank1)
+      moves `shouldContain` [castling]
+
+    it "generateLegalMoves generates en passant moves" $ do
+      -- Setup En Passant: White Pawn E5, Black Pawn F5 (just moved F7-F5).
+      -- En Passant Target: F6.
+      -- White to move.
+      let b = initialBoard
+            { pawns = Map.fromList [((FileE, PRank5), White), ((FileF, PRank5), Black)]
+            , whitePieces = Map.empty
+            , blackPieces = Map.empty
+            }
+
+      let ag :: ActiveGame 'White 'Safe
+          ag = ActiveGame
+               { gameBoard = b
+               , castlingRights = CastlingRights False False False False
+               , enPassantTarget = Just FileF
+               , halfMoveClock = 0
+               , fullMoveNumber = 1
+               }
+
+      let moves = generateLegalMoves ag
+      let epMove = EnPassantMove (Square FileE Rank5) (Square FileF Rank6)
+      moves `shouldContain` [epMove]
