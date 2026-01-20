@@ -1,11 +1,9 @@
 module Main where
 
-import System.Environment (getArgs)
 import Data.Time.Clock (getCurrentTime, diffUTCTime)
-import Chess.Board (initialBoard, parseFen, Board)
+import Chess.Board (parseFen, Board)
 import Chess.Engine.Evaluation (evaluate)
 import Chess.Engine.ArrowEval (evaluateArrow)
-import Control.Arrow (Arrow)
 import Text.Printf (printf)
 import Data.Maybe (fromJust)
 

@@ -175,3 +175,12 @@ test-suite haskell-chess-test
         binary >= 0.8,
         directory >= 1.3
 
+benchmark bench-arrow
+    import:           warnings
+    default-language: Haskell2010
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   bench
+    main-is:          ArrowBench.hs
+    build-depends:    base ^>=4.17.2.0
+                    , haskell-chess
+                    , time

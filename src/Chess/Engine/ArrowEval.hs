@@ -6,7 +6,6 @@ import Chess.Board (Board(..))
 import Chess.Board.GameState (GameState(..), turn)
 import Chess.Types (Color(..))
 import Chess.Engine.Evaluation (evalMaterial, evalPositional, Score)
-import qualified Chess.Board.Base as Base
 
 -- | Arrow-based evaluation.
 -- This demonstrates how to compose evaluation terms using Arrows.
