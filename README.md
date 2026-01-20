@@ -7,7 +7,7 @@ A Haskell port of the [PyChess](https://github.com/pychess/pychess) library. Thi
 | Component | Progress | Status |
 | :--- | :--- | :--- |
 | **Core Rules** | `[██████████]` 100% | ✅ Implemented (Bitboards, MoveGen, Validation) |
-| **Formats** | `[███████░░░]` 70% | 🚧 Partial (FEN ✅, PGN 🚧, UCI ✅) |
+| **Formats** | `[█████████░]` 90% | ✅ Implemented (FEN ✅, PGN ✅, UCI ✅) |
 | **Engine** | `[████████░░]` 80% | 🚧 Working (Search/Eval Implemented) |
 | **Variants** | `[░░░░░░░░░░]` 0% | ❌ Standard Chess Only |
 | **Extras** | `[██████████]` 100% | ✅ Implemented (Books, TB, Time) |
@@ -22,7 +22,7 @@ We aim to reach feature parity with PyChess. Here is the current standing:
 | **Move Generation** | ✅ Implemented | ✅ Implemented | Haskell is Standard-only for now. |
 | **Move Validation** | ✅ Full Legality | ✅ Full Legality | Includes checks, castling, en passant. |
 | **FEN Support** | ✅ Read/Write | ✅ Read/Write | Full support for all 6 FEN fields. |
-| **PGN Support** | 🚧 Basic Parsing | ✅ Full Support | Haskell parses structure but lacks game tree building. |
+| **PGN Support** | ✅ Full Parsing | ✅ Full Support | Support for game trees, comments, NAGs, and variations. |
 | **UCI Support** | ✅ Implemented | ✅ Full Engine Mgr | Haskell engine handles standard UCI loop. |
 | **Opening Books** | ✅ Polyglot | ✅ Polyglot/BIN | Read support for .bin books. |
 | **Endgame Tablebases** | ✅ Online & Local | ✅ Gaviota/Syzygy | Queries Lichess API. Local probing supported. |
@@ -36,7 +36,7 @@ We aim to reach feature parity with PyChess. Here is the current standing:
 To achieve parity with PyChess, the following tasks are identified:
 
 ### 1. File Formats & Protocols
-- [ ] **Advanced PGN**: Build a proper game tree from PGN, handle NAGs, comments, and recursive variations.
+- [x] **Advanced PGN**: Build a proper game tree from PGN, handle NAGs, comments, and recursive variations.
 - [x] **Full UCI**: Implement a full UCI engine manager to run and interact with external engines.
 
 ### 2. Knowledge & Data
@@ -45,7 +45,7 @@ To achieve parity with PyChess, the following tasks are identified:
 
 ### 3. Engine Features
 - [x] **Evaluation**: Implement a static evaluation function (material, position).
-- [x] **Search**: Implement Alpha-Beta search with iterative deepening.
+- [x] **Search**: Implement Alpha-Beta search (Iterative Deepening pending).
 - [x] **Time Management**: Implement time control logic (time left, increment, move time).
 
 ### 4. Variants (Long Term)
