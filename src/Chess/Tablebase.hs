@@ -4,13 +4,17 @@ module Chess.Tablebase (
     SyzygyResult(..),
     WDL(..),
     probeSyzygy,
-    probeOnline
+    probeOnline,
+    probeLocal,
+    probeLocalWith,
+    ProcessRunner
 ) where
 
 import System.Process (readProcess)
 import Text.ParserCombinators.ReadP
-import Data.Char (isDigit)
+import Data.Char (isDigit, toLower)
 import Control.Exception (try, IOException)
+import Data.List (find, isPrefixOf)
 
 data WDL = Win | Loss | Draw | CursedWin | BlessedLoss
     deriving (Show, Eq)
@@ -20,6 +24,8 @@ data SyzygyResult = SyzygyResult {
     srDTZ :: Int,
     srDTM :: Int
 } deriving (Show, Eq)
+
+type ProcessRunner = FilePath -> [String] -> String -> IO String
 
 -- | Probe a position (FEN). Currently defaults to online probing.
 probeSyzygy :: String -> IO (Either String SyzygyResult)
@@ -34,6 +40,40 @@ probeOnline fen = do
     case result of
         Left err -> return $ Left $ "Network error: " ++ show err
         Right response -> return $ parseResponse response
+
+-- | Probe using a local Syzygy tool (e.g. Fathom).
+probeLocal :: FilePath -> FilePath -> String -> IO (Either String SyzygyResult)
+probeLocal = probeLocalWith readProcess
+
+probeLocalWith :: ProcessRunner -> FilePath -> FilePath -> String -> IO (Either String SyzygyResult)
+probeLocalWith runner tool paths fen = do
+    result <- try (runner tool ["--path=" ++ paths, fen] "") :: IO (Either IOException String)
+    case result of
+        Left err -> return $ Left $ "Execution error: " ++ show err
+        Right output -> return $ parseFathomOutput output
+
+parseFathomOutput :: String -> Either String SyzygyResult
+parseFathomOutput output =
+    let lne = find ("Probe:" `isPrefixOf`) (lines output)
+    in case lne of
+         Nothing -> Left $ "No Probe line found in output: " ++ output
+         Just l ->
+             case readP_to_S parseFathomLine l of
+                 ((res, _):_) -> Right res
+                 _ -> Left $ "Failed to parse Probe line: " ++ l
+
+parseFathomLine :: ReadP SyzygyResult
+parseFathomLine = do
+    _ <- string "Probe:"
+    skipSpaces
+    _ <- optional (string "WDL:")
+    skipSpaces
+    wdlStr <- munch1 (\c -> c /= ' ' && c /= '\t')
+    skipSpaces
+    _ <- string "DTZ:"
+    skipSpaces
+    dtz <- parseInt
+    return $ SyzygyResult (parseCategory wdlStr) dtz 0
 
 mapSpace :: String -> String
 mapSpace [] = []
@@ -93,7 +133,7 @@ parseString = do
 parseInt :: ReadP Int
 parseInt = do
     sign <- option 1 (char '-' >> return (-1))
-    digits <- many1 (satisfy isDigit)
+    digits <- munch1 isDigit
     return $ sign * read digits
 
 parseBool :: ReadP JsonValue
@@ -127,9 +167,10 @@ skipBalance = do
     return ()
 
 parseCategory :: String -> WDL
-parseCategory "win" = Win
-parseCategory "loss" = Loss
-parseCategory "draw" = Draw
-parseCategory "cursed-win" = CursedWin
-parseCategory "blessed-loss" = BlessedLoss
-parseCategory _ = Draw -- Fallback
+parseCategory s = case map toLower s of
+    "win" -> Win
+    "loss" -> Loss
+    "draw" -> Draw
+    "cursed-win" -> CursedWin
+    "blessed-loss" -> BlessedLoss
+    _ -> Draw -- Fallback

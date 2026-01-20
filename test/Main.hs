@@ -20,10 +20,12 @@ import qualified Book.PolyglotSpec
 import qualified TimeSpec
 import qualified CoreSpec
 import qualified EngineSpec
+import qualified TablebaseSpec
 
 main :: IO ()
 main = hspec $ do
   EngineSpec.spec
+  TablebaseSpec.spec
   CoreSpec.spec
   ChessSpec.spec
   TypesSpec.spec
