@@ -95,9 +95,32 @@ colorAt b sq = fmap pieceColor (pieceAt b sq)
 putPiece :: Board -> Square -> Piece -> Board
 putPiece b sq piece =
   let b' = removePieceAt b sq
-      bb = pieceBitboard b' (pieceColor piece) (pieceType piece)
-      bb' = setBit bb (unSquare sq)
-  in setPieceBitboard b' (pieceColor piece) (pieceType piece) bb'
+      i = unSquare sq
+      c = pieceColor piece
+      pt = pieceType piece
+
+      -- Helper to set occupancy bits
+      setOccs board col =
+          let w = if col == White then setBit (occupiedWhite board) i else occupiedWhite board
+              bl = if col == Black then setBit (occupiedBlack board) i else occupiedBlack board
+              tot = setBit (occupiedTotal board) i
+          in board { occupiedWhite = w, occupiedBlack = bl, occupiedTotal = tot }
+
+      bWithOccs = setOccs b' c
+
+  in case (c, pt) of
+      (White, Pawn)   -> bWithOccs { whitePawns   = setBit (whitePawns b') i }
+      (White, Knight) -> bWithOccs { whiteKnights = setBit (whiteKnights b') i }
+      (White, Bishop) -> bWithOccs { whiteBishops = setBit (whiteBishops b') i }
+      (White, Rook)   -> bWithOccs { whiteRooks   = setBit (whiteRooks b') i }
+      (White, Queen)  -> bWithOccs { whiteQueens  = setBit (whiteQueens b') i }
+      (White, King)   -> bWithOccs { whiteKings   = setBit (whiteKings b') i }
+      (Black, Pawn)   -> bWithOccs { blackPawns   = setBit (blackPawns b') i }
+      (Black, Knight) -> bWithOccs { blackKnights = setBit (blackKnights b') i }
+      (Black, Bishop) -> bWithOccs { blackBishops = setBit (blackBishops b') i }
+      (Black, Rook)   -> bWithOccs { blackRooks   = setBit (blackRooks b') i }
+      (Black, Queen)  -> bWithOccs { blackQueens  = setBit (blackQueens b') i }
+      (Black, King)   -> bWithOccs { blackKings   = setBit (blackKings b') i }
 
 -- | Remove a piece from the board.
 removePieceAt :: Board -> Square -> Board
