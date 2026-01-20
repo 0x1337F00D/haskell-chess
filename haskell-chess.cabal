@@ -75,8 +75,11 @@ library
                     , Chess.Time
                     , Chess.Tablebase
                     , Chess.Core.Board
+                    , Chess.Core.Board.Internal
                     , Chess.Core.Game
+                    , Chess.Core.Game.Internal
                     , Chess.Core.Move
+                    , Chess.Core.Move.Internal
                     , Chess.Core.Rules
                     , Chess.Engine.Evaluation
                     , Chess.Engine.Search
