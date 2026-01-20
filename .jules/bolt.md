@@ -5,3 +5,7 @@
 ## 2026-01-18 – [Precomputed Sliding Attacks]
 **Learning:** Sliding piece attacks (Bishop/Rook) were using an iterative `attackRay` function that scanned the board bit by bit. This caused excessive allocations (40% of total) due to `setBit` and recursion.
 **Action:** Implemented **Precomputed Ray Lookups**. Pre-calculated bitboards for all rays from all squares. Replaced iteration with O(1) bitwise logic: `attacks = ray(sq, dir) `xor` ray(blocker, dir)`. Reduced perft allocations by ~36%. Always prefer precomputed masks + bitwise ops over iteration for bitboards.
+
+## 2026-01-26 – [Incremental Occupancy Updates]
+**Learning:** `putPiece` was calling `updateOccupancy`, which reconstructed all occupancy bitboards from scratch (12 bitwise ORs) for every piece placement. This occurred inside the `isLegal` check for every pseudo-legal move, creating significant overhead (~12 * 35 ops per node).
+**Action:** Replaced full reconstruction with incremental updates using `setBit`. Since we know which piece is added, we only update the relevant piece bitboard and the occupancy bitboards. Improved perft speed by ~3.3%. Avoid full state reconstruction in hot paths when incremental updates are possible.
