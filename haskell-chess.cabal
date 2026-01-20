@@ -79,6 +79,7 @@ library
                     , Chess.Core.Move
                     , Chess.Core.Rules
                     , Chess.Engine.Evaluation
+                    , Chess.Engine.ArrowEval
                     , Chess.Engine.Search
                     , Chess.Engine.Uci
 
@@ -150,6 +151,7 @@ test-suite haskell-chess-test
                     , Book.PolyglotSpec
                     , TimeSpec
                     , TablebaseSpec
+                    , ArrowSpec
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:

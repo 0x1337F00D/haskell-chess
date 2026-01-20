@@ -1,4 +1,4 @@
-module Chess.Engine.Evaluation (evaluate) where
+module Chess.Engine.Evaluation (evaluate, evalMaterial, evalPositional, Score) where
 
 import Data.Bits ((.&.), testBit)
 import qualified Data.Vector.Unboxed as U

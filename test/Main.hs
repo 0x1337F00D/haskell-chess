@@ -21,9 +21,11 @@ import qualified TimeSpec
 import qualified CoreSpec
 import qualified EngineSpec
 import qualified TablebaseSpec
+import qualified ArrowSpec
 
 main :: IO ()
 main = hspec $ do
+  ArrowSpec.spec
   EngineSpec.spec
   TablebaseSpec.spec
   CoreSpec.spec
