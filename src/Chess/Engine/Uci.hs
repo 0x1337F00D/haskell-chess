@@ -1,45 +1,48 @@
 module Chess.Engine.Uci (run) where
 
 import System.IO (hFlush, stdout, isEOF)
-import Data.List (isPrefixOf)
 import Data.Maybe (fromMaybe)
 import Control.Monad (unless)
+import Control.Monad.State (StateT, evalStateT, get, put, liftIO)
 
 import Chess.Board (Board, initialBoard, parseFen, fromUci, uci, applyMove)
 import Chess.Engine.Search (search)
 
+type UciM a = StateT Board IO a
+
 -- | Run the UCI loop.
 run :: IO ()
-run = loop initialBoard
+run = evalStateT loop initialBoard
 
-loop :: Board -> IO ()
-loop board = do
-    eof <- isEOF
+loop :: UciM ()
+loop = do
+    eof <- liftIO isEOF
     unless eof $ do
-        line <- getLine
+        line <- liftIO getLine
         let cmd = words line
         case cmd of
             ("uci":_) -> do
-                putStrLn "id name haskell-chess"
-                putStrLn "id author Codex"
-                putStrLn "uciok"
-                hFlush stdout
-                loop board
+                liftIO $ putStrLn "id name haskell-chess"
+                liftIO $ putStrLn "id author Codex"
+                liftIO $ putStrLn "uciok"
+                liftIO $ hFlush stdout
+                loop
             ("isready":_) -> do
-                putStrLn "readyok"
-                hFlush stdout
-                loop board
+                liftIO $ putStrLn "readyok"
+                liftIO $ hFlush stdout
+                loop
             ("quit":_) -> return ()
             ("position":rest) -> do
                 let newBoard = parsePosition rest
-                loop newBoard
+                put newBoard
+                loop
             ("go":_) -> do
-                -- Fixed depth 5 for now
-                best <- search board 5
-                putStrLn $ "bestmove " ++ uci best
-                hFlush stdout
-                loop board
-            _ -> loop board
+                board <- get
+                best <- liftIO $ search board 5
+                liftIO $ putStrLn $ "bestmove " ++ uci best
+                liftIO $ hFlush stdout
+                loop
+            _ -> loop
 
 parsePosition :: [String] -> Board
 parsePosition ("startpos":rest) =

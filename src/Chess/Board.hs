@@ -50,7 +50,7 @@ initialBoard =
 
 -- | Apply a move to the board, updating pieces and game state (counters, rights, etc).
 applyMove :: Board -> Move -> Board
-applyMove (Board b gs hist) m@(Move (Just from) (Just to) _ _) =
+applyMove (Board b gs hist) m@(Move from to _) =
     let
         -- 0. Update history
         posRep = Val.PositionRep b (GS.turn gs) (GS.castlingRights gs) (GS.epSquare gs)
@@ -105,7 +105,7 @@ applyMove (Board b gs hist) m@(Move (Just from) (Just to) _ _) =
                      , GS.halfmoveClock = halfmove'
                      , GS.fullmoveNumber = fullmove'
                      }) histFinal
-applyMove b _ = b
+applyMove b NullMove = b
 
 -- | Generate all legal moves for the current position.
 legalMoves :: Board -> [Move]
@@ -172,7 +172,7 @@ midSquare :: Square -> Square -> Square
 midSquare f t = Square ((unSquare f + unSquare t) `div` 2)
 
 isEpCapture :: Base.Board -> GS.GameState -> Move -> Bool
-isEpCapture b _ (Move (Just from) (Just to) _ _) =
+isEpCapture b _ (Move from to _) =
     case Base.pieceAt b from of
         Just (Piece _ Pawn) ->
              case Base.pieceAt b to of

@@ -330,19 +330,36 @@ fromSymbol ch = do
     let col = if ch `elem` ['a'..'z'] then Black else White
     return (Piece col pt)
 
--- | Representation of a move. Only basic coordinates and optional
--- promotion or drop piece are stored.
-data Move = Move
-    { fromSquare  :: Maybe Square
-    , toSquare    :: Maybe Square
-    , promotion   :: Maybe PieceType
-    , dropPiece   :: Maybe PieceType
-    } deriving (Eq, Ord, Show)
+-- | Representation of a move. Standard move connects two squares and optional promotion.
+-- Null move is a special case.
+data Move
+    = Move
+      { mFrom :: !Square
+      , mTo   :: !Square
+      , mProm :: !(Maybe PieceType)
+      }
+    | NullMove
+    deriving (Eq, Ord, Show)
 
 -- | The null move (does nothing).
 nullMove :: Move
-nullMove = Move Nothing Nothing Nothing Nothing
+nullMove = NullMove
 
 isNullMove :: Move -> Bool
-isNullMove m = fromSquare m == Nothing && toSquare m == Nothing
+isNullMove NullMove = True
+isNullMove _        = False
 
+-- | Helper to access fromSquare safely (compatibility/helper)
+fromSquare :: Move -> Maybe Square
+fromSquare (Move f _ _) = Just f
+fromSquare NullMove     = Nothing
+
+-- | Helper to access toSquare safely (compatibility/helper)
+toSquare :: Move -> Maybe Square
+toSquare (Move _ t _) = Just t
+toSquare NullMove     = Nothing
+
+-- | Helper to access promotion safely (compatibility/helper)
+promotion :: Move -> Maybe PieceType
+promotion (Move _ _ p) = p
+promotion NullMove     = Nothing

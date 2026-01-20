@@ -21,8 +21,8 @@ spec = do
        let (Just (b, gs)) = Fen.parseFen fenStr
        let moves = MoveGen.pseudoLegalMoves b gs
        -- Check if O-O and O-O-O are in moves
-       let castlingK = Move (Just E1) (Just G1) Nothing Nothing
-       let castlingQ = Move (Just E1) (Just C1) Nothing Nothing
+       let castlingK = Move E1 G1 Nothing
+       let castlingQ = Move E1 C1 Nothing
        castlingK `elem` moves `shouldBe` True
        castlingQ `elem` moves `shouldBe` True
 
@@ -42,12 +42,12 @@ spec = do
        let fenStr2 = "5r2/8/8/8/8/8/8/4K2R w K - 0 1"
        let (Just (b, gs)) = Fen.parseFen fenStr2
        let moves = MoveGen.legalMoves b gs
-       let castlingK = Move (Just E1) (Just G1) Nothing Nothing
+       let castlingK = Move E1 G1 Nothing
        castlingK `elem` moves `shouldBe` False
 
     it "legalMoves allows castling when legal" $ do
        let fenStr = "8/8/8/8/8/8/8/4K2R w K - 0 1"
        let (Just (b, gs)) = Fen.parseFen fenStr
        let moves = MoveGen.legalMoves b gs
-       let castlingK = Move (Just E1) (Just G1) Nothing Nothing
+       let castlingK = Move E1 G1 Nothing
        castlingK `elem` moves `shouldBe` True

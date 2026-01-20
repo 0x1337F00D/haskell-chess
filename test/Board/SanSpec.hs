@@ -12,12 +12,12 @@ spec = do
   describe "Chess.Board.San" $ do
     it "generates simple pawn move" $ do
        let (Just (b, gs)) = Fen.parseFen startingFEN
-       let m = Move (Just E2) (Just E4) Nothing Nothing
+       let m = Move E2 E4 Nothing
        San.san b gs m `shouldBe` "e4"
 
     it "generates knight move" $ do
        let (Just (b, gs)) = Fen.parseFen startingFEN
-       let m = Move (Just G1) (Just F3) Nothing Nothing
+       let m = Move G1 F3 Nothing
        San.san b gs m `shouldBe` "Nf3"
 
     it "generates check" $ do
@@ -30,7 +30,7 @@ spec = do
        let fenStr = "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 1"
        let (Just (b, gs)) = Fen.parseFen fenStr
        -- Move: Qh4 (d8 to h4)
-       let m = Move (Just D8) (Just H4) Nothing Nothing
+       let m = Move D8 H4 Nothing
        San.san b gs m `shouldBe` "Qh4#"
 
     it "generates castling O-O" $ do
@@ -38,13 +38,13 @@ spec = do
        -- Actually simple start position with pieces removed
        let fenStr2 = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"
        let (Just (b, gs)) = Fen.parseFen fenStr2
-       let m = Move (Just E1) (Just G1) Nothing Nothing
+       let m = Move E1 G1 Nothing
        San.san b gs m `shouldBe` "O-O"
 
     it "generates castling O-O-O" $ do
        let fenStr2 = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"
        let (Just (b, gs)) = Fen.parseFen fenStr2
-       let m = Move (Just E1) (Just C1) Nothing Nothing
+       let m = Move E1 C1 Nothing
        San.san b gs m `shouldBe` "O-O-O"
 
     it "generates capture" $ do
@@ -52,7 +52,7 @@ spec = do
        let fenStr = "rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
        let (Just (b, gs)) = Fen.parseFen fenStr
        -- Move: exd5. E4 to D5.
-       let m = Move (Just E4) (Just D5) Nothing Nothing
+       let m = Move E4 D5 Nothing
        San.san b gs m `shouldBe` "exd5"
 
     it "generates disambiguation (file)" $ do
@@ -64,7 +64,7 @@ spec = do
        -- Both can jump to D2.
        -- Move B1-D2 -> Nbd2.
        let (Just (b, gs)) = Fen.parseFen startingFEN
-       let m = Move (Just B1) (Just C3) Nothing Nothing -- Standard opening Nc3. Only one knight can reach C3? No, nothing else.
+       let m = Move B1 C3 Nothing -- Standard opening Nc3. Only one knight can reach C3? No, nothing else.
        San.san b gs m `shouldBe` "Nc3"
 
        -- Setup ambiguity. Knights on B1 and D1. Target C3.
@@ -73,7 +73,7 @@ spec = do
        let b1 = Board.putPiece Board.empty B1 (Piece White Knight)
        let b2 = Board.putPiece b1 D1 (Piece White Knight)
        let gs = GS.initialGameState
-       let m = Move (Just B1) (Just C3) Nothing Nothing
+       let m = Move B1 C3 Nothing
        -- MoveGen for C3? Legal moves? Kings must be present for check?
        -- If no Kings, isLegal fails or crashes?
        -- isLegal checks kingSquare. If Nothing, returns False.
@@ -85,11 +85,11 @@ spec = do
 
     it "parses san" $ do
        let (Just (b, gs)) = Fen.parseFen startingFEN
-       San.parseSan b gs "e4" `shouldBe` Just (Move (Just E2) (Just E4) Nothing Nothing)
-       San.parseSan b gs "Nf3" `shouldBe` Just (Move (Just G1) (Just F3) Nothing Nothing)
+       San.parseSan b gs "e4" `shouldBe` Just (Move E2 E4 Nothing)
+       San.parseSan b gs "Nf3" `shouldBe` Just (Move G1 F3 Nothing)
 
     it "parses san castling" $ do
        let fenStr = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"
        let (Just (b, gs)) = Fen.parseFen fenStr
-       San.parseSan b gs "O-O" `shouldBe` Just (Move (Just E1) (Just G1) Nothing Nothing)
-       San.parseSan b gs "O-O-O" `shouldBe` Just (Move (Just E1) (Just C1) Nothing Nothing)
+       San.parseSan b gs "O-O" `shouldBe` Just (Move E1 G1 Nothing)
+       San.parseSan b gs "O-O-O" `shouldBe` Just (Move E1 C1 Nothing)

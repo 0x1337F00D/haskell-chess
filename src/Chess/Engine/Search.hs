@@ -88,6 +88,6 @@ orderMoves board moves = sortBy (comparing (Down . scoreMove)) moves
 -- Note: This misses En Passant captures as checking for them strictly requires GameState access
 -- which is inside Chess.Board. But for move ordering/QSearch this is an okay approximation for now.
 isCapture :: Board -> Move -> Bool
-isCapture (Chess.Board.Board b _ _) (Move (Just from) (Just to) _ _) =
+isCapture (Chess.Board.Board b _ _) (Move from to _) =
     isJust (Base.pieceAt b to)
-isCapture _ _ = False
+isCapture _ NullMove = False
