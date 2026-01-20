@@ -10,7 +10,7 @@ A Haskell port of the [PyChess](https://github.com/pychess/pychess) library. Thi
 | **Formats** | `[███████░░░]` 70% | 🚧 Partial (FEN ✅, PGN 🚧, UCI ✅) |
 | **Engine** | `[████████░░]` 80% | 🚧 Working (Search/Eval Implemented) |
 | **Variants** | `[░░░░░░░░░░]` 0% | ❌ Standard Chess Only |
-| **Extras** | `[████████░░]` 80% | 🚧 Books ✅, TB (Online) ✅, Time ✅ |
+| **Extras** | `[██████████]` 100% | ✅ Implemented (Books, TB, Time) |
 
 ## Feature Comparison
 
@@ -25,7 +25,7 @@ We aim to reach feature parity with PyChess. Here is the current standing:
 | **PGN Support** | 🚧 Basic Parsing | ✅ Full Support | Haskell parses structure but lacks game tree building. |
 | **UCI Support** | ✅ Implemented | ✅ Full Engine Mgr | Haskell engine handles standard UCI loop. |
 | **Opening Books** | ✅ Polyglot | ✅ Polyglot/BIN | Read support for .bin books. |
-| **Endgame Tablebases** | ✅ Online Only | ✅ Gaviota/Syzygy | Queries Lichess API. Local probing TODO. |
+| **Endgame Tablebases** | ✅ Online & Local | ✅ Gaviota/Syzygy | Queries Lichess API. Local probing supported. |
 | **Time Controls** | ✅ Implemented | ✅ Full Support | Infinite, Standard, Delay, MoveTime. |
 | **Variants** | ❌ Standard Only | ✅ 30+ Variants | Atomic, Crazyhouse, Shogi, etc. |
 | **Evaluation** | ✅ Implemented | ✅ Basic Eval | Material + PSTO evaluation. |
@@ -41,7 +41,7 @@ To achieve parity with PyChess, the following tasks are identified:
 
 ### 2. Knowledge & Data
 - [x] **Opening Books**: Implement `Polyglot` (.bin) book reading support.
-- [x] **Endgame Tablebases**: Add support for probing Syzygy (or Gaviota) tablebases. (Implemented via Online API)
+- [x] **Endgame Tablebases**: Add support for probing Syzygy (or Gaviota) tablebases. (Implemented via Online API & Local Fathom)
 
 ### 3. Engine Features
 - [x] **Evaluation**: Implement a static evaluation function (material, position).
