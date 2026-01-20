@@ -95,7 +95,8 @@ library
         vector >= 0.13,
         bytestring >= 0.11,
         binary >= 0.8,
-        process >= 1.6
+        process >= 1.6,
+        mtl >= 2.2
 
     -- Directories containing source files.
     hs-source-dirs:   src

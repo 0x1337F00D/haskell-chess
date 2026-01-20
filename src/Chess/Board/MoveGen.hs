@@ -46,7 +46,7 @@ isLegal b gs m =
          -- Wait, if we are in check, we can't castle.
          -- And we can't cross attacked squares.
          castlingSafe :: Board -> GameState -> Move -> Bool
-         castlingSafe _ _ (Move (Just f) (Just t) _ _)
+         castlingSafe _ _ (Move f t _ )
             | isCastlingMove f t =
                 let c = turn gs
                     step = (unSquare t - unSquare f) `div` 2
@@ -67,7 +67,7 @@ isLegal b gs m =
 -- | Apply a move to the board (without updating game state like counters).
 -- Handles en passant capture removal and castling rook moves.
 applyMoveBoard :: Board -> GameState -> Move -> Board
-applyMoveBoard b gs (Move (Just from) (Just to) promo _) =
+applyMoveBoard b gs (Move from to promo) =
     let p = pieceAt b from
         c = turn gs
     in case p of
@@ -96,7 +96,7 @@ applyMoveBoard b gs (Move (Just from) (Just to) promo _) =
                      else b3
 
             in b4
-applyMoveBoard b _ _ = b
+applyMoveBoard b _ NullMove = b
 
 -- Helper to move a piece
 movePiece :: Board -> Square -> Square -> Board
@@ -137,7 +137,7 @@ pieceMoves b gs pt = concatMap genMoves sqs
             -- We just need to exclude own pieces.
             valid = att .&. complement (occupiedBy b c)
             toSquares = map Square (scanForward valid)
-        in [ Move (Just from) (Just to) Nothing Nothing | to <- toSquares ]
+        in [ Move from to Nothing | to <- toSquares ]
 
 pawnMoves :: Board -> GameState -> [Move]
 pawnMoves b gs = concatMap genPawnMoves sqs
@@ -157,15 +157,15 @@ pawnMoves b gs = concatMap genPawnMoves sqs
                 singlePush =
                     if pieceAt b to1 == Nothing
                     then if isPromRank to1
-                         then [ Move (Just from) (Just to1) (Just p) Nothing | p <- [Queen, Rook, Bishop, Knight] ]
-                         else [ Move (Just from) (Just to1) Nothing Nothing ]
+                         then [ Move from to1 (Just p) | p <- [Queen, Rook, Bishop, Knight] ]
+                         else [ Move from to1 Nothing ]
                     else []
 
                 doublePush =
                     let to2 = Square (unSquare to1 + fwd)
                         startRank = if c == White then 1 else 6
                     in if squareRank from == startRank && pieceAt b to1 == Nothing && pieceAt b to2 == Nothing
-                       then [ Move (Just from) (Just to2) Nothing Nothing ]
+                       then [ Move from to2 Nothing ]
                        else []
             in singlePush ++ doublePush
 
@@ -185,8 +185,8 @@ pawnMoves b gs = concatMap genPawnMoves sqs
 
                 mkMove to =
                     if (c == White && squareRank to == 7) || (c == Black && squareRank to == 0)
-                    then [ Move (Just from) (Just to) (Just p) Nothing | p <- [Queen, Rook, Bishop, Knight] ]
-                    else [ Move (Just from) (Just to) Nothing Nothing ]
+                    then [ Move from to (Just p) | p <- [Queen, Rook, Bishop, Knight] ]
+                    else [ Move from to Nothing ]
 
             in concatMap mkMove toSquares
 
@@ -203,7 +203,7 @@ castlingMoves b gs = ks ++ qs
     mkCastlingMove isKingside =
         let toFile = if isKingside then 6 else 2 -- G1/G8 or C1/C8
             toSq = Square (rank * 8 + toFile)
-        in Move (Just kingSq) (Just toSq) Nothing Nothing
+        in Move kingSq toSq Nothing
 
     kingsideClear =
         let f1 = Square (rank * 8 + 5) -- F

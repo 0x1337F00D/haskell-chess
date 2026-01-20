@@ -14,7 +14,7 @@ import Chess.Board.Validation (isCheck, isCheckmate)
 
 -- | Convert a move to Standard Algebraic Notation (SAN).
 san :: Board -> GameState -> Move -> String
-san board gs move@(Move (Just from) (Just to) promo _) =
+san board gs move@(Move from to promo) =
     let p = pieceAt board from
         c = turn gs
         isCapture = isJust (pieceAt board to) || isEpCapture board gs move
@@ -50,7 +50,7 @@ san _ _ _ = ""
 
 -- | Apply move to board and state (minimal version for check detection).
 applyMove :: Board -> GameState -> Move -> (Board, GameState)
-applyMove b gs m@(Move (Just from) (Just to) _ _) =
+applyMove b gs m@(Move from to _ ) =
     let b' = applyMoveBoard b gs m
         p = pieceAt b from
         c = turn gs
@@ -92,7 +92,7 @@ midSquare f t = Square ((unSquare f + unSquare t) `div` 2)
 getCandidates :: Board -> GameState -> Piece -> Square -> [Square]
 getCandidates b gs p target =
     let moves = legalMoves b gs
-    in [ f | Move (Just f) (Just t) _ _ <- moves, t == target, pieceAt b f == Just p ]
+    in [ f | Move f t _ <- moves, t == target, pieceAt b f == Just p ]
 
 disambiguate :: Square -> [Square] -> String
 disambiguate src candidates
@@ -111,7 +111,7 @@ rankChar :: Int -> Char
 rankChar r = rankNames !! r
 
 isEpCapture :: Board -> GameState -> Move -> Bool
-isEpCapture b _ (Move (Just from) (Just to) _ _) =
+isEpCapture b _ (Move from to _ ) =
     case pieceAt b from of
         Just (Piece _ Pawn) ->
              case pieceAt b to of
@@ -127,7 +127,7 @@ parseSan b gs str =
         cleanStr = filter (`notElem` "+#") str
 
         matchesCandidate :: Move -> Bool
-        matchesCandidate m@(Move (Just from) (Just to) _ _) =
+        matchesCandidate m@(Move from to _ ) =
              case cleanStr of
                  "O-O" -> isKingSideCastle m
                  "O-O-O" -> isQueenSideCastle m
@@ -142,11 +142,11 @@ parseSan b gs str =
                          Nothing -> True
         matchesCandidate _ = False
 
-        isKingSideCastle (Move (Just f) (Just t) _ _) =
+        isKingSideCastle (Move f t _ ) =
             fmap pieceType (pieceAt b f) == Just King && (squareFile t - squareFile f == 2)
         isKingSideCastle _ = False
 
-        isQueenSideCastle (Move (Just f) (Just t) _ _) =
+        isQueenSideCastle (Move f t _ ) =
             fmap pieceType (pieceAt b f) == Just King && (squareFile f - squareFile t == 2)
         isQueenSideCastle _ = False
 
