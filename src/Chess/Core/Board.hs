@@ -116,3 +116,135 @@ initialBoard = Board
 -- Stub for fromFEN
 fromFEN :: String -> Maybe Board
 fromFEN _ = Just initialBoard -- TODO: Implement proper FEN parsing
+
+-- Existential wrapper for Piece
+data SomePiece where
+  SomePiece :: Piece c -> SomePiece
+
+deriving instance Show SomePiece
+
+-- Helper to convert specific pieces to MajorMinor if applicable
+toMajorMinor :: Piece c -> Maybe (MajorMinorPiece c)
+toMajorMinor WQueen = Just MQueen
+toMajorMinor WRook = Just MRook
+toMajorMinor WBishop = Just MBishop
+toMajorMinor WKnight = Just MKnight
+toMajorMinor BQueen = Just MQueen
+toMajorMinor BRook = Just MRook
+toMajorMinor BBishop = Just MBishop
+toMajorMinor BKnight = Just MKnight
+toMajorMinor _ = Nothing
+
+pieceColor :: Piece c -> Color
+pieceColor WKing = White
+pieceColor WQueen = White
+pieceColor WRook = White
+pieceColor WBishop = White
+pieceColor WKnight = White
+pieceColor WPawn = White
+pieceColor BKing = Black
+pieceColor BQueen = Black
+pieceColor BRook = Black
+pieceColor BBishop = Black
+pieceColor BKnight = Black
+pieceColor BPawn = Black
+
+pieceType :: Piece c -> PieceType
+pieceType WKing = King
+pieceType WQueen = Queen
+pieceType WRook = Rook
+pieceType WBishop = Bishop
+pieceType WKnight = Knight
+pieceType WPawn = Pawn
+pieceType BKing = King
+pieceType BQueen = Queen
+pieceType BRook = Rook
+pieceType BBishop = Bishop
+pieceType BKnight = Knight
+pieceType BPawn = Pawn
+
+instance Eq SomePiece where
+  SomePiece p1 == SomePiece p2 =
+    pieceColor p1 == pieceColor p2 && pieceType p1 == pieceType p2
+
+-- Helper to convert Rank to PawnRank
+toPawnRank :: Rank -> Maybe PawnRank
+toPawnRank Rank2 = Just PRank2
+toPawnRank Rank3 = Just PRank3
+toPawnRank Rank4 = Just PRank4
+toPawnRank Rank5 = Just PRank5
+toPawnRank Rank6 = Just PRank6
+toPawnRank Rank7 = Just PRank7
+toPawnRank _     = Nothing
+
+-- Helper to convert Square to (File, PawnRank)
+toPawnSquare :: Square -> Maybe (File, PawnRank)
+toPawnSquare (Square f r) = case toPawnRank r of
+  Just pr -> Just (f, pr)
+  Nothing -> Nothing
+
+-- Get piece at a square
+getPieceAt :: Square -> Board -> Maybe SomePiece
+getPieceAt sq b
+  | whiteKing b == sq = Just (SomePiece WKing)
+  | blackKing b == sq = Just (SomePiece BKing)
+  | otherwise =
+      case Map.lookup sq (whitePieces b) of
+        Just MQueen  -> Just (SomePiece WQueen)
+        Just MRook   -> Just (SomePiece WRook)
+        Just MBishop -> Just (SomePiece WBishop)
+        Just MKnight -> Just (SomePiece WKnight)
+        Nothing ->
+          case Map.lookup sq (blackPieces b) of
+            Just MQueen  -> Just (SomePiece BQueen)
+            Just MRook   -> Just (SomePiece BRook)
+            Just MBishop -> Just (SomePiece BBishop)
+            Just MKnight -> Just (SomePiece BKnight)
+            Nothing ->
+               -- Check pawns
+               case toPawnSquare sq of
+                 Just psq -> case Map.lookup psq (pawns b) of
+                               Just White -> Just (SomePiece WPawn)
+                               Just Black -> Just (SomePiece BPawn)
+                               Nothing -> Nothing
+                 Nothing -> Nothing
+
+-- Remove piece at square
+removePieceAt :: Square -> Board -> Board
+removePieceAt sq b = b
+  { whitePieces = Map.delete sq (whitePieces b)
+  , blackPieces = Map.delete sq (blackPieces b)
+  , pawns = case toPawnSquare sq of
+              Just psq -> Map.delete psq (pawns b)
+              Nothing -> pawns b
+  -- We don't remove Kings (invariant)
+  }
+
+-- Put piece at square (overwriting)
+putPieceAt :: Square -> SomePiece -> Board -> Board
+putPieceAt sq (SomePiece p) b =
+  let b' = removePieceAt sq b -- Ensure square is empty first
+  in case p of
+       WKing -> b' { whiteKing = sq }
+       BKing -> b' { blackKing = sq }
+       WPawn -> case toPawnSquare sq of
+                  Just psq -> b' { pawns = Map.insert psq White (pawns b') }
+                  Nothing -> b' -- Invalid pawn placement, ignore or error?
+       BPawn -> case toPawnSquare sq of
+                  Just psq -> b' { pawns = Map.insert psq Black (pawns b') }
+                  Nothing -> b'
+       WQueen  -> b' { whitePieces = Map.insert sq MQueen (whitePieces b') }
+       WRook   -> b' { whitePieces = Map.insert sq MRook (whitePieces b') }
+       WBishop -> b' { whitePieces = Map.insert sq MBishop (whitePieces b') }
+       WKnight -> b' { whitePieces = Map.insert sq MKnight (whitePieces b') }
+       BQueen  -> b' { blackPieces = Map.insert sq MQueen (blackPieces b') }
+       BRook   -> b' { blackPieces = Map.insert sq MRook (blackPieces b') }
+       BBishop -> b' { blackPieces = Map.insert sq MBishop (blackPieces b') }
+       BKnight -> b' { blackPieces = Map.insert sq MKnight (blackPieces b') }
+
+-- Move piece
+movePiece :: Square -> Square -> Board -> Board
+movePiece from to b =
+  case getPieceAt from b of
+    Nothing -> b
+    Just sp -> putPieceAt to sp (removePieceAt from b)
