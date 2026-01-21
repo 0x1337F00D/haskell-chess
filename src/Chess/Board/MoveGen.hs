@@ -226,13 +226,23 @@ pieceMoves b gs pt = concatMap genMoves sqs
 
     genMoves :: Square -> [GenMove]
     genMoves from =
-        let att = attacks b from
-            -- For non-pawns, valid moves are attacks on empty or enemy squares.
-            -- attacks() already handles blocking for sliding pieces.
-            -- We just need to exclude own pieces.
+        let att = case pt of
+                    Knight -> knightAttacks from
+                    Bishop -> bishopAttacks from (occupiedTotal b)
+                    Rook   -> rookAttacks from (occupiedTotal b)
+                    Queen  -> bishopAttacks from (occupiedTotal b) .|. rookAttacks from (occupiedTotal b)
+                    King   -> kingAttacks from
+                    _      -> 0
+
             valid = att .&. complement (occupiedBy b c)
             toSquares = map Square (scanForward valid)
-        in [ GenMove (Move from to Nothing) pt (fmap pieceType (pieceAt b to)) | to <- toSquares ]
+
+            getCapture to =
+                if testBit (occupiedTotal b) (unSquare to)
+                then Just (findPieceType b (oppositeColor c) to)
+                else Nothing
+
+        in [ GenMove (Move from to Nothing) pt (getCapture to) | to <- toSquares ]
 
 pawnMoves :: Board -> GameState -> [GenMove]
 pawnMoves b gs = concatMap genPawnMoves sqs
@@ -250,7 +260,7 @@ pawnMoves b gs = concatMap genPawnMoves sqs
                 isPromRank s = (c == White && squareRank s == 7) || (c == Black && squareRank s == 0)
 
                 singlePush =
-                    if pieceAt b to1 == Nothing
+                    if not (testBit (occupiedTotal b) (unSquare to1))
                     then if isPromRank to1
                          then [ GenMove (Move from to1 (Just p)) Pawn Nothing | p <- [Queen, Rook, Bishop, Knight] ]
                          else [ GenMove (Move from to1 Nothing) Pawn Nothing ]
@@ -259,7 +269,7 @@ pawnMoves b gs = concatMap genPawnMoves sqs
                 doublePush =
                     let to2 = Square (unSquare to1 + fwd)
                         startRank = if c == White then 1 else 6
-                    in if squareRank from == startRank && pieceAt b to1 == Nothing && pieceAt b to2 == Nothing
+                    in if squareRank from == startRank && not (testBit (occupiedTotal b) (unSquare to1)) && not (testBit (occupiedTotal b) (unSquare to2))
                        then [ GenMove (Move from to2 Nothing) Pawn Nothing ]
                        else []
             in singlePush ++ doublePush
@@ -282,7 +292,10 @@ pawnMoves b gs = concatMap genPawnMoves sqs
                     -- Determine captured piece.
                     -- If 'to' is occupied, it's a normal capture.
                     -- If 'to' is empty (but valid), it's EP.
-                    let cap = fmap pieceType (pieceAt b to) -- Nothing for EP
+                    let toI = unSquare to
+                        cap = if testBit (occupiedTotal b) toI
+                              then Just (findPieceType b (oppositeColor c) to)
+                              else Nothing
                         mvs = if (c == White && squareRank to == 7) || (c == Black && squareRank to == 0)
                               then [ GenMove (Move from to (Just p)) Pawn cap | p <- [Queen, Rook, Bishop, Knight] ]
                               else [ GenMove (Move from to Nothing) Pawn cap ]
@@ -308,10 +321,10 @@ castlingMoves b gs = ks ++ qs
     kingsideClear =
         let f1 = Square (rank * 8 + 5) -- F
             g1 = Square (rank * 8 + 6) -- G
-        in pieceAt b f1 == Nothing && pieceAt b g1 == Nothing
+        in not (testBit (occupiedTotal b) (unSquare f1)) && not (testBit (occupiedTotal b) (unSquare g1))
 
     queensideClear =
         let d1 = Square (rank * 8 + 3) -- D
             c1 = Square (rank * 8 + 2) -- C
             b1 = Square (rank * 8 + 1) -- B
-        in pieceAt b d1 == Nothing && pieceAt b c1 == Nothing && pieceAt b b1 == Nothing
+        in not (testBit (occupiedTotal b) (unSquare d1)) && not (testBit (occupiedTotal b) (unSquare c1)) && not (testBit (occupiedTotal b) (unSquare b1))
