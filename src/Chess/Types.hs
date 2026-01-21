@@ -9,7 +9,6 @@ import Control.Exception (Exception)
 import Data.Char (toLower, chr, ord)
 import Data.Word (Word64)
 import Data.Bits
-import qualified Data.Map as M
 
 -- | Color of a chess piece or side to move.
 data Color = White | Black
