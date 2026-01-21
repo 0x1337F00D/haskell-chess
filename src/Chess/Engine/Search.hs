@@ -13,7 +13,9 @@ import Chess.Engine.Evaluation (evaluate)
 search :: Board -> Int -> IO Move
 search board depth = do
     -- Simple iterative deepening or just fixed depth for now.
+    -- We can print info here if we want to simulate UCI 'info'.
     let (bestMove, _) = alphaBetaRoot board depth
+    -- putStrLn $ "info depth " ++ show depth ++ " score cp " ++ show score
     return bestMove
 
 -- | Alpha-Beta at root.

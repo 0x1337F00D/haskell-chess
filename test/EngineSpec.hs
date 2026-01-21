@@ -1,7 +1,8 @@
 module EngineSpec (spec) where
 
 import Test.Hspec
-import Chess.Board (initialBoard, parseFen, fromUci, uci, applyMove)
+import Data.Maybe (fromJust)
+import Chess.Board (initialBoard, parseFen, uci)
 import Chess.Engine.Evaluation (evaluate)
 import Chess.Engine.Search (search)
 
@@ -17,6 +18,6 @@ spec = describe "Engine" $ do
       -- 1. f3 e5 2. g4 ??
       -- Black to move: Qh4#
       let fenStr = "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2"
-          Just board = parseFen fenStr
+          board = fromJust $ parseFen fenStr
       move <- search board 2
       uci move `shouldBe` "d8h4"

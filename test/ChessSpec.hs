@@ -13,7 +13,7 @@ spec = describe "Chess (High-Level API)" $ do
     it "parseFen roundtrips starting FEN" $ do
       let mb = parseFen startingFEN
       mb `shouldSatisfy` isJust
-      let (Just b) = mb
+      let b = fromJust mb
       fen b `shouldBe` startingFEN
 
   describe "Moves" $ do

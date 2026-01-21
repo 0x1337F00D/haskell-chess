@@ -21,9 +21,8 @@ import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
-import Data.Bits (setBit, (.&.), (.|.), complement, testBit)
+import Data.Bits (setBit, (.&.), (.|.))
 import qualified Data.Map as Map
-import Data.Maybe (fromMaybe)
 
 -- Type-level Opposite Color
 type family Opposite (c :: Color) :: Color where
@@ -170,7 +169,7 @@ toCoreMove b (T.Move f t promo) =
       toSq = fromSquare t
       p = getPieceAt fromSq b
   in case (p, promo) of
-       (Just (SomePiece piece), Just pt) ->
+       (Just (SomePiece _), Just pt) ->
           PromotionMove fromSq toSq (fromPieceType pt)
        (Just (SomePiece piece), Nothing) ->
           if isCastlingMove piece fromSq toSq

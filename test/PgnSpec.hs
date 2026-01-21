@@ -1,10 +1,8 @@
 module PgnSpec (spec) where
 
 import Test.Hspec
-import Chess.Pgn (parsePgn, Game(..), PgnNode(..), showGame, GameTree(..), GameNode(..))
+import Chess.Pgn (parsePgn, showGame)
 import qualified Chess.Pgn as Pgn
-import Control.Monad (forM_, foldM)
-import Chess.Board
 
 spec :: Spec
 spec = do
