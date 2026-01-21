@@ -167,3 +167,63 @@ spec = describe "Core Architecture" $ do
              Just (SomePiece WPawn) -> return ()
              _ -> expectationFailure "Expected White Pawn at C4 to survive"
         _ -> expectationFailure "Expected Continue"
+
+    it "KingOfTheHill: King to center wins" $ do
+      -- Setup White King on E3. Move to E4 (Center).
+      let b = initialBoard { whiteKing = Square FileE Rank3 }
+      let ag :: ActiveGame 'KingOfTheHill 'White 'Safe
+          ag = ActiveGame
+               { gameBoard = b
+               , castlingRights = CastlingRights False False False False
+               , enPassantTarget = Nothing
+               , halfMoveClock = 0
+               , fullMoveNumber = 1
+               }
+      let move = StandardMove (Square FileE Rank3) (Square FileE Rank4)
+      let res = applyMove move ag
+      case res of
+        Checkmate (Winner White) -> return ()
+        _ -> expectationFailure "Expected White Win (King to Center)"
+
+    it "RacingKings: Move giving check is illegal" $ do
+        -- Setup: White Rook A1. Black King A8.
+        -- Move A1-A2 attacks A file (gives check to A8). Should be illegal.
+        let b = initialBoard
+              { pawns = Map.empty
+              , whitePieces = Map.fromList [(Square FileA Rank1, MRook)]
+              , blackPieces = Map.empty
+              , blackKing = Square FileA Rank8
+              }
+        let ag :: ActiveGame 'RacingKings 'White 'Safe
+            ag = ActiveGame
+               { gameBoard = b
+               , castlingRights = CastlingRights False False False False
+               , enPassantTarget = Nothing
+               , halfMoveClock = 0
+               , fullMoveNumber = 1
+               }
+
+        let moves = generateLegalMoves ag
+        let unsafeMove = StandardMove (Square FileA Rank1) (Square FileA Rank2)
+        moves `shouldNotContain` [unsafeMove]
+
+        -- Safe move: Rook to B1
+        let safeMove = StandardMove (Square FileA Rank1) (Square FileB Rank1)
+        moves `shouldContain` [safeMove]
+
+    it "RacingKings: Reaching Rank 8" $ do
+       -- Setup White King on E7. Move to E8.
+       let b = initialBoard { whiteKing = Square FileE Rank7 }
+       let ag :: ActiveGame 'RacingKings 'White 'Safe
+           ag = ActiveGame
+               { gameBoard = b
+               , castlingRights = CastlingRights False False False False
+               , enPassantTarget = Nothing
+               , halfMoveClock = 0
+               , fullMoveNumber = 1
+               }
+       let move = StandardMove (Square FileE Rank7) (Square FileE Rank8)
+       let res = applyMove move ag
+       case res of
+         Continue _ -> return () -- Game continues for Black's turn
+         _ -> expectationFailure "Expected Continue (wait for Black)"

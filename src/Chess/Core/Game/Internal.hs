@@ -15,7 +15,7 @@ data Phase = Setup | Active | Finished
   deriving (Eq, Show)
 
 -- Variants
-data Variant = Standard | Atomic
+data Variant = Standard | Atomic | KingOfTheHill | RacingKings
   deriving (Eq, Show)
 
 -- Check Status (Section 7)
