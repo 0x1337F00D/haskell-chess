@@ -1,7 +1,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 module Chess.Board.Base where
 
-import Data.Bits ((.|.), (.&.), testBit, setBit, clearBit)
+import Data.Bits ((.|.), (.&.), testBit, setBit, clearBit, xor, shiftL)
 
 import Chess.Types
 import Chess.Bitboard
@@ -92,35 +92,70 @@ colorAt :: Board -> Square -> Maybe Color
 colorAt b sq = fmap pieceColor (pieceAt b sq)
 
 -- | Place a piece on the board. Overwrites any existing piece at that square.
+-- Optimized to check for occupancy first.
 putPiece :: Board -> Square -> Piece -> Board
 putPiece b sq piece =
-  let b' = removePieceAt b sq
-      i = unSquare sq
-      c = pieceColor piece
-      pt = pieceType piece
+  let i = unSquare sq
+      -- Check if occupied (fast check)
+      captured = if testBit (occupiedTotal b) i then pieceAt b sq else Nothing
 
-      -- Helper to set occupancy bits
-      setOccs board col =
-          let w = if col == White then setBit (occupiedWhite board) i else occupiedWhite board
-              bl = if col == Black then setBit (occupiedBlack board) i else occupiedBlack board
-              tot = setBit (occupiedTotal board) i
-          in board { occupiedWhite = w, occupiedBlack = bl, occupiedTotal = tot }
+      -- Remove captured piece if any
+      b1 = case captured of
+             Nothing -> b
+             Just (Piece capC capPt) -> unsafeRemovePiece b sq capC capPt
 
-      bWithOccs = setOccs b' c
+  in unsafePutPiece b1 sq piece
 
-  in case (c, pt) of
-      (White, Pawn)   -> bWithOccs { whitePawns   = setBit (whitePawns b') i }
-      (White, Knight) -> bWithOccs { whiteKnights = setBit (whiteKnights b') i }
-      (White, Bishop) -> bWithOccs { whiteBishops = setBit (whiteBishops b') i }
-      (White, Rook)   -> bWithOccs { whiteRooks   = setBit (whiteRooks b') i }
-      (White, Queen)  -> bWithOccs { whiteQueens  = setBit (whiteQueens b') i }
-      (White, King)   -> bWithOccs { whiteKings   = setBit (whiteKings b') i }
-      (Black, Pawn)   -> bWithOccs { blackPawns   = setBit (blackPawns b') i }
-      (Black, Knight) -> bWithOccs { blackKnights = setBit (blackKnights b') i }
-      (Black, Bishop) -> bWithOccs { blackBishops = setBit (blackBishops b') i }
-      (Black, Rook)   -> bWithOccs { blackRooks   = setBit (blackRooks b') i }
-      (Black, Queen)  -> bWithOccs { blackQueens  = setBit (blackQueens b') i }
-      (Black, King)   -> bWithOccs { blackKings   = setBit (blackKings b') i }
+-- | Place a piece on the board assuming the square is empty.
+unsafePutPiece :: Board -> Square -> Piece -> Board
+unsafePutPiece b sq (Piece c pt) =
+    let i = unSquare sq
+        -- Update specific bitboard
+        b' = case (c, pt) of
+               (White, Pawn)   -> b { whitePawns   = setBit (whitePawns b) i }
+               (White, Knight) -> b { whiteKnights = setBit (whiteKnights b) i }
+               (White, Bishop) -> b { whiteBishops = setBit (whiteBishops b) i }
+               (White, Rook)   -> b { whiteRooks   = setBit (whiteRooks b) i }
+               (White, Queen)  -> b { whiteQueens  = setBit (whiteQueens b) i }
+               (White, King)   -> b { whiteKings   = setBit (whiteKings b) i }
+               (Black, Pawn)   -> b { blackPawns   = setBit (blackPawns b) i }
+               (Black, Knight) -> b { blackKnights = setBit (blackKnights b) i }
+               (Black, Bishop) -> b { blackBishops = setBit (blackBishops b) i }
+               (Black, Rook)   -> b { blackRooks   = setBit (blackRooks b) i }
+               (Black, Queen)  -> b { blackQueens  = setBit (blackQueens b) i }
+               (Black, King)   -> b { blackKings   = setBit (blackKings b) i }
+
+        -- Update occupancy
+        white = if c == White then setBit (occupiedWhite b) i else occupiedWhite b
+        black = if c == Black then setBit (occupiedBlack b) i else occupiedBlack b
+        total = setBit (occupiedTotal b) i
+    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total }
+
+-- | Remove a piece from the board knowing its color and type.
+-- Does not update other bitboards, so it is faster than removePieceAt.
+unsafeRemovePiece :: Board -> Square -> Color -> PieceType -> Board
+unsafeRemovePiece b sq c pt =
+    let i = unSquare sq
+        -- Update the specific bitboard
+        b' = case (c, pt) of
+               (White, Pawn)   -> b { whitePawns   = clearBit (whitePawns b) i }
+               (White, Knight) -> b { whiteKnights = clearBit (whiteKnights b) i }
+               (White, Bishop) -> b { whiteBishops = clearBit (whiteBishops b) i }
+               (White, Rook)   -> b { whiteRooks   = clearBit (whiteRooks b) i }
+               (White, Queen)  -> b { whiteQueens  = clearBit (whiteQueens b) i }
+               (White, King)   -> b { whiteKings   = clearBit (whiteKings b) i }
+               (Black, Pawn)   -> b { blackPawns   = clearBit (blackPawns b) i }
+               (Black, Knight) -> b { blackKnights = clearBit (blackKnights b) i }
+               (Black, Bishop) -> b { blackBishops = clearBit (blackBishops b) i }
+               (Black, Rook)   -> b { blackRooks   = clearBit (blackRooks b) i }
+               (Black, Queen)  -> b { blackQueens  = clearBit (blackQueens b) i }
+               (Black, King)   -> b { blackKings   = clearBit (blackKings b) i }
+
+        -- Update occupancy
+        white = if c == White then clearBit (occupiedWhite b) i else occupiedWhite b
+        black = if c == Black then clearBit (occupiedBlack b) i else occupiedBlack b
+        total = clearBit (occupiedTotal b) i
+    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total }
 
 -- | Remove a piece from the board.
 removePieceAt :: Board -> Square -> Board
@@ -142,6 +177,50 @@ removePieceAt b sq = b
   , occupiedTotal = clearBit (occupiedTotal b) i
   }
   where i = unSquare sq
+
+-- | Move a piece from one square to another.
+-- Handles capturing if the target square is occupied.
+movePiece :: Board -> Square -> Square -> Color -> PieceType -> Board
+movePiece b from to c pt =
+    let fromI = unSquare from
+        toI   = unSquare to
+
+        -- Check capture
+        captured = if testBit (occupiedTotal b) toI
+                   then pieceAt b to
+                   else Nothing
+
+        -- Remove captured piece (if any)
+        b1 = case captured of
+               Nothing -> b
+               Just (Piece capC capPt) -> unsafeRemovePiece b to capC capPt
+
+        -- Move the piece using XOR swap
+        -- We want to flip bits at 'from' and 'to'.
+        -- In b1, 'from' is 1, 'to' is 0.
+        mask = (1 `shiftL` fromI) `xor` (1 `shiftL` toI)
+
+        b2 = case (c, pt) of
+               (White, Pawn)   -> b1 { whitePawns   = whitePawns b1 `xor` mask }
+               (White, Knight) -> b1 { whiteKnights = whiteKnights b1 `xor` mask }
+               (White, Bishop) -> b1 { whiteBishops = whiteBishops b1 `xor` mask }
+               (White, Rook)   -> b1 { whiteRooks   = whiteRooks b1 `xor` mask }
+               (White, Queen)  -> b1 { whiteQueens  = whiteQueens b1 `xor` mask }
+               (White, King)   -> b1 { whiteKings   = whiteKings b1 `xor` mask }
+               (Black, Pawn)   -> b1 { blackPawns   = blackPawns b1 `xor` mask }
+               (Black, Knight) -> b1 { blackKnights = blackKnights b1 `xor` mask }
+               (Black, Bishop) -> b1 { blackBishops = blackBishops b1 `xor` mask }
+               (Black, Rook)   -> b1 { blackRooks   = blackRooks b1 `xor` mask }
+               (Black, Queen)  -> b1 { blackQueens  = blackQueens b1 `xor` mask }
+               (Black, King)   -> b1 { blackKings   = blackKings b1 `xor` mask }
+
+        -- Update occupancy
+        -- For the moving piece color, we flip both bits.
+        whiteOcc = if c == White then occupiedWhite b1 `xor` mask else occupiedWhite b1
+        blackOcc = if c == Black then occupiedBlack b1 `xor` mask else occupiedBlack b1
+        totalOcc = occupiedTotal b1 `xor` mask
+
+    in b2 { occupiedWhite = whiteOcc, occupiedBlack = blackOcc, occupiedTotal = totalOcc }
 
 -- | Bitboard of all pieces.
 occupied :: Board -> Bitboard

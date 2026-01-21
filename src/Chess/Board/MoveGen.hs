@@ -72,38 +72,48 @@ applyMoveBoard b gs (Move from to promo) =
         c = turn gs
     in case p of
         Nothing -> b -- Should not happen
-        Just piece@(Piece _ pt) ->
-            let -- Basic move: remove from 'from', put at 'to'
-                b1 = removePieceAt b from
-                newPiece = case promo of
-                             Just ppt -> Piece c ppt
-                             Nothing -> piece
-                b2 = putPiece b1 to newPiece
+        Just (Piece _ pt) ->
+            let
+                -- Handle Basic Move and Promotion
+                bAfterMove =
+                    case promo of
+                        Just ppt ->
+                            -- If promotion:
+                            -- 1. Remove pawn from 'from'
+                            -- 2. Remove potential capture at 'to'
+                            -- 3. Put promoted piece at 'to'
+                            let b1 = unsafeRemovePiece b from c Pawn
+                                captured = if testBit (occupiedTotal b) (unSquare to) then pieceAt b to else Nothing
+                                b2 = case captured of
+                                       Nothing -> b1
+                                       Just (Piece capC capPt) -> unsafeRemovePiece b1 to capC capPt
+                                newPiece = Piece c ppt
+                            in unsafePutPiece b2 to newPiece
+                        Nothing ->
+                            -- Normal move: use optimized movePiece
+                            movePiece b from to c pt
 
                 -- Handle En Passant capture
-                -- If pawn moves diagonally to empty square, it's EP (assuming pseudo-legal generated it correctly)
-                isEP = pt == Pawn && squareFile from /= squareFile to && pieceAt b to == Nothing
-                b3 = if isEP
-                     then let capSq = Square (unSquare to + (if c == White then -8 else 8))
-                          in removePieceAt b2 capSq
-                     else b2
+                -- If pawn moves diagonally to empty square, it's EP.
+                isEP = pt == Pawn && squareFile from /= squareFile to && not (testBit (occupiedTotal b) (unSquare to))
+
+                bAfterEP = if isEP
+                           then let capSq = Square (unSquare to + (if c == White then -8 else 8))
+                                    -- Capture is opposite color Pawn
+                                in unsafeRemovePiece bAfterMove capSq (oppositeColor c) Pawn
+                           else bAfterMove
 
                 -- Handle Castling (move rook)
                 isCastling = pt == King && abs (unSquare from - unSquare to) == 2
-                b4 = if isCastling
-                     then let (rookFrom, rookTo) = castlingRookMove from to
-                          in movePiece b3 rookFrom rookTo
-                     else b3
+                bFinal = if isCastling
+                         then let (rookFrom, rookTo) = castlingRookMove from to
+                                  -- Rook is same color, Rook.
+                                  -- Move rook from rookFrom to rookTo.
+                              in movePiece bAfterEP rookFrom rookTo c Rook
+                         else bAfterEP
 
-            in b4
+            in bFinal
 applyMoveBoard b _ NullMove = b
-
--- Helper to move a piece
-movePiece :: Board -> Square -> Square -> Board
-movePiece b from to =
-    case pieceAt b from of
-        Nothing -> b
-        Just p -> putPiece (removePieceAt b from) to p
 
 -- Helper to determine rook move for castling
 castlingRookMove :: Square -> Square -> (Square, Square)
