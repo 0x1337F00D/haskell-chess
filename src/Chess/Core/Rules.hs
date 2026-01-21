@@ -337,6 +337,7 @@ instance ChessVariant 'Standard where
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
                                     , fullMoveNumber = newFMN
+                                    , variantData = ()
                                     } :: ActiveGame 'Standard (Opposite c) 'Checked)
          (False, True) -> Continue (ActiveGame
                                     { gameBoard = b'
@@ -344,6 +345,7 @@ instance ChessVariant 'Standard where
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
                                     , fullMoveNumber = newFMN
+                                    , variantData = ()
                                     } :: ActiveGame 'Standard (Opposite c) 'Safe)
 
 instance ChessVariant 'Atomic where
@@ -479,6 +481,7 @@ instance ChessVariant 'Atomic where
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
                                     , fullMoveNumber = newFMN
+                                    , variantData = ()
                                     } :: ActiveGame 'Atomic (Opposite c) 'Checked)
          (False, True) -> Continue (ActiveGame
                                     { gameBoard = bFinal
@@ -486,6 +489,7 @@ instance ChessVariant 'Atomic where
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
                                     , fullMoveNumber = newFMN
+                                    , variantData = ()
                                     } :: ActiveGame 'Atomic (Opposite c) 'Safe)
 
 instance ChessVariant 'KingOfTheHill where
@@ -560,6 +564,7 @@ instance ChessVariant 'KingOfTheHill where
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
                                     , fullMoveNumber = newFMN
+                                    , variantData = ()
                                     } :: ActiveGame 'KingOfTheHill (Opposite c) 'Checked)
          (False, True) -> Continue (ActiveGame
                                     { gameBoard = b'
@@ -567,6 +572,7 @@ instance ChessVariant 'KingOfTheHill where
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
                                     , fullMoveNumber = newFMN
+                                    , variantData = ()
                                     } :: ActiveGame 'KingOfTheHill (Opposite c) 'Safe)
 
 instance ChessVariant 'RacingKings where
@@ -625,6 +631,7 @@ instance ChessVariant 'RacingKings where
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
                                     , fullMoveNumber = newFMN
+                                    , variantData = ()
                                     }
 
         -- Check if next player has moves using OUR generateMoves
@@ -653,6 +660,85 @@ instance ChessVariant 'RacingKings where
                   if realHasMoves then Continue nextGameCandidate else Stalemate
 
     in result
+
+instance ChessVariant 'ThreeCheck where
+  generateMoves (ag :: ActiveGame 'ThreeCheck c s) =
+    let b = gameBoard ag
+        baseBoard = toBaseBoard b
+        gs = toGameState ag
+        baseMoves = MG.legalMoves baseBoard gs
+    in map (toCoreMove b) baseMoves
+
+  executeMove (m :: Move c) (ag :: ActiveGame 'ThreeCheck c s) =
+    let
+        c = colorVal @c
+        b = gameBoard ag
+        b' = applyMoveBoard b m
+
+        (from, to) = case m of
+                       StandardMove f t -> (f, t)
+                       PromotionMove f t _ -> (f, t)
+                       CastlingMove f t -> (f, t)
+                       EnPassantMove f t -> (f, t)
+
+        newCR = updateCastlingRights (castlingRights ag) from to
+
+        movedPiece = getPieceAt to b'
+        isPawn = case movedPiece of
+                   Just (SomePiece WPawn) -> True
+                   Just (SomePiece BPawn) -> True
+                   _ -> False
+
+        newEP = case m of
+                  StandardMove f t -> if isPawn && isDoublePush f t then Just (getFile f) else Nothing
+                  _ -> Nothing
+
+        newHMC = halfMoveClock ag + 1
+        newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
+
+        baseBoard = toBaseBoard b'
+
+        nextTurnGS = GS.GameState
+          { GS.turn = toColor (colorVal @(Opposite c))
+          , GS.castlingRights = toCastlingRights newCR
+          , GS.epSquare = case newEP of
+                            Nothing -> Nothing
+                            Just f -> Just (toSquare (Square f (epRank (colorVal @(Opposite c)))))
+          , GS.halfmoveClock = newHMC
+          , GS.fullmoveNumber = newFMN
+          }
+
+        isChecked = Val.isCheck baseBoard nextTurnGS
+        hasMoves = Val.hasLegalMoves baseBoard nextTurnGS
+
+        (wChecks, bChecks) = variantData ag
+        (wChecks', bChecks') = if isChecked
+                               then if c == White then (wChecks + 1, bChecks) else (wChecks, bChecks + 1)
+                               else (wChecks, bChecks)
+
+        newVariantData = (wChecks', bChecks')
+
+    in if (c == White && wChecks' >= 3) || (c == Black && bChecks' >= 3)
+       then Checkmate (Winner c)
+       else case (isChecked, hasMoves) of
+         (True, False) -> Checkmate (Winner c)
+         (False, False) -> Stalemate
+         (True, True) -> Continue (ActiveGame
+                                    { gameBoard = b'
+                                    , castlingRights = newCR
+                                    , enPassantTarget = newEP
+                                    , halfMoveClock = newHMC
+                                    , fullMoveNumber = newFMN
+                                    , variantData = newVariantData
+                                    } :: ActiveGame 'ThreeCheck (Opposite c) 'Checked)
+         (False, True) -> Continue (ActiveGame
+                                    { gameBoard = b'
+                                    , castlingRights = newCR
+                                    , enPassantTarget = newEP
+                                    , halfMoveClock = newHMC
+                                    , fullMoveNumber = newFMN
+                                    , variantData = newVariantData
+                                    } :: ActiveGame 'ThreeCheck (Opposite c) 'Safe)
 
 getAdjacentSquares :: Square -> [Square]
 getAdjacentSquares (Square f r) =

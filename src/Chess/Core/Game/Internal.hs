@@ -3,6 +3,8 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Chess.Core.Game.Internal where
 
@@ -15,8 +17,16 @@ data Phase = Setup | Active | Finished
   deriving (Eq, Show)
 
 -- Variants
-data Variant = Standard | Atomic | KingOfTheHill | RacingKings
+data Variant = Standard | Atomic | KingOfTheHill | RacingKings | ThreeCheck
   deriving (Eq, Show)
+
+-- Variant Data
+type family VariantData (v :: Variant) where
+  VariantData 'Standard = ()
+  VariantData 'Atomic = ()
+  VariantData 'KingOfTheHill = ()
+  VariantData 'RacingKings = ()
+  VariantData 'ThreeCheck = (Int, Int) -- (White Checks, Black Checks)
 
 -- Check Status (Section 7)
 data CheckStatus = Safe | Checked
@@ -43,7 +53,11 @@ data ActiveGame (v :: Variant) (turn :: Color) (status :: CheckStatus) = ActiveG
   , enPassantTarget :: Maybe File -- File of the pawn that moved two squares, if any
   , halfMoveClock :: Int
   , fullMoveNumber :: Int
-  } deriving (Show, Eq)
+  , variantData :: VariantData v
+  }
+
+deriving instance (Show (VariantData v)) => Show (ActiveGame v turn status)
+deriving instance (Eq (VariantData v)) => Eq (ActiveGame v turn status)
 
 -- The Game Container
 data Game (v :: Variant) (p :: Phase) where

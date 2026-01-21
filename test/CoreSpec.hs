@@ -55,6 +55,7 @@ spec = describe "Core Architecture" $ do
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
+               , variantData = ()
                }
       -- Move E2 to E4
       let move = StandardMove (Square FileE Rank2) (Square FileE Rank4)
@@ -77,6 +78,7 @@ spec = describe "Core Architecture" $ do
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
+               , variantData = ()
                }
       let moves = generateLegalMoves ag
       length moves `shouldBe` 20
@@ -103,6 +105,7 @@ spec = describe "Core Architecture" $ do
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
+               , variantData = ()
                }
 
       let moves = generateLegalMoves ag
@@ -126,6 +129,7 @@ spec = describe "Core Architecture" $ do
                , enPassantTarget = Just FileF
                , halfMoveClock = 0
                , fullMoveNumber = 1
+               , variantData = ()
                }
 
       let moves = generateLegalMoves ag
@@ -150,6 +154,7 @@ spec = describe "Core Architecture" $ do
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
+               , variantData = ()
                }
 
       let move = StandardMove (Square FileE Rank4) (Square FileD Rank5)
@@ -178,6 +183,7 @@ spec = describe "Core Architecture" $ do
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
+               , variantData = ()
                }
       let move = StandardMove (Square FileE Rank3) (Square FileE Rank4)
       let res = applyMove move ag
@@ -201,6 +207,7 @@ spec = describe "Core Architecture" $ do
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
+               , variantData = ()
                }
 
         let moves = generateLegalMoves ag
@@ -221,9 +228,38 @@ spec = describe "Core Architecture" $ do
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
+               , variantData = ()
                }
        let move = StandardMove (Square FileE Rank7) (Square FileE Rank8)
        let res = applyMove move ag
        case res of
          Continue _ -> return () -- Game continues for Black's turn
          _ -> expectationFailure "Expected Continue (wait for Black)"
+
+    it "ThreeCheck: 3rd check wins" $ do
+      -- Setup: White Rook on E1, King on E8.
+      -- 2 checks already.
+      -- Move Rook to E2 (check).
+      let b = initialBoard
+            { pawns = Map.empty
+            , whitePieces = Map.singleton (Square FileE Rank1) MRook
+            , blackPieces = Map.empty
+            , blackKing = Square FileE Rank8
+            }
+
+      let ag :: ActiveGame 'ThreeCheck 'White 'Safe
+          ag = ActiveGame
+               { gameBoard = b
+               , castlingRights = CastlingRights False False False False
+               , enPassantTarget = Nothing
+               , halfMoveClock = 0
+               , fullMoveNumber = 1
+               , variantData = (2, 0)
+               }
+
+      -- Move E1-E2
+      let move = StandardMove (Square FileE Rank1) (Square FileE Rank2)
+      let res = applyMove move ag
+      case res of
+        Checkmate (Winner White) -> return ()
+        _ -> expectationFailure "Expected White Win (3rd Check)"
