@@ -9,7 +9,7 @@ A Haskell port of the [PyChess](https://github.com/pychess/pychess) library. Thi
 | **Core Rules** | `[██████████]` 100% | ✅ Implemented (Bitboards, MoveGen, Validation) |
 | **Formats** | `[█████████░]` 90% | ✅ Implemented (FEN ✅, PGN ✅, UCI ✅) |
 | **Engine** | `[████████░░]` 80% | 🚧 Working (Search/Eval Implemented) |
-| **Variants** | `[░░░░░░░░░░]` 0% | ❌ Standard Chess Only |
+| **Variants** | `[██░░░░░░░░]` 20% | 🚧 Atomic (Experimental) |
 | **Extras** | `[██████████]` 100% | ✅ Implemented (Books, TB, Time) |
 
 ## Feature Comparison
@@ -19,7 +19,7 @@ We aim to reach feature parity with PyChess. Here is the current standing:
 | Feature | haskell-chess | PyChess | Notes |
 | :--- | :---: | :---: | :--- |
 | **Board Representation** | ✅ Bitboards | ✅ Object + C++ | Haskell uses efficient 64-bit bitboards. |
-| **Move Generation** | ✅ Implemented | ✅ Implemented | Haskell is Standard-only for now. |
+| **Move Generation** | ✅ Implemented | ✅ Implemented | Supports Standard and Atomic (via Type Class). |
 | **Move Validation** | ✅ Full Legality | ✅ Full Legality | Includes checks, castling, en passant. |
 | **FEN Support** | ✅ Read/Write | ✅ Read/Write | Full support for all 6 FEN fields. |
 | **PGN Support** | ✅ Full Parsing | ✅ Full Support | Support for game trees, comments, NAGs, and variations. |
@@ -27,7 +27,7 @@ We aim to reach feature parity with PyChess. Here is the current standing:
 | **Opening Books** | ✅ Polyglot | ✅ Polyglot/BIN | Read support for .bin books. |
 | **Endgame Tablebases** | ✅ Online & Local | ✅ Gaviota/Syzygy | Queries Lichess API. Local probing supported. |
 | **Time Controls** | ✅ Implemented | ✅ Full Support | Infinite, Standard, Delay, MoveTime. |
-| **Variants** | ❌ Standard Only | ✅ 30+ Variants | Atomic, Crazyhouse, Shogi, etc. |
+| **Variants** | 🚧 Atomic (Alpha) | ✅ 30+ Variants | Atomic, Crazyhouse, Shogi, etc. |
 | **Evaluation** | ✅ Implemented | ✅ Basic Eval | Material + PSTO evaluation. |
 | **Search** | ✅ Implemented | ✅ Alphas/Beta | Alpha-Beta + Quiescence search. |
 
@@ -49,8 +49,8 @@ To achieve parity with PyChess, the following tasks are identified:
 - [x] **Time Management**: Implement time control logic (time left, increment, move time).
 
 ### 4. Variants (Long Term)
-- [ ] Refactor `Board` and `MoveGen` to support non-standard rules.
-- [ ] Implement popular variants: Atomic, Crazyhouse, King of the Hill, 3-Check.
+- [x] Refactor `Board` and `MoveGen` to support non-standard rules (Implemented `ChessVariant` typeclass).
+- [x] Implement popular variants: Atomic (Partially Implemented), Crazyhouse, King of the Hill, 3-Check.
 
 ## Architecture
 
