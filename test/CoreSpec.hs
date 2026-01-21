@@ -11,7 +11,7 @@ import Chess.Core.Game
 import Chess.Core.Move
 import Chess.Core.Rules
 import Chess.Core.Board.Internal (movePiece)
-import Chess.Core.Game.Internal (ActiveGame(..))
+import Chess.Core.Game.Internal (ActiveGame(..), Game(..))
 import Chess.Core.Move.Internal (Move(..))
 import qualified Data.Map as Map
 
@@ -34,6 +34,57 @@ spec = describe "Core Architecture" $ do
       case getPieceAt (Square FileE Rank4) b' of
         Just (SomePiece WPawn) -> return ()
         _ -> expectationFailure "Expected White Pawn at E4"
+
+  describe "FEN" $ do
+    it "fromFEN parses initial position correctly" $ do
+      let fenStr = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+      case fromFEN fenStr of
+        Just b -> b `shouldBe` initialBoard
+        Nothing -> expectationFailure "Failed to parse initial FEN"
+
+    it "fromFEN parses custom position correctly" $ do
+      -- E4, D4, White King E1, Black King E8
+      let fenStr = "4k3/8/8/8/3P4/4P3/8/4K3 w - - 0 1"
+      case fromFEN fenStr of
+        Just b -> do
+          whiteKing b `shouldBe` Square FileE Rank1
+          blackKing b `shouldBe` Square FileE Rank8
+          -- Check Pawn at E3
+          case getPieceAt (Square FileE Rank3) b of
+             Just (SomePiece WPawn) -> return ()
+             _ -> expectationFailure "Expected White Pawn at E3"
+          -- Check Pawn at D4
+          case getPieceAt (Square FileD Rank4) b of
+             Just (SomePiece WPawn) -> return ()
+             _ -> expectationFailure "Expected White Pawn at D4"
+          -- Check Empty
+          getPieceAt (Square FileA Rank1) b `shouldBe` Nothing
+        Nothing -> expectationFailure "Failed to parse custom FEN"
+
+    it "fromFEN returns Nothing for invalid FEN (missing King)" $ do
+      let fenStr = "8/8/8/8/8/8/8/8 w - - 0 1"
+      fromFEN fenStr `shouldBe` Nothing
+
+  describe "Game Factory" $ do
+    it "initialGame creates a valid game" $ do
+      case initialGame of
+        InProgressGame ag -> gameBoard ag `shouldBe` initialBoard
+
+    it "gameFromFEN parses initial FEN" $ do
+      let fenStr = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+      case gameFromFEN fenStr of
+        Just (InProgressGame ag) -> do
+          gameBoard ag `shouldBe` initialBoard
+        Nothing -> expectationFailure "Failed to parse initial game FEN"
+
+    it "gameFromFEN detects check" $ do
+       -- White King E1, Black Rook E5. White to move.
+       let fenStrCheck = "4k3/8/8/4r3/8/8/8/4K3 w - - 0 1"
+       case gameFromFEN fenStrCheck of
+         Just (InProgressGame ag) -> do
+           let moves = generateLegalMoves ag
+           length moves `shouldSatisfy` (> 0)
+         Nothing -> expectationFailure "Failed to parse checked FEN"
 
   describe "Rules" $ do
     it "isCheck detects check" $ do
