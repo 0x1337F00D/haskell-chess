@@ -9,8 +9,6 @@ import Control.Exception (bracket)
 
 import Chess.Book.Polyglot
 import Chess.Board.Fen (parseFen)
-import Chess.Board.Base (Board)
-import Chess.Board.GameState (GameState)
 
 spec :: Spec
 spec = do

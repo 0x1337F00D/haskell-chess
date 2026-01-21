@@ -1,11 +1,9 @@
 module Chess.Engine.Evaluation (evaluate) where
 
-import Data.Bits ((.&.), testBit)
 import qualified Data.Vector.Unboxed as U
 
 import Chess.Types
 import Chess.Bitboard
-import Chess.Board.Base (Board(..), pieceBitboard)
 import qualified Chess.Board.Base as Base
 import Chess.Board.GameState (GameState(..))
 import Chess.Board (Board(..))
@@ -14,13 +12,12 @@ import Chess.Board (Board(..))
 type Score = Int
 
 -- | Piece values (centipawns).
-valuePawn, valueKnight, valueBishop, valueRook, valueQueen, valueKing :: Score
+valuePawn, valueKnight, valueBishop, valueRook, valueQueen :: Score
 valuePawn   = 100
 valueKnight = 320
 valueBishop = 330
 valueRook   = 500
 valueQueen  = 900
-valueKing   = 20000
 
 -- | Evaluate the board position from the perspective of the side to move.
 evaluate :: Chess.Board.Board -> Score

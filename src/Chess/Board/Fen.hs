@@ -18,7 +18,7 @@ parseFen :: String -> Maybe (Board, GameState)
 parseFen s = do
   let parts = words s
   guard (length parts >= 4)
-  let [boardStr, turnStr, castlingStr, epStr] = take 4 parts
+  let (boardStr:turnStr:castlingStr:epStr:_) = parts
       halfmoveStr = if length parts > 4 then parts !! 4 else "0"
       fullmoveStr = if length parts > 5 then parts !! 5 else "1"
 
@@ -107,7 +107,7 @@ parseEp s = Just (parseSquare s)
 showBoard :: Board -> String
 showBoard b = intercalate "/" [ showRank r | r <- [7,6..0] ]
   where
-    showRank r = flushEmpty 0 [0..7]
+    showRank r = flushEmpty (0 :: Int) [0..7]
       where
         flushEmpty n [] = if n > 0 then show n else ""
         flushEmpty n (f:fs) =

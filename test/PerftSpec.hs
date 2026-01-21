@@ -5,7 +5,6 @@ import Data.List (isPrefixOf, dropWhileEnd)
 import Data.Char (isSpace)
 import Control.Monad (forM_)
 
-import Chess.Types
 import Chess.Board
 
 -- | Simple string splitting helper
@@ -87,7 +86,7 @@ spec = do
                     mapM_ (checkDepth board) (filter (\(d,_) -> d <= maxDepth) expected)
 
         checkDepth board (d, count) = do
-            result <- perftIO d board
-            if result /= count
-               then expectationFailure $ "FEN: " ++ fen board ++ " Depth: " ++ show d ++ " Expected: " ++ show count ++ " Got: " ++ show result
+            res <- perftIO d board
+            if res /= count
+               then expectationFailure $ "FEN: " ++ fen board ++ " Depth: " ++ show d ++ " Expected: " ++ show count ++ " Got: " ++ show res
                else return ()

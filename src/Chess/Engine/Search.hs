@@ -14,7 +14,7 @@ search :: Board -> Int -> IO Move
 search board depth = do
     -- Simple iterative deepening or just fixed depth for now.
     -- We can print info here if we want to simulate UCI 'info'.
-    let (bestMove, score) = alphaBetaRoot board depth
+    let (bestMove, _) = alphaBetaRoot board depth
     -- putStrLn $ "info depth " ++ show depth ++ " score cp " ++ show score
     return bestMove
 
@@ -79,6 +79,7 @@ mateValue = 20000
 orderMoves :: Board -> [Move] -> [Move]
 orderMoves board moves = sortBy (comparing (Down . scoreMove)) moves
   where
+    scoreMove :: Move -> Int
     scoreMove m =
         let captureBonus = if isCapture board m then 1000 else 0
             promoBonus = case promotion m of Nothing -> 0; Just _ -> 900
@@ -88,6 +89,6 @@ orderMoves board moves = sortBy (comparing (Down . scoreMove)) moves
 -- Note: This misses En Passant captures as checking for them strictly requires GameState access
 -- which is inside Chess.Board. But for move ordering/QSearch this is an okay approximation for now.
 isCapture :: Board -> Move -> Bool
-isCapture (Chess.Board.Board b _ _) (Move from to _) =
+isCapture (Chess.Board.Board b _ _) (Move _ to _) =
     isJust (Base.pieceAt b to)
 isCapture _ NullMove = False

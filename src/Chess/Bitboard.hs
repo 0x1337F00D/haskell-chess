@@ -122,11 +122,11 @@ bbCenter = BB_D4 .|. BB_E4 .|. BB_D5 .|. BB_E5
 
 bbLightSquares :: Bitboard
 bbLightSquares = foldl' (.|.) 0
-  [bb | (i, bb) <- zip [0..] bbSquares, even ((i `div` 8) + (i `mod` 8))]
+  [bb | (i, bb) <- zip ([0..] :: [Int]) bbSquares, even ((i `div` 8) + (i `mod` 8))]
 
 bbDarkSquares :: Bitboard
 bbDarkSquares = foldl' (.|.) 0
-  [bb | (i, bb) <- zip [0..] bbSquares, odd ((i `div` 8) + (i `mod` 8))]
+  [bb | (i, bb) <- zip ([0..] :: [Int]) bbSquares, odd ((i `div` 8) + (i `mod` 8))]
 
 -- File and rank masks --------------------------------------------------------
 
