@@ -113,7 +113,7 @@ legalMoves (Board b gs _) = MoveGen.legalMoves b gs
 
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> [Move]
-pseudoLegalMoves (Board b gs _) = MoveGen.pseudoLegalMoves b gs
+pseudoLegalMoves (Board b gs _) = map (\(MoveGen.GenMove m _ _) -> m) $ MoveGen.pseudoLegalMoves b gs
 
 -- | Check if the side to move is in check.
 isCheck :: Board -> Bool

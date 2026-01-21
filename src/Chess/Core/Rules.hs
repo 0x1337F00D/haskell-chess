@@ -426,12 +426,12 @@ instance ChessVariant 'Atomic where
                c2 = i2 `mod` 8
            in max (abs (r1 - r2)) (abs (c1 - c2))
 
-        atomicMoves = filter (\m -> not (isKingCapture m) && not (isSelfExplosion m)) pseudos
+        atomicMoves = filter (\(MG.GenMove m _ _) -> not (isKingCapture m) && not (isSelfExplosion m)) pseudos
 
         -- Apply standard check filtering (approximation)
         validMoves = filter (MG.isLegal baseBoard gs) atomicMoves
 
-    in map (toCoreMove b) validMoves
+    in map (toCoreMove b . (\(MG.GenMove m _ _) -> m)) validMoves
 
   executeMove (m :: Move c) (ag :: ActiveGame 'Atomic c s) =
     let c = colorVal @c

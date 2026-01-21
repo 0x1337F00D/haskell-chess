@@ -6,3 +6,5 @@ pychess_repo/
 scripts/bench_haskell
 scripts/*.hi
 scripts/*.o
+*.hi
+*.o
