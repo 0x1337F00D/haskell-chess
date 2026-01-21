@@ -131,3 +131,39 @@ spec = describe "Core Architecture" $ do
       let moves = generateLegalMoves ag
       let epMove = EnPassantMove (Square FileE Rank5) (Square FileF Rank6)
       moves `shouldContain` [epMove]
+
+    it "Atomic: capture triggers explosion" $ do
+      -- Setup
+      -- White Pawn E4, C4. Black Pawn D5. Black Knight C5.
+      -- Move: E4 captures D5.
+      -- Expected: D5 exploded (both pawns gone). C5 exploded (Knight gone). C4 survives (Pawn immune).
+      let b = initialBoard
+            { pawns = Map.fromList [((FileE, PRank4), White), ((FileC, PRank4), White), ((FileD, PRank5), Black)]
+            , whitePieces = Map.empty
+            , blackPieces = Map.fromList [(Square FileC Rank5, MKnight)]
+            }
+
+      let ag :: ActiveGame 'Atomic 'White 'Safe
+          ag = ActiveGame
+               { gameBoard = b
+               , castlingRights = CastlingRights False False False False
+               , enPassantTarget = Nothing
+               , halfMoveClock = 0
+               , fullMoveNumber = 1
+               }
+
+      let move = StandardMove (Square FileE Rank4) (Square FileD Rank5)
+
+      let res = applyMove move ag
+      case res of
+        Continue nextGame -> do
+           let b' = gameBoard nextGame
+           -- D5 empty (Exploded center)
+           getPieceAt (Square FileD Rank5) b' `shouldBe` Nothing
+           -- C5 empty (Exploded neighbor Knight)
+           getPieceAt (Square FileC Rank5) b' `shouldBe` Nothing
+           -- C4 occupied (Neighbor Pawn survives)
+           case getPieceAt (Square FileC Rank4) b' of
+             Just (SomePiece WPawn) -> return ()
+             _ -> expectationFailure "Expected White Pawn at C4 to survive"
+        _ -> expectationFailure "Expected Continue"

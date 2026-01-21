@@ -48,12 +48,12 @@ evalPositional b =
     evalPSTO (Base.whiteRooks b)   rookTable   +
     evalPSTO (Base.whiteQueens b)  queenTable  +
     evalPSTO (Base.whiteKings b)   kingTable   -
-    evalPSTO (Base.blackPawns b)   (flipTable pawnTable)   -
-    evalPSTO (Base.blackKnights b) (flipTable knightTable) -
-    evalPSTO (Base.blackBishops b) (flipTable bishopTable) -
-    evalPSTO (Base.blackRooks b)   (flipTable rookTable)   -
-    evalPSTO (Base.blackQueens b)  (flipTable queenTable)  -
-    evalPSTO (Base.blackKings b)   (flipTable kingTable)
+    evalPSTO (Base.blackPawns b)   pawnTableFlip   -
+    evalPSTO (Base.blackKnights b) knightTableFlip -
+    evalPSTO (Base.blackBishops b) bishopTableFlip -
+    evalPSTO (Base.blackRooks b)   rookTableFlip   -
+    evalPSTO (Base.blackQueens b)  queenTableFlip  -
+    evalPSTO (Base.blackKings b)   kingTableFlip
 
 evalPSTO :: Bitboard -> U.Vector Score -> Score
 evalPSTO bb table = sum [table U.! sq | sq <- scanForward bb]
@@ -80,6 +80,9 @@ pawnTable = U.fromList
   ,  0,  0,  0,  0,  0,  0,  0,  0
   ]
 
+pawnTableFlip :: U.Vector Score
+pawnTableFlip = flipTable pawnTable
+
 knightTable :: U.Vector Score
 knightTable = U.fromList
   [ -50,-40,-30,-30,-30,-30,-40,-50
@@ -91,6 +94,9 @@ knightTable = U.fromList
   , -40,-20,  0,  5,  5,  0,-20,-40
   , -50,-40,-30,-30,-30,-30,-40,-50
   ]
+
+knightTableFlip :: U.Vector Score
+knightTableFlip = flipTable knightTable
 
 bishopTable :: U.Vector Score
 bishopTable = U.fromList
@@ -104,6 +110,9 @@ bishopTable = U.fromList
   , -20,-10,-10,-10,-10,-10,-10,-20
   ]
 
+bishopTableFlip :: U.Vector Score
+bishopTableFlip = flipTable bishopTable
+
 rookTable :: U.Vector Score
 rookTable = U.fromList
   [  0,  0,  0,  0,  0,  0,  0,  0
@@ -115,6 +124,9 @@ rookTable = U.fromList
   , -5,  0,  0,  0,  0,  0,  0, -5
   ,  0,  0,  0,  5,  5,  0,  0,  0
   ]
+
+rookTableFlip :: U.Vector Score
+rookTableFlip = flipTable rookTable
 
 queenTable :: U.Vector Score
 queenTable = U.fromList
@@ -128,6 +140,9 @@ queenTable = U.fromList
   , -20,-10,-10, -5, -5,-10,-10,-20
   ]
 
+queenTableFlip :: U.Vector Score
+queenTableFlip = flipTable queenTable
+
 kingTable :: U.Vector Score
 kingTable = U.fromList
   [ -30,-40,-40,-50,-50,-40,-40,-30
@@ -139,3 +154,6 @@ kingTable = U.fromList
   ,  20, 20,  0,  0,  0,  0, 20, 20
   ,  20, 30, 10,  0,  0, 10, 30, 20
   ]
+
+kingTableFlip :: U.Vector Score
+kingTableFlip = flipTable kingTable
