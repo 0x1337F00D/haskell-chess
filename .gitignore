@@ -4,3 +4,5 @@ pychess_reference/
 pychess_upstream/
 pychess_repo/
 scripts/bench_haskell
+scripts/*.hi
+scripts/*.o
