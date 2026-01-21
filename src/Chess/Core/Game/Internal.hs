@@ -15,7 +15,7 @@ data Phase = Setup | Active | Finished
   deriving (Eq, Show)
 
 -- Variants
-data Variant = Standard
+data Variant = Standard | Atomic
   deriving (Eq, Show)
 
 -- Check Status (Section 7)
