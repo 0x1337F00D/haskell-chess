@@ -136,6 +136,8 @@ test-suite haskell-chess-test
     -- Modules included in this executable, other than Main.
     other-modules:    CoreSpec
                     , EngineSpec
+                    , PyChessCongruencySpec
+                    , PyChessData
                     , ChessSpec
                     , TypesSpec
                     , BitboardSpec
