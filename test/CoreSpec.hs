@@ -51,6 +51,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { gameBoard = initialBoard
+               , internalBoard = toBaseBoard initialBoard
                , castlingRights = CastlingRights True True True True
                , enPassantTarget = Nothing
                , halfMoveClock = 0
@@ -73,6 +74,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { gameBoard = initialBoard
+               , internalBoard = toBaseBoard initialBoard
                , castlingRights = CastlingRights True True True True
                , enPassantTarget = Nothing
                , halfMoveClock = 0
@@ -99,6 +101,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { gameBoard = b
+               , internalBoard = toBaseBoard b
                , castlingRights = CastlingRights True False False False
                , enPassantTarget = Nothing
                , halfMoveClock = 0
@@ -122,6 +125,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { gameBoard = b
+               , internalBoard = toBaseBoard b
                , castlingRights = CastlingRights False False False False
                , enPassantTarget = Just FileF
                , halfMoveClock = 0
@@ -146,6 +150,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Atomic 'White 'Safe
           ag = ActiveGame
                { gameBoard = b
+               , internalBoard = toBaseBoard b
                , castlingRights = CastlingRights False False False False
                , enPassantTarget = Nothing
                , halfMoveClock = 0
@@ -174,6 +179,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'KingOfTheHill 'White 'Safe
           ag = ActiveGame
                { gameBoard = b
+               , internalBoard = toBaseBoard b
                , castlingRights = CastlingRights False False False False
                , enPassantTarget = Nothing
                , halfMoveClock = 0
@@ -197,6 +203,7 @@ spec = describe "Core Architecture" $ do
         let ag :: ActiveGame 'RacingKings 'White 'Safe
             ag = ActiveGame
                { gameBoard = b
+               , internalBoard = toBaseBoard b
                , castlingRights = CastlingRights False False False False
                , enPassantTarget = Nothing
                , halfMoveClock = 0
@@ -213,10 +220,12 @@ spec = describe "Core Architecture" $ do
 
     it "RacingKings: Reaching Rank 8" $ do
        -- Setup White King on E7. Move to E8.
-       let b = initialBoard { whiteKing = Square FileE Rank7 }
+       -- Ensure Black King is safe and not at E8 (to avoid capture)
+       let b = initialBoard { whiteKing = Square FileE Rank7, blackKing = Square FileA Rank5 }
        let ag :: ActiveGame 'RacingKings 'White 'Safe
            ag = ActiveGame
                { gameBoard = b
+               , internalBoard = toBaseBoard b
                , castlingRights = CastlingRights False False False False
                , enPassantTarget = Nothing
                , halfMoveClock = 0
