@@ -7,6 +7,7 @@
 module Chess.Core.Game.Internal where
 
 import Chess.Core.Board.Internal
+import qualified Chess.Board.Base as Base
 
 -- 3. Game Phases as Type States
 
@@ -39,6 +40,7 @@ data CastlingRights = CastlingRights
 -- Indexed by the current turn, check status, and variant.
 data ActiveGame (v :: Variant) (turn :: Color) (status :: CheckStatus) = ActiveGame
   { gameBoard :: Board
+  , internalBoard :: Base.Board
   , castlingRights :: CastlingRights
   , enPassantTarget :: Maybe File -- File of the pawn that moved two squares, if any
   , halfMoveClock :: Int

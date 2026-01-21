@@ -265,6 +265,43 @@ applyMoveBoard b m =
              capSq = getEpCapturedSquare f t
          in removePieceAt capSq b1
 
+-- Apply Move Helper (Base Board update)
+applyMoveBase :: forall c. KnownColor c => Move c -> Base.Board -> Base.Board
+applyMoveBase m b =
+    case m of
+       StandardMove f t ->
+          let p = Base.pieceAt b (toSquare f)
+          in case p of
+             Nothing -> b -- Should not happen for legal moves
+             Just piece ->
+                 let b1 = Base.removePieceAt b (toSquare f)
+                 in Base.putPiece b1 (toSquare t) piece
+
+       PromotionMove f t pt ->
+          let b1 = Base.removePieceAt b (toSquare f)
+              promoted = T.Piece (toColor (colorVal @c)) (toPieceType pt)
+          in Base.putPiece b1 (toSquare t) promoted
+
+       CastlingMove f t ->
+          let p = Base.pieceAt b (toSquare f)
+              b1 = case p of
+                     Just piece -> Base.putPiece (Base.removePieceAt b (toSquare f)) (toSquare t) piece
+                     Nothing -> b
+              (rf, rt) = getCastlingRookMove f t
+              rook = Base.pieceAt b (toSquare rf)
+              b2 = case rook of
+                     Just r -> Base.putPiece (Base.removePieceAt b1 (toSquare rf)) (toSquare rt) r
+                     Nothing -> b1
+          in b2
+
+       EnPassantMove f t ->
+          let p = Base.pieceAt b (toSquare f)
+              b1 = case p of
+                     Just piece -> Base.putPiece (Base.removePieceAt b (toSquare f)) (toSquare t) piece
+                     Nothing -> b
+              capSq = getEpCapturedSquare f t
+          in Base.removePieceAt b1 (toSquare capSq)
+
 -- Apply Move
 applyMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
 applyMove = executeMove
@@ -272,7 +309,7 @@ applyMove = executeMove
 instance ChessVariant 'Standard where
   generateMoves (ag :: ActiveGame 'Standard c s) =
     let b = gameBoard ag
-        baseBoard = toBaseBoard b
+        baseBoard = internalBoard ag
         gs = toGameState ag
         baseMoves = MG.legalMoves baseBoard gs
     in map (toCoreMove b) baseMoves
@@ -283,6 +320,10 @@ instance ChessVariant 'Standard where
         c = colorVal @c
         b = gameBoard ag
         b' = applyMoveBoard b m
+
+        -- Update Base Board
+        internalB = internalBoard ag
+        internalB' = applyMoveBase m internalB
 
         (from, to) = case m of
                        StandardMove f t -> (f, t)
@@ -312,7 +353,7 @@ instance ChessVariant 'Standard where
         newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
 
         -- 3. Validation
-        baseBoard = toBaseBoard b'
+        baseBoard = internalB'
 
         -- We construct the GameState for the NEXT player to check if THEY are in check/mate.
         nextTurnGS = GS.GameState
@@ -333,6 +374,7 @@ instance ChessVariant 'Standard where
          (False, False) -> Stalemate
          (True, True) -> Continue (ActiveGame
                                     { gameBoard = b'
+                                    , internalBoard = internalB'
                                     , castlingRights = newCR
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
@@ -340,6 +382,7 @@ instance ChessVariant 'Standard where
                                     } :: ActiveGame 'Standard (Opposite c) 'Checked)
          (False, True) -> Continue (ActiveGame
                                     { gameBoard = b'
+                                    , internalBoard = internalB'
                                     , castlingRights = newCR
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
@@ -349,7 +392,7 @@ instance ChessVariant 'Standard where
 instance ChessVariant 'Atomic where
   generateMoves (ag :: ActiveGame 'Atomic c s) =
     let b = gameBoard ag
-        baseBoard = toBaseBoard b
+        baseBoard = internalBoard ag
         gs = toGameState ag
         c = colorVal @c
 
@@ -475,6 +518,7 @@ instance ChessVariant 'Atomic where
          (False, False) -> Stalemate
          (True, True) -> Continue (ActiveGame
                                     { gameBoard = bFinal
+                                    , internalBoard = baseBoard
                                     , castlingRights = newCR
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
@@ -482,6 +526,7 @@ instance ChessVariant 'Atomic where
                                     } :: ActiveGame 'Atomic (Opposite c) 'Checked)
          (False, True) -> Continue (ActiveGame
                                     { gameBoard = bFinal
+                                    , internalBoard = baseBoard
                                     , castlingRights = newCR
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
@@ -491,7 +536,7 @@ instance ChessVariant 'Atomic where
 instance ChessVariant 'KingOfTheHill where
   generateMoves (ag :: ActiveGame 'KingOfTheHill c s) =
     let b = gameBoard ag
-        baseBoard = toBaseBoard b
+        baseBoard = internalBoard ag
         gs = toGameState ag
         baseMoves = MG.legalMoves baseBoard gs
     in map (toCoreMove b) baseMoves
@@ -502,6 +547,10 @@ instance ChessVariant 'KingOfTheHill where
         c = colorVal @c
         b = gameBoard ag
         b' = applyMoveBoard b m
+
+        -- Update Base Board
+        internalB = internalBoard ag
+        internalB' = applyMoveBase m internalB
 
         (from, to) = case m of
                        StandardMove f t -> (f, t)
@@ -530,7 +579,7 @@ instance ChessVariant 'KingOfTheHill where
         newHMC = halfMoveClock ag + 1
         newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
 
-        baseBoard = toBaseBoard b'
+        baseBoard = internalB'
         nextTurnGS = GS.GameState
           { GS.turn = toColor (colorVal @(Opposite c))
           , GS.castlingRights = toCastlingRights newCR
@@ -556,6 +605,7 @@ instance ChessVariant 'KingOfTheHill where
          (False, False) -> Stalemate
          (True, True) -> Continue (ActiveGame
                                     { gameBoard = b'
+                                    , internalBoard = internalB'
                                     , castlingRights = newCR
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
@@ -563,6 +613,7 @@ instance ChessVariant 'KingOfTheHill where
                                     } :: ActiveGame 'KingOfTheHill (Opposite c) 'Checked)
          (False, True) -> Continue (ActiveGame
                                     { gameBoard = b'
+                                    , internalBoard = internalB'
                                     , castlingRights = newCR
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
@@ -572,7 +623,7 @@ instance ChessVariant 'KingOfTheHill where
 instance ChessVariant 'RacingKings where
   generateMoves (ag :: ActiveGame 'RacingKings c s) =
     let b = gameBoard ag
-        baseBoard = toBaseBoard b
+        baseBoard = internalBoard ag
         gs = toGameState ag
 
         -- Get Standard moves (handles own check safety)
@@ -584,8 +635,10 @@ instance ChessVariant 'RacingKings where
 
         -- Filter moves that give check to opponent
         noGiveCheck m =
-            let bNext = applyMoveBoard b m
-            in not (isCheck bNext oppC)
+            let baseNext = applyMoveBase m baseBoard
+            in not (Val.isCheck baseNext (dummyGameState oppC))
+          where
+            dummyGameState col = GS.initialGameState { GS.turn = toColor col }
 
     in filter noGiveCheck coreMoves
 
@@ -594,6 +647,10 @@ instance ChessVariant 'RacingKings where
         b = gameBoard ag
 
         b' = applyMoveBoard b m
+
+        -- Update Base Board
+        internalB = internalBoard ag
+        internalB' = applyMoveBase m internalB
 
         (from, to) = case m of
                        StandardMove f t -> (f, t)
@@ -621,6 +678,7 @@ instance ChessVariant 'RacingKings where
         nextGameCandidate :: ActiveGame 'RacingKings (Opposite c) 'Safe
         nextGameCandidate = ActiveGame
                                     { gameBoard = b'
+                                    , internalBoard = internalB'
                                     , castlingRights = newCR
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
