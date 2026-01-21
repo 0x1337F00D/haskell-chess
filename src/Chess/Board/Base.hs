@@ -258,3 +258,24 @@ isAttackedBy b color sq =
 oppositeColor :: Color -> Color
 oppositeColor White = Black
 oppositeColor Black = White
+
+-- | Find the piece type at a square, assuming it is occupied by a piece of the given color.
+{-# INLINE findPieceType #-}
+findPieceType :: Board -> Color -> Square -> PieceType
+findPieceType b c sq =
+  let i = unSquare sq
+  in case c of
+    White ->
+      if testBit (whitePawns b) i then Pawn
+      else if testBit (whiteKnights b) i then Knight
+      else if testBit (whiteBishops b) i then Bishop
+      else if testBit (whiteRooks b) i then Rook
+      else if testBit (whiteQueens b) i then Queen
+      else King
+    Black ->
+      if testBit (blackPawns b) i then Pawn
+      else if testBit (blackKnights b) i then Knight
+      else if testBit (blackBishops b) i then Bishop
+      else if testBit (blackRooks b) i then Rook
+      else if testBit (blackQueens b) i then Queen
+      else King
