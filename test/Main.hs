@@ -19,6 +19,7 @@ import qualified GameTerminationSpec
 import qualified Book.PolyglotSpec
 import qualified TimeSpec
 import qualified CoreSpec
+import qualified CorePerftSpec
 import qualified EngineSpec
 import qualified TablebaseSpec
 import qualified PyChessCongruencySpec
@@ -29,6 +30,7 @@ main = hspec $ do
   EngineSpec.spec
   TablebaseSpec.spec
   CoreSpec.spec
+  CorePerftSpec.spec
   ChessSpec.spec
   TypesSpec.spec
   BitboardSpec.spec

@@ -5,12 +5,14 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Chess.Core.Board.Internal where
 
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Bits (countTrailingZeros, popCount, clearBit)
+import Data.Char (toLower)
 
 import qualified Chess.Board.Fen as Fen
 import qualified Chess.Board.Base as Base
@@ -27,12 +29,23 @@ opposite :: Color -> Color
 opposite White = Black
 opposite Black = White
 
+-- | Singleton for Color to allow type refinement
+data SColor (c :: Color) where
+  SWhite :: SColor 'White
+  SBlack :: SColor 'Black
+
 -- | Class to reify type-level Color to value-level Color
 class KnownColor (c :: Color) where
-  colorVal :: Color
+  sColor :: SColor c
 
-instance KnownColor 'White where colorVal = White
-instance KnownColor 'Black where colorVal = Black
+instance KnownColor 'White where sColor = SWhite
+instance KnownColor 'Black where sColor = SBlack
+
+-- | Helper to get value from class
+colorVal :: forall c. KnownColor c => Color
+colorVal = case sColor @c of
+             SWhite -> White
+             SBlack -> Black
 
 data File = FileA | FileB | FileC | FileD | FileE | FileF | FileG | FileH
   deriving (Eq, Ord, Show, Enum, Bounded)
@@ -55,6 +68,35 @@ toRank PRank7 = Rank7
 -- The Board Topology
 data Square = Square File Rank
   deriving (Eq, Ord, Show)
+
+-- UCI Helpers
+showFile :: File -> String
+showFile f = [toLower (head (show f))] -- "FileA" -> "a" roughly. Actually show FileA is "FileA".
+                                       -- We want "a", "b", ...
+
+-- Explicit implementation is safer
+fileToString :: File -> String
+fileToString FileA = "a"
+fileToString FileB = "b"
+fileToString FileC = "c"
+fileToString FileD = "d"
+fileToString FileE = "e"
+fileToString FileF = "f"
+fileToString FileG = "g"
+fileToString FileH = "h"
+
+rankToString :: Rank -> String
+rankToString Rank1 = "1"
+rankToString Rank2 = "2"
+rankToString Rank3 = "3"
+rankToString Rank4 = "4"
+rankToString Rank5 = "5"
+rankToString Rank6 = "6"
+rankToString Rank7 = "7"
+rankToString Rank8 = "8"
+
+squareToString :: Square -> String
+squareToString (Square f r) = fileToString f ++ rankToString r
 
 -- 2. The Physical Board: Structural Invariants
 

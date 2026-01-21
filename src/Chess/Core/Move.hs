@@ -8,10 +8,12 @@ module Chess.Core.Move
   ( Move -- Opaque
   , moveFrom
   , moveTo
+  , toUCI
   , MoveResult(..) -- We can export MoveResult constructors as they are consumed by user
   ) where
 
 import Chess.Core.Board
+import Chess.Core.Board.Internal (squareToString)
 import Chess.Core.Move.Internal
 
 moveFrom :: Move c -> Square
@@ -25,3 +27,16 @@ moveTo (StandardMove _ t) = t
 moveTo (CastlingMove _ t) = t
 moveTo (EnPassantMove _ t) = t
 moveTo (PromotionMove _ t _) = t
+
+toUCI :: Move c -> String
+toUCI (StandardMove f t) = squareToString f ++ squareToString t
+toUCI (CastlingMove f t) = squareToString f ++ squareToString t -- e1g1
+toUCI (EnPassantMove f t) = squareToString f ++ squareToString t
+toUCI (PromotionMove f t p) = squareToString f ++ squareToString t ++ pieceTypeChar p
+
+pieceTypeChar :: PieceType -> String
+pieceTypeChar Queen  = "q"
+pieceTypeChar Rook   = "r"
+pieceTypeChar Bishop = "b"
+pieceTypeChar Knight = "n"
+pieceTypeChar _      = "" -- Should not happen for promotion
