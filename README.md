@@ -7,7 +7,7 @@ A Haskell port of the [PyChess](https://github.com/pychess/pychess) library. Thi
 | Component | Progress | Status |
 | :--- | :--- | :--- |
 | **Core Rules** | `[██████████]` 100% | ✅ Implemented (Bitboards, MoveGen, Validation) |
-| **Formats** | `[█████████░]` 90% | ✅ Implemented (FEN ✅, PGN ✅, UCI ✅) |
+| **Formats** | `[██████████]` 100% | ✅ Implemented (FEN ✅, PGN ✅, UCI ✅) |
 | **Engine** | `[████████░░]` 80% | 🚧 Working (Search/Eval Implemented) |
 | **Variants** | `[██░░░░░░░░]` 20% | 🚧 Atomic (Experimental) |
 | **Extras** | `[██████████]` 100% | ✅ Implemented (Books, TB, Time) |

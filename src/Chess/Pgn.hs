@@ -81,12 +81,28 @@ parseTag = do
     _ <- char '['
     key <- munch1 (\c -> c /= ' ' && c /= ']')
     skipSpaces
-    _ <- char '"'
-    val <- munch (\c -> c /= '"')
-    _ <- char '"'
+    val <- parseString
     skipSpaces
     _ <- char ']'
     return (key, val)
+
+parseString :: ReadP String
+parseString = do
+    _ <- char '"'
+    s <- many stringChar
+    _ <- char '"'
+    return s
+
+stringChar :: ReadP Char
+stringChar = escapedChar +++ normalChar
+
+escapedChar :: ReadP Char
+escapedChar = do
+    _ <- char '\\'
+    get
+
+normalChar :: ReadP Char
+normalChar = satisfy (\c -> c /= '"' && c /= '\\')
 
 parseBody :: ReadP ([PgnNode], String)
 parseBody = do
@@ -113,6 +129,7 @@ parseNode = do
     parseCheckNotResult
 
     san <- parseSan
+    suffixNags <- parseSuffixNags
 
     -- Post-move stuff: NAGs, comments, RAVs
     (postCmt, nags, ravs) <- parsePostMoveStuff
@@ -123,7 +140,7 @@ parseNode = do
             (Nothing, Just b) -> Just b
             (Just a, Just b) -> Just (a ++ "\n" ++ b)
 
-    return $ PgnNode san nags combinedCmt ravs
+    return $ PgnNode san (suffixNags ++ nags) combinedCmt ravs
 
 parseCheckNotResult :: ReadP ()
 parseCheckNotResult = do
@@ -140,7 +157,17 @@ parseMoveNumber = do
 parseSan :: ReadP String
 parseSan = do
     -- Consume SAN characters.
-    munch1 (\c -> not (isSpace c) && c `notElem` "{}()[]$;%")
+    munch1 (\c -> not (isSpace c) && c `notElem` "{}()[]$;%!?")
+
+parseSuffixNags :: ReadP [Int]
+parseSuffixNags = do
+    (string "!!" >> return [3])
+    <++ (string "??" >> return [4])
+    <++ (string "!?" >> return [5])
+    <++ (string "?!" >> return [6])
+    <++ (string "!" >> return [1])
+    <++ (string "?" >> return [2])
+    <++ return []
 
 parseComments :: ReadP (Maybe String)
 parseComments = do
@@ -298,7 +325,12 @@ showGame g =
 
 showTags :: [(String, String)] -> String
 showTags ts = unlines $ map showTag ts
-  where showTag (k, v) = "[" ++ k ++ " \"" ++ v ++ "\"]"
+  where
+    showTag (k, v) = "[" ++ k ++ " \"" ++ escapeString v ++ "\"]"
+    escapeString = concatMap escapeChar
+    escapeChar '"' = "\\\""
+    escapeChar '\\' = "\\\\"
+    escapeChar c = [c]
 
 getStartColor :: [(String, String)] -> Board.Color
 getStartColor ts = case lookup "FEN" ts of
@@ -308,7 +340,11 @@ getStartColor ts = case lookup "FEN" ts of
         Nothing -> Board.White
 
 getStartMoveNum :: [(String, String)] -> Int
-getStartMoveNum _ = 1 -- Simplified
+getStartMoveNum ts = case lookup "FEN" ts of
+    Nothing -> 1
+    Just fen -> case Board.parseFen fen of
+        Just b -> GS.fullmoveNumber (Board.state b)
+        Nothing -> 1
 
 formatMoves :: Board.Color -> Int -> Bool -> [PgnNode] -> String
 formatMoves _ _ _ [] = ""
