@@ -56,6 +56,7 @@ spec = describe "Core Architecture" $ do
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
+               , variantState = ()
                }
       -- Move E2 to E4
       let move = StandardMove (Square FileE Rank2) (Square FileE Rank4)
@@ -79,6 +80,7 @@ spec = describe "Core Architecture" $ do
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
+               , variantState = ()
                }
       let moves = generateLegalMoves ag
       length moves `shouldBe` 20
@@ -106,6 +108,7 @@ spec = describe "Core Architecture" $ do
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
+               , variantState = ()
                }
 
       let moves = generateLegalMoves ag
@@ -130,6 +133,7 @@ spec = describe "Core Architecture" $ do
                , enPassantTarget = Just FileF
                , halfMoveClock = 0
                , fullMoveNumber = 1
+               , variantState = ()
                }
 
       let moves = generateLegalMoves ag
@@ -155,6 +159,7 @@ spec = describe "Core Architecture" $ do
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
+               , variantState = ()
                }
 
       let move = StandardMove (Square FileE Rank4) (Square FileD Rank5)
@@ -184,6 +189,7 @@ spec = describe "Core Architecture" $ do
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
+               , variantState = ()
                }
       let move = StandardMove (Square FileE Rank3) (Square FileE Rank4)
       let res = applyMove move ag
@@ -208,6 +214,7 @@ spec = describe "Core Architecture" $ do
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
+               , variantState = ()
                }
 
         let moves = generateLegalMoves ag
@@ -230,9 +237,56 @@ spec = describe "Core Architecture" $ do
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
+               , variantState = ()
                }
        let move = StandardMove (Square FileE Rank7) (Square FileE Rank8)
        let res = applyMove move ag
        case res of
          Continue _ -> return () -- Game continues for Black's turn
          _ -> expectationFailure "Expected Continue (wait for Black)"
+
+    it "ThreeCheck: Win by 3 checks" $ do
+       -- Setup: White Rook on A1. Black King on A8.
+       let b = initialBoard
+             { pawns = Map.empty
+             , whitePieces = Map.fromList [(Square FileA Rank1, MRook)]
+             , blackPieces = Map.empty
+             , blackKing = Square FileA Rank8
+             }
+
+       -- Case 1: 0 checks -> 1 check
+       let ag :: ActiveGame 'ThreeCheck 'White 'Safe
+           ag = ActiveGame
+                { gameBoard = b
+                , internalBoard = toBaseBoard b
+                , castlingRights = CastlingRights False False False False
+                , enPassantTarget = Nothing
+                , halfMoveClock = 0
+                , fullMoveNumber = 1
+                , variantState = (0, 0)
+                }
+
+       let m1 = StandardMove (Square FileA Rank1) (Square FileA Rank2) -- Checks A8
+       let res1 = applyMove m1 ag
+       case res1 of
+         Continue ag2 -> do
+            let (wChecks, _) = variantState ag2
+            wChecks `shouldBe` 1
+         _ -> expectationFailure "Expected Continue after first check"
+
+       -- Case 2: 2 checks -> 3rd check (Win)
+       let agTwo :: ActiveGame 'ThreeCheck 'White 'Safe
+           agTwo = ActiveGame
+                { gameBoard = b
+                , internalBoard = toBaseBoard b
+                , castlingRights = CastlingRights False False False False
+                , enPassantTarget = Nothing
+                , halfMoveClock = 0
+                , fullMoveNumber = 1
+                , variantState = (2, 0)
+                }
+
+       let res2 = applyMove m1 agTwo -- A1-A2 again
+       case res2 of
+          Checkmate (Winner White) -> return ()
+          _ -> expectationFailure "Expected White Win by 3rd Check"
