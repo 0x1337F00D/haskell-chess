@@ -5,18 +5,21 @@ import Data.Ord (comparing, Down(..))
 import Data.Maybe (isJust)
 
 import Chess.Types
-import Chess.Board (Board(..), legalMoves, applyMove, isCheck)
+import Chess.Board (Board(..), legalMoves, applyMove, isCheck, uci)
 import qualified Chess.Board.Base as Base
 import Chess.Engine.Evaluation (evaluate)
 
 -- | Search for the best move.
 search :: Board -> Int -> IO Move
-search board depth = do
-    -- Simple iterative deepening or just fixed depth for now.
-    -- We can print info here if we want to simulate UCI 'info'.
-    let (bestMove, _) = alphaBetaRoot board depth
-    -- putStrLn $ "info depth " ++ show depth ++ " score cp " ++ show score
-    return bestMove
+search board maxDepth = do
+    let loop depth best
+          | depth > maxDepth = return best
+          | otherwise = do
+              let (move, score) = alphaBetaRoot board depth
+              putStrLn $ "info depth " ++ show depth ++ " score cp " ++ show score ++ " pv " ++ uci move
+              loop (depth + 1) move
+
+    loop 1 nullMove
 
 -- | Alpha-Beta at root.
 alphaBetaRoot :: Board -> Int -> (Move, Int)
