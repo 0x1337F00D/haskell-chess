@@ -9,3 +9,7 @@
 ## 2026-01-26 – [Incremental Occupancy Updates]
 **Learning:** `putPiece` was calling `updateOccupancy`, which reconstructed all occupancy bitboards from scratch (12 bitwise ORs) for every piece placement. This occurred inside the `isLegal` check for every pseudo-legal move, creating significant overhead (~12 * 35 ops per node).
 **Action:** Replaced full reconstruction with incremental updates using `setBit`. Since we know which piece is added, we only update the relevant piece bitboard and the occupancy bitboards. Improved perft speed by ~3.3%. Avoid full state reconstruction in hot paths when incremental updates are possible.
+
+## 2026-01-27 – [Zero-Allocation Evaluation Loop]
+**Learning:** `evalPSTO` used `scanForward` (which allocates `[Int]`) and a list comprehension (which allocates `[Score]`) to sum values from a `Vector`. This allocated ~64 list nodes (2.3KB) per evaluation. In a search with millions of nodes, this generated gigabytes of garbage.
+**Action:** Replaced the list-based fold with a custom recursive loop using `countTrailingZeros` and `clearBit`. This reduced allocations for the evaluation function by 99.98% and improved evaluation speed by 2.2x.

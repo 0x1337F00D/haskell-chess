@@ -1,6 +1,6 @@
 module Chess.Engine.Evaluation (evaluate) where
 
-import Data.Bits ((.&.), testBit)
+import Data.Bits ((.&.), testBit, countTrailingZeros, clearBit)
 import qualified Data.Vector.Unboxed as U
 
 import Chess.Types
@@ -59,7 +59,14 @@ evalPositional b =
     evalPSTO (Base.blackKings b)   (flipTable kingTable)
 
 evalPSTO :: Bitboard -> U.Vector Score -> Score
-evalPSTO bb table = sum [table U.! sq | sq <- scanForward bb]
+evalPSTO bb table = go bb 0
+  where
+    go :: Bitboard -> Score -> Score
+    go 0 acc = acc
+    go b acc =
+        let i = countTrailingZeros b
+            val = table U.! i
+        in go (clearBit b i) (acc + val)
 
 -- | Flip a PSTO table for Black (mirror ranks).
 flipTable :: U.Vector Score -> U.Vector Score
