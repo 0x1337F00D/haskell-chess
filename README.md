@@ -9,7 +9,7 @@ A Haskell port of the [PyChess](https://github.com/pychess/pychess) library. Thi
 | **Core Rules** | `[██████████]` 100% | ✅ Implemented (Bitboards, MoveGen, Validation) |
 | **Formats** | `[██████████]` 100% | ✅ Implemented (FEN ✅, PGN ✅, UCI ✅) |
 | **Engine** | `[██████████]` 100% | ✅ Implemented (Search/Eval) |
-| **Variants** | `[██████░░░░]` 60% | 🚧 Atomic, KotH, RacingKings |
+| **Variants** | `[████████░░]` 80% | 🚧 Atomic, KotH, RacingKings, ThreeCheck |
 | **Extras** | `[██████████]` 100% | ✅ Implemented (Books, TB, Time) |
 
 ## Feature Comparison
@@ -27,7 +27,7 @@ We aim to reach feature parity with PyChess. Here is the current standing:
 | **Opening Books** | ✅ Polyglot | ✅ Polyglot/BIN | Read support for .bin books. |
 | **Endgame Tablebases** | ✅ Online & Local | ✅ Gaviota/Syzygy | Queries Lichess API. Local probing supported. |
 | **Time Controls** | ✅ Implemented | ✅ Full Support | Infinite, Standard, Delay, MoveTime. |
-| **Variants** | 🚧 Atomic, KotH, RacingKings | ✅ 30+ Variants | Atomic, Crazyhouse, Shogi, etc. |
+| **Variants** | 🚧 Atomic, KotH, RacingKings, ThreeCheck | ✅ 30+ Variants | Atomic, Crazyhouse, Shogi, etc. |
 | **Evaluation** | ✅ Implemented | ✅ Basic Eval | Material + PSTO evaluation. |
 | **Search** | ✅ Implemented | ✅ Alpha-Beta + ID | Alpha-Beta + Quiescence + ID. |
 
@@ -50,7 +50,28 @@ To achieve parity with PyChess, the following tasks are identified:
 
 ### 4. Variants (Long Term)
 - [x] Refactor `Board` and `MoveGen` to support non-standard rules (Implemented `ChessVariant` typeclass).
-- [x] Implement popular variants: Atomic, King of the Hill, Racing Kings (Implemented). Crazyhouse, 3-Check (Pending).
+- [x] Implement popular variants:
+    - [x] Atomic
+    - [x] King of the Hill
+    - [x] Racing Kings
+    - [x] Three-Check
+    - [ ] Crazyhouse
+
+## Supported Variants
+
+Comparison of variants supported by PyChess vs haskell-chess:
+
+| Variant | PyChess | haskell-chess | Notes |
+| :--- | :---: | :---: | :--- |
+| **Standard** | ✅ | ✅ | Full support. |
+| **Atomic** | ✅ | ✅ | Explosions implemented. |
+| **King of the Hill** | ✅ | ✅ | Center mate implemented. |
+| **Racing Kings** | ✅ | ✅ | No check rule implemented. |
+| **Three-Check** | ✅ | ✅ | Win by 3 checks implemented. |
+| **Crazyhouse** | ✅ | ❌ | Pending (Requires Drop Moves). |
+| **Chess960** | ✅ | ❌ | Pending (Fischer Random). |
+| **Antichess** | ✅ | ❌ | (Giveaway/Suicide/Losers) Pending. |
+| **Horde** | ✅ | ❌ | Pending. |
 
 ## Architecture
 

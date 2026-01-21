@@ -3,6 +3,8 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Chess.Core.Move.Internal where
 
@@ -62,4 +64,4 @@ data MoveResult (v :: Variant) (c :: Color) where
   -- Checks status is captured in the ActiveGame type.
   Continue  :: ActiveGame v c status -> MoveResult v c
 
-deriving instance Show (MoveResult v c)
+deriving instance Show (VariantState v) => Show (MoveResult v c)
