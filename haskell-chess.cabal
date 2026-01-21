@@ -80,6 +80,7 @@ library
                     , Chess.Core.Game.Internal
                     , Chess.Core.Move
                     , Chess.Core.Move.Internal
+                    , Chess.Core.Perft
                     , Chess.Core.Rules
                     , Chess.Core.Fen
                     , Chess.Engine.Evaluation
@@ -136,6 +137,7 @@ test-suite haskell-chess-test
 
     -- Modules included in this executable, other than Main.
     other-modules:    CoreSpec
+                    , CorePerftSpec
                     , CoreFenSpec
                     , EngineSpec
                     , PyChessCongruencySpec

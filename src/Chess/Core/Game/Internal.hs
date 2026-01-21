@@ -64,7 +64,7 @@ data Game (v :: Variant) (p :: Phase) where
   SetupGame :: Board -> Game v 'Setup
 
   -- Active Phase: The only phase where makeMove is callable
-  InProgressGame :: ActiveGame v turn status -> Game v 'Active
+  InProgressGame :: KnownColor turn => ActiveGame v turn status -> Game v 'Active
 
   -- Finished Phase: Contains the result
   FinishedGame :: Outcome -> Game v 'Finished

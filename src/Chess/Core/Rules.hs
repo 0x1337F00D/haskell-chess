@@ -21,20 +21,78 @@ import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
-import Data.Bits (setBit, (.&.), (.|.))
+import qualified Chess.Board.Fen as Fen
+import Data.Bits (setBit, (.&.), (.|.), testBit, countTrailingZeros)
 import qualified Data.Map as Map
+
+-- | Create the initial game state for Standard chess.
+initialGame :: Game 'Standard 'Active
+initialGame =
+  let b = initialBoard
+      ag = ActiveGame
+           { gameBoard = b
+           , internalBoard = toBaseBoard b
+           , castlingRights = CastlingRights True True True True
+           , enPassantTarget = Nothing
+           , halfMoveClock = 0
+           , fullMoveNumber = 1
+           , variantState = ()
+           } :: ActiveGame 'Standard 'White 'Safe
+  in InProgressGame ag
+
+-- | Create a game from FEN string (Standard variant).
+gameFromFEN :: String -> Maybe (Game 'Standard 'Active)
+gameFromFEN s = do
+  (baseBoard, gs) <- Fen.parseFen s
+  board <- fromBaseBoard baseBoard
+
+  let c = case GS.turn gs of
+            T.White -> White
+            T.Black -> Black
+
+      cr = CastlingRights
+           { whiteKingSide = testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_H1)
+           , whiteQueenSide = testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_A1)
+           , blackKingSide = testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_H8)
+           , blackQueenSide = testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_A8)
+           }
+      -- Note: castlingRights bitboard indices might rely on lsb being correct.
+      -- A1=0, B1=1 ... H1=7.
+      -- BB.BB_H1 is bit 7.
+      -- BB.BB_A1 is bit 0.
+      -- But Data.Bits.testBit takes Int index.
+      -- So I should use countTrailingZeros on BB constants.
+
+      ep = case GS.epSquare gs of
+             Nothing -> Nothing
+             Just sq -> Just (getFile (fromBaseSquare sq))
+
+      hmc = GS.halfmoveClock gs
+      fmn = GS.fullmoveNumber gs
+
+      -- Check if current player is in check
+      checked = Val.isCheck baseBoard gs
+      hasMoves = Val.hasLegalMoves baseBoard gs
+
+  if hasMoves
+    then case c of
+      White -> if checked
+               then return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'White 'Checked)
+               else return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'White 'Safe)
+      Black -> if checked
+               then return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'Black 'Checked)
+               else return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'Black 'Safe)
+    else
+      -- If no moves, game is finished. But this function returns Game 'Active.
+      -- So we return Nothing? Or should we allow constructing FinishedGame?
+      -- The type signature says Maybe (Game 'Standard 'Active).
+      -- So we MUST return Nothing if the game is finished.
+      Nothing
 
 -- Type-level Opposite Color
 type family Opposite (c :: Color) :: Color where
   Opposite 'White = 'Black
   Opposite 'Black = 'White
-
--- | Class to reify type-level Color to value-level Color
-class KnownColor (c :: Color) where
-  colorVal :: Color
-
-instance KnownColor 'White where colorVal = White
-instance KnownColor 'Black where colorVal = Black
 
 -- | Convert Core Color to Engine Color
 toColor :: Color -> T.Color

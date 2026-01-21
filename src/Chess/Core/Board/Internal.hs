@@ -4,11 +4,20 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Chess.Core.Board.Internal where
 
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Bits (countTrailingZeros, popCount, clearBit)
+import Data.Char (toLower)
+
+import qualified Chess.Board.Fen as Fen
+import qualified Chess.Board.Base as Base
+import qualified Chess.Types as T
+import Chess.Bitboard (Bitboard)
 
 -- 1. Foundation: The Finite Space
 
@@ -19,6 +28,24 @@ data Color = White | Black
 opposite :: Color -> Color
 opposite White = Black
 opposite Black = White
+
+-- | Singleton for Color to allow type refinement
+data SColor (c :: Color) where
+  SWhite :: SColor 'White
+  SBlack :: SColor 'Black
+
+-- | Class to reify type-level Color to value-level Color
+class KnownColor (c :: Color) where
+  sColor :: SColor c
+
+instance KnownColor 'White where sColor = SWhite
+instance KnownColor 'Black where sColor = SBlack
+
+-- | Helper to get value from class
+colorVal :: forall c. KnownColor c => Color
+colorVal = case sColor @c of
+             SWhite -> White
+             SBlack -> Black
 
 data File = FileA | FileB | FileC | FileD | FileE | FileF | FileG | FileH
   deriving (Eq, Ord, Show, Enum, Bounded)
@@ -41,6 +68,35 @@ toRank PRank7 = Rank7
 -- The Board Topology
 data Square = Square File Rank
   deriving (Eq, Ord, Show)
+
+-- UCI Helpers
+showFile :: File -> String
+showFile f = [toLower (head (show f))] -- "FileA" -> "a" roughly. Actually show FileA is "FileA".
+                                       -- We want "a", "b", ...
+
+-- Explicit implementation is safer
+fileToString :: File -> String
+fileToString FileA = "a"
+fileToString FileB = "b"
+fileToString FileC = "c"
+fileToString FileD = "d"
+fileToString FileE = "e"
+fileToString FileF = "f"
+fileToString FileG = "g"
+fileToString FileH = "h"
+
+rankToString :: Rank -> String
+rankToString Rank1 = "1"
+rankToString Rank2 = "2"
+rankToString Rank3 = "3"
+rankToString Rank4 = "4"
+rankToString Rank5 = "5"
+rankToString Rank6 = "6"
+rankToString Rank7 = "7"
+rankToString Rank8 = "8"
+
+squareToString :: Square -> String
+squareToString (Square f r) = fileToString f ++ rankToString r
 
 -- 2. The Physical Board: Structural Invariants
 
@@ -113,9 +169,83 @@ initialBoard = Board
       ]
   }
 
--- Stub for fromFEN
+-- fromFEN implementation
 fromFEN :: String -> Maybe Board
-fromFEN _ = Just initialBoard -- TODO: Implement proper FEN parsing
+fromFEN s = do
+  (baseBoard, _) <- Fen.parseFen s
+  fromBaseBoard baseBoard
+
+-- Helper to convert Base Square to Core Square
+fromBaseSquare :: T.Square -> Square
+fromBaseSquare (T.Square i) = Square (toEnum (i `mod` 8)) (toEnum (i `div` 8))
+
+-- Convert Base.Board to Core.Board
+fromBaseBoard :: Base.Board -> Maybe Board
+fromBaseBoard bb = do
+  -- Validate Kings: Exactly one per side
+  if popCount (Base.whiteKings bb) /= 1 then Nothing else return ()
+  if popCount (Base.blackKings bb) /= 1 then Nothing else return ()
+
+  let wKingSq = fromBaseSquare (T.Square (countTrailingZeros (Base.whiteKings bb)))
+  let bKingSq = fromBaseSquare (T.Square (countTrailingZeros (Base.blackKings bb)))
+
+  -- Collect Pawns
+  wPawns <- collectPawns (Base.whitePawns bb) White
+  bPawns <- collectPawns (Base.blackPawns bb) Black
+  let allPawns = Map.union wPawns bPawns
+
+  -- Collect Pieces
+  let wPieces = collectPieces bb White
+  let bPieces = collectPieces bb Black
+
+  return Board
+    { whiteKing = wKingSq
+    , blackKing = bKingSq
+    , pawns = allPawns
+    , whitePieces = wPieces
+    , blackPieces = bPieces
+    }
+
+collectPawns :: Bitboard -> Color -> Maybe (Map (File, PawnRank) Color)
+collectPawns bb c =
+    let sqs = bitboardToSquares bb
+        addPawn m (Square f r) = do
+           pr <- toPawnRank r
+           return $ Map.insert (f, pr) c m
+    in foldM addPawn Map.empty sqs
+  where
+    foldM _ z [] = Just z
+    foldM f z (x:xs) = do
+      z' <- f z x
+      foldM f z' xs
+
+collectPieces :: Base.Board -> Color -> Map Square (MajorMinorPiece c)
+collectPieces bb c =
+    let
+        queens = if c == White then Base.whiteQueens bb else Base.blackQueens bb
+        rooks = if c == White then Base.whiteRooks bb else Base.blackRooks bb
+        bishops = if c == White then Base.whiteBishops bb else Base.blackBishops bb
+        knights = if c == White then Base.whiteKnights bb else Base.blackKnights bb
+
+        insertPieces pt pieces m =
+            foldr (\sq acc -> Map.insert (fromBaseSquare sq) pt acc) m (rawBitboardToSquares pieces)
+
+        m1 = insertPieces MQueen queens Map.empty
+        m2 = insertPieces MRook rooks m1
+        m3 = insertPieces MBishop bishops m2
+        m4 = insertPieces MKnight knights m3
+    in m4
+
+bitboardToSquares :: Bitboard -> [Square]
+bitboardToSquares bb = map fromBaseSquare (rawBitboardToSquares bb)
+
+rawBitboardToSquares :: Bitboard -> [T.Square]
+rawBitboardToSquares bb
+  | bb == 0 = []
+  | otherwise =
+      let i = countTrailingZeros bb
+      in T.Square i : rawBitboardToSquares (clearBit bb i)
+
 
 -- Existential wrapper for Piece
 data SomePiece where
