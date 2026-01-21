@@ -330,12 +330,16 @@ fromSymbol ch = do
     return (Piece col pt)
 
 -- | Representation of a move. Standard move connects two squares and optional promotion.
--- Null move is a special case.
+-- Null move is a special case. Drop moves are used in Crazyhouse.
 data Move
     = Move
       { mFrom :: !Square
       , mTo   :: !Square
       , mProm :: !(Maybe PieceType)
+      }
+    | DropMove
+      { mDropPiece :: !PieceType
+      , mTo        :: !Square
       }
     | NullMove
     deriving (Eq, Ord, Show)
@@ -351,14 +355,15 @@ isNullMove _        = False
 -- | Helper to access fromSquare safely (compatibility/helper)
 fromSquare :: Move -> Maybe Square
 fromSquare (Move f _ _) = Just f
-fromSquare NullMove     = Nothing
+fromSquare _            = Nothing
 
 -- | Helper to access toSquare safely (compatibility/helper)
 toSquare :: Move -> Maybe Square
-toSquare (Move _ t _) = Just t
-toSquare NullMove     = Nothing
+toSquare (Move _ t _)   = Just t
+toSquare (DropMove _ t) = Just t
+toSquare NullMove       = Nothing
 
 -- | Helper to access promotion safely (compatibility/helper)
 promotion :: Move -> Maybe PieceType
 promotion (Move _ _ p) = p
-promotion NullMove     = Nothing
+promotion _            = Nothing

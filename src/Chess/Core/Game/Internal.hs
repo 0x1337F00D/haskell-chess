@@ -10,6 +10,8 @@ module Chess.Core.Game.Internal where
 
 import Chess.Core.Board.Internal
 import qualified Chess.Board.Base as Base
+import Data.Map (Map)
+import Data.Set (Set)
 
 -- 3. Game Phases as Type States
 
@@ -18,12 +20,13 @@ data Phase = Setup | Active | Finished
   deriving (Eq, Show)
 
 -- Variants
-data Variant = Standard | Atomic | KingOfTheHill | RacingKings | ThreeCheck
+data Variant = Standard | Atomic | KingOfTheHill | RacingKings | ThreeCheck | Crazyhouse
   deriving (Eq, Show)
 
 -- Variant State Data Family
 type family VariantState (v :: Variant) where
   VariantState 'ThreeCheck = (Int, Int) -- (White Checks, Black Checks)
+  VariantState 'Crazyhouse = (Map PieceType Int, Map PieceType Int, Set Square) -- (White Pocket, Black Pocket, Promoted Pieces)
   VariantState _ = ()
 
 -- Check Status (Section 7)

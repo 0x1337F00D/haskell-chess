@@ -55,7 +55,7 @@ To achieve parity with PyChess, the following tasks are identified:
     - [x] King of the Hill
     - [x] Racing Kings
     - [x] Three-Check
-    - [ ] Crazyhouse
+    - [x] Crazyhouse
 
 ## Supported Variants
 
@@ -68,7 +68,7 @@ Comparison of variants supported by PyChess vs haskell-chess:
 | **King of the Hill** | ✅ | ✅ | Center mate implemented. |
 | **Racing Kings** | ✅ | ✅ | No check rule implemented. |
 | **Three-Check** | ✅ | ✅ | Win by 3 checks implemented. |
-| **Crazyhouse** | ✅ | ❌ | Pending (Requires Drop Moves). |
+| **Crazyhouse** | ✅ | ✅ | Drop Moves implemented. |
 | **Chess960** | ✅ | ❌ | Pending (Fischer Random). |
 | **Antichess** | ✅ | ❌ | (Giveaway/Suicide/Losers) Pending. |
 | **Horde** | ✅ | ❌ | Pending. |

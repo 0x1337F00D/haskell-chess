@@ -19,11 +19,17 @@ parseFenRest :: String -> Maybe (Board, GameState, [String])
 parseFenRest s = do
   let parts = words s
   guard (length parts >= 4)
-  let (boardStr:turnStr:castlingStr:epStr:rest) = parts
+  let (boardStrFull:turnStr:castlingStr:epStr:rest) = parts
+
+      -- Extract pocket if attached to board string (e.g. "RNBQKBNR[P]")
+      (boardStr, pocketPart) = span (/= '[') boardStrFull
+
       (halfmoveStr, fullmoveStr, extra) = case rest of
                                             (h:f:r) -> (h, f, r)
                                             [h] -> (h, "1", [])
                                             [] -> ("0", "1", [])
+
+      extra' = if null pocketPart then extra else pocketPart : extra
 
   board <- parseBoard boardStr
   turnVal <- parseTurn turnStr
@@ -39,7 +45,7 @@ parseFenRest s = do
         , halfmoveClock = halfmove
         , fullmoveNumber = fullmove
         }
-  return (board, gs, extra)
+  return (board, gs, extra')
 
 -- | Parse a FEN string into a Board and GameState.
 parseFen :: String -> Maybe (Board, GameState)
