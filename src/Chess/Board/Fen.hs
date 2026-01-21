@@ -14,13 +14,16 @@ import Chess.Board.GameState (GameState(..), CastlingRights)
 import qualified Chess.Board.GameState as GS
 
 -- | Parse a FEN string into a Board and GameState.
-parseFen :: String -> Maybe (Board, GameState)
-parseFen s = do
+-- | Parse a FEN string into a Board, GameState, and remaining parts.
+parseFenRest :: String -> Maybe (Board, GameState, [String])
+parseFenRest s = do
   let parts = words s
   guard (length parts >= 4)
-  let (boardStr:turnStr:castlingStr:epStr:_) = parts
-      halfmoveStr = if length parts > 4 then parts !! 4 else "0"
-      fullmoveStr = if length parts > 5 then parts !! 5 else "1"
+  let (boardStr:turnStr:castlingStr:epStr:rest) = parts
+      (halfmoveStr, fullmoveStr, extra) = case rest of
+                                            (h:f:r) -> (h, f, r)
+                                            [h] -> (h, "1", [])
+                                            [] -> ("0", "1", [])
 
   board <- parseBoard boardStr
   turnVal <- parseTurn turnStr
@@ -36,7 +39,13 @@ parseFen s = do
         , halfmoveClock = halfmove
         , fullmoveNumber = fullmove
         }
-  return (board, gs)
+  return (board, gs, extra)
+
+-- | Parse a FEN string into a Board and GameState.
+parseFen :: String -> Maybe (Board, GameState)
+parseFen s = do
+  (b, gs, _) <- parseFenRest s
+  return (b, gs)
 
 -- | Serialize Board and GameState to FEN string.
 fen :: Board -> GameState -> String
