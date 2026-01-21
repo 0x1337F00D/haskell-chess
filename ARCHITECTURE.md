@@ -29,10 +29,10 @@ We use a GADT to link pieces to their intrinsic properties at the type level.
 A raw 64-square array allows illegal states like "zero kings" or "three kings." We replace this with a composite structure:
 
 1.  **King Registry**: `whiteKing :: Square, blackKing :: Square`.
-    *   This struct enforces the invariant: *There is always exactly one King per side.*
+    *   This record enforces the invariant: *There is always exactly one King per side.*
 2.  **Pawn Map**: `Map (File, PawnRank) (Color)`.
     *   By using `PawnRank` as the key, it is statically impossible to place a pawn on a promotion rank or back rank.
-3.  **General Piece Map**: `Map Square (NonKingPiece c)`.
+3.  **Piece Maps**: `whitePieces :: Map Square (MajorMinorPiece 'White)` and `blackPieces :: Map Square (MajorMinorPiece 'Black)`.
 
 **Prevention Mechanism**: It is impossible to represent a board state where a King is captured (missing) or where pawns exist on invalid ranks.
 
@@ -55,11 +55,11 @@ We employ **DataKinds** to index the main game wrapper, creating a state machine
 *Goal: Enforce turn order and prevent moving the opponent's pieces.*
 
 ### The Active Game State
-The `Active` game state is indexed by the current turn: `data ActiveGame (turn :: Color)`.
+The `Active` game state is indexed by the current turn: `data ActiveGame (v :: Variant) (turn :: Color) (status :: CheckStatus)`.
 
 *   **Turn Enforcement**: Move generation functions have the signature:
-    `ActiveGame c -> [Move c]`
-    The `Move` type is also indexed by `c`. It is a type error to apply a `Move White` to a `ActiveGame Black`.
+    `ActiveGame v c s -> [Move c]`
+    The `Move` type is also indexed by `c`. It is a type error to apply a `Move White` to a `ActiveGame v 'Black s`.
 *   **The Transition**: Applying a move flips the type index:
     `apply :: Move c -> ActiveGame c -> NextState (Opposite c)`
 
@@ -96,10 +96,10 @@ When a move is made, the resulting state depends on complex logic (did this chec
 The result of `applyMove` is a wrapper type:
 
 ```haskell
-data MoveResult (c :: Color) where
-  Checkmate :: Winner c -> MoveResult c
-  Stalemate :: MoveResult c
-  Continue  :: ActiveGame c -> MoveResult c
+data MoveResult (v :: Variant) (c :: Color) where
+  Checkmate :: Outcome -> MoveResult v c
+  Stalemate :: MoveResult v c
+  Continue  :: ActiveGame v c status -> MoveResult v c
 ```
 
 *   **Forcing Handling**: The user *must* pattern match on `MoveResult`.
@@ -113,10 +113,10 @@ data MoveResult (c :: Color) where
 *Goal: Encode King safety in the type system.*
 
 We can further refine the `ActiveGame` type to include the tactical status of the king:
-`data ActiveGame (turn :: Color) (status :: CheckStatus)`
+`data ActiveGame (v :: Variant) (turn :: Color) (status :: CheckStatus)`
 
 *   **Preconditions**: Castling is only permitted if `status ~ Safe`.
-*   **Filtering**: The move generator for `ActiveGame c Checked` only generates moves that resolve the check (capturing the attacker, blocking, or moving the King).
+*   **Filtering**: The move generator for `ActiveGame v c 'Checked` only generates moves that resolve the check (capturing the attacker, blocking, or moving the King).
 
 ## 8. Module Boundaries as Safety Barriers
 *Goal: Isolate unsafe logic.*
@@ -134,10 +134,10 @@ The architecture relies on a strict Trusted Computing Base (TCB):
 
 ### Type Classes for Variants
 We can parameterize the game by a `Variant` type:
-`data ActiveGame (v :: Variant) (turn :: Color)`
+`data ActiveGame (v :: Variant) (turn :: Color) (status :: CheckStatus)`
 
 *   **Ad-hoc Polymorphism**: Move generation and validation logic are defined via type classes:
-    `class ChessVariant v where generateMoves :: ...`
+    `class ChessVariant v where generateMoves :: ...; executeMove :: ...`
 *   **Extension**: Implementing "Atomic Chess" or "Chess960" involves creating a new empty data type `Atomic` and implementing the `ChessVariant` instance. The core machinery (Phase, Coordinates, Color) remains generic and safe.
 
 ### Unsafe Hooks for Search
