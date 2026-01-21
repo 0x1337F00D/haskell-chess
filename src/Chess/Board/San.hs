@@ -9,7 +9,7 @@ import Chess.Types
 import Chess.Bitboard (bbFromSquare, pattern BB_A1, pattern BB_H1, pattern BB_A8, pattern BB_H8, scanForward, pawnAttacks)
 import Chess.Board.Base
 import Chess.Board.GameState
-import Chess.Board.MoveGen (isLegal, applyMoveBoard)
+import Chess.Board.MoveGen (isLegal, applyMoveBoard, GenMove(..))
 import Chess.Board.Validation (isCheck, isCheckmate)
 
 -- | Convert a move to Standard Algebraic Notation (SAN).
@@ -107,9 +107,15 @@ getCandidates b gs (Piece c pt) target =
         let pseudo = case pt of
                 Pawn -> isPawnMove from
                 _    -> testBit (attacks b from) (unSquare target)
-        in pseudo && isLegal b gs (mkMove from)
+        in pseudo && isLegal b gs (mkGenMove from)
 
     mkMove from = Move from target promo
+    mkGenMove from =
+        let m = mkMove from
+            cap = if isEpSquare target then Nothing -- EP capture handled implicitly in applyMoveBoardFast
+                  else fmap pieceType (pieceAt b target)
+        in GenMove m pt cap
+
     promo = if pt == Pawn && isPromotionRank target then Just Queen else Nothing
     isPromotionRank s = (c == White && squareRank s == 7) || (c == Black && squareRank s == 0)
 
@@ -163,7 +169,19 @@ parseSan b gs str =
     let cleanStr = filter (`notElem` "+#") str
         c = turn gs
 
-        findMatch candidates = find (\m -> isLegal b gs m && (san b gs m == str || san b gs m == cleanStr)) candidates
+        -- Helper to check legality of a Move (converting to GenMove first)
+        checkLegal m =
+            let p = pieceAt b (mFrom m)
+                pt = maybe Pawn pieceType p -- Should be safe as candidates are from board
+                cap = case m of
+                        Move _ t _ ->
+                           if pt == Pawn && isEpCapture b gs m then Nothing
+                           else fmap pieceType (pieceAt b t)
+                        _ -> Nothing
+                genM = GenMove m pt cap
+            in isLegal b gs genM
+
+        findMatch candidates = find (\m -> checkLegal m && (san b gs m == str || san b gs m == cleanStr)) candidates
 
         rank = if c == White then 0 else 7
         kingSq = Square (rank * 8 + 4)

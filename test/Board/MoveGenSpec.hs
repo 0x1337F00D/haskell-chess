@@ -19,7 +19,7 @@ spec = do
        -- Position where white can castle kingside and queenside
        let fenStr = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"
        let (Just (b, gs)) = Fen.parseFen fenStr
-       let moves = MoveGen.pseudoLegalMoves b gs
+       let moves = map (\(MoveGen.GenMove m _ _) -> m) $ MoveGen.pseudoLegalMoves b gs
        -- Check if O-O and O-O-O are in moves
        let castlingK = Move E1 G1 Nothing
        let castlingQ = Move E1 C1 Nothing

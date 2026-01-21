@@ -11,7 +11,7 @@ import Chess.Board.GameState
 -- | Generate all pseudo-legal moves for the side to move.
 -- Pseudo-legal means moves that follow piece movement rules and capture rules,
 -- but do not necessarily respect the rule that the king must not be in check.
-pseudoLegalMoves :: Board -> GameState -> [Move]
+pseudoLegalMoves :: Board -> GameState -> [GenMove]
 pseudoLegalMoves b gs = concat
     [ pawnMoves b gs
     , pieceMoves b gs Knight
@@ -25,18 +25,18 @@ pseudoLegalMoves b gs = concat
 -- | Generate all legal moves.
 -- Filters pseudo-legal moves to ensure the king is not left in check.
 legalMoves :: Board -> GameState -> [Move]
-legalMoves b gs = filter (isLegal b gs) (pseudoLegalMoves b gs)
+legalMoves b gs = map (\(GenMove m _ _) -> m) $ filter (isLegal b gs) (pseudoLegalMoves b gs)
 
 -- | Check if a move is legal (does not leave own king in check).
 -- Note: This function assumes the move is pseudo-legal.
-isLegal :: Board -> GameState -> Move -> Bool
-isLegal b gs m =
+isLegal :: Board -> GameState -> GenMove -> Bool
+isLegal b gs (GenMove m pt cap) =
     let c = turn gs
-        b' = applyMoveBoard b gs m
+        b' = applyMoveBoardFast b gs m pt cap
         kingSq = kingSquare b' c
     in case kingSq of
         Nothing -> False -- Should not happen if king exists
-        Just k -> not (isAttackedBy b' (oppositeColor c) k) && castlingSafe b gs m
+        Just k -> not (isAttackedBy b' (oppositeColor c) k) && castlingSafe b gs m pt
 
     where
          -- Special check for castling: path must not be attacked.
@@ -45,9 +45,9 @@ isLegal b gs m =
          -- "Out of check" is covered by the standard check (start position checked, final position checked).
          -- Wait, if we are in check, we can't castle.
          -- And we can't cross attacked squares.
-         castlingSafe :: Board -> GameState -> Move -> Bool
-         castlingSafe _ _ (Move f t _ )
-            | isCastlingMove f t =
+         castlingSafe :: Board -> GameState -> Move -> PieceType -> Bool
+         castlingSafe _ _ (Move f t _ ) movingPt
+            | isCastlingMove f t movingPt =
                 let c = turn gs
                     step = (unSquare t - unSquare f) `div` 2
                     mid = Square (unSquare f + step)
@@ -57,12 +57,97 @@ isLegal b gs m =
                     midAttacked = isAttackedBy b (oppositeColor c) mid
                 in not startAttacked && not midAttacked
             | otherwise = True
-         castlingSafe _ _ _ = True
+         castlingSafe _ _ _ _ = True
 
-         isCastlingMove f t =
+         isCastlingMove f t movingPt =
              let d = abs (unSquare f - unSquare t)
-                 p = pieceAt b f
-             in d == 2 && fmap pieceType p == Just King
+             in d == 2 && movingPt == King
+
+-- | A move coupled with the piece type moving and optionally the piece type captured.
+-- If captured is Nothing, it's a quiet move (except possibly EP, which is handled specially).
+-- For EP, this field is ignored (or implicitly Pawn).
+data GenMove = GenMove !Move !PieceType !(Maybe PieceType)
+
+-- | Faster version of applyMoveBoard that avoids pieceAt lookups by using provided piece info.
+applyMoveBoardFast :: Board -> GameState -> Move -> PieceType -> Maybe PieceType -> Board
+applyMoveBoardFast b gs (Move from to promo) pt capturedPt =
+    let c = turn gs
+    in
+        -- Handle Basic Move and Promotion
+        let bAfterMove =
+                case promo of
+                    Just ppt ->
+                        -- If promotion:
+                        -- 1. Remove pawn from 'from'
+                        -- 2. Remove potential capture at 'to'
+                        -- 3. Put promoted piece at 'to'
+                        let b1 = unsafeRemovePiece b from c Pawn
+                            b2 = case capturedPt of
+                                   Nothing -> b1
+                                   Just capPt -> unsafeRemovePiece b1 to (oppositeColor c) capPt
+                            newPiece = Piece c ppt
+                        in unsafePutPiece b2 to newPiece
+                    Nothing ->
+                        -- Normal move
+                        case capturedPt of
+                            -- If capture, we must remove the captured piece and then move the piece.
+                            Just capPt ->
+                                let b1 = unsafeRemovePiece b to (oppositeColor c) capPt
+                                in movePieceFast b1 from to c pt
+                            Nothing ->
+                                -- Quiet move
+                                movePieceFast b from to c pt
+
+            -- Handle En Passant capture
+            -- If pawn moves diagonally to empty square (capturedPt is Nothing), it's EP.
+            isEP = pt == Pawn && squareFile from /= squareFile to &&
+                   (case capturedPt of Nothing -> True; _ -> False)
+
+            bAfterEP = if isEP
+                       then let capSq = Square (unSquare to + (if c == White then -8 else 8))
+                                -- Capture is opposite color Pawn
+                            in unsafeRemovePiece bAfterMove capSq (oppositeColor c) Pawn
+                       else bAfterMove
+
+            -- Handle Castling (move rook)
+            isCastling = pt == King && abs (unSquare from - unSquare to) == 2
+            bFinal = if isCastling
+                     then let (rookFrom, rookTo) = castlingRookMove from to
+                          -- Rook is same color, Rook.
+                          -- Move rook from rookFrom to rookTo.
+                          in movePieceFast bAfterEP rookFrom rookTo c Rook
+                     else bAfterEP
+
+        in bFinal
+applyMoveBoardFast b _ NullMove _ _ = b
+
+-- | Optimized movePiece that assumes capture handling is done or not needed (target empty).
+-- It only updates the bitboards for the moving piece.
+movePieceFast :: Board -> Square -> Square -> Color -> PieceType -> Board
+movePieceFast b from to c pt =
+    let fromI = unSquare from
+        toI   = unSquare to
+        mask = (1 `shiftL` fromI) `xor` (1 `shiftL` toI)
+
+        b2 = case (c, pt) of
+               (White, Pawn)   -> b { whitePawns   = whitePawns b `xor` mask }
+               (White, Knight) -> b { whiteKnights = whiteKnights b `xor` mask }
+               (White, Bishop) -> b { whiteBishops = whiteBishops b `xor` mask }
+               (White, Rook)   -> b { whiteRooks   = whiteRooks b `xor` mask }
+               (White, Queen)  -> b { whiteQueens  = whiteQueens b `xor` mask }
+               (White, King)   -> b { whiteKings   = whiteKings b `xor` mask }
+               (Black, Pawn)   -> b { blackPawns   = blackPawns b `xor` mask }
+               (Black, Knight) -> b { blackKnights = blackKnights b `xor` mask }
+               (Black, Bishop) -> b { blackBishops = blackBishops b `xor` mask }
+               (Black, Rook)   -> b { blackRooks   = blackRooks b `xor` mask }
+               (Black, Queen)  -> b { blackQueens  = blackQueens b `xor` mask }
+               (Black, King)   -> b { blackKings   = blackKings b `xor` mask }
+
+        whiteOcc = if c == White then occupiedWhite b `xor` mask else occupiedWhite b
+        blackOcc = if c == Black then occupiedBlack b `xor` mask else occupiedBlack b
+        totalOcc = occupiedTotal b `xor` mask
+
+    in b2 { occupiedWhite = whiteOcc, occupiedBlack = blackOcc, occupiedTotal = totalOcc }
 
 -- | Apply a move to the board (without updating game state like counters).
 -- Handles en passant capture removal and castling rook moves.
@@ -132,14 +217,14 @@ kingSquare b c = fmap Square (lsb (pieceBitboard b c King))
 
 -- Move Generators ------------------------------------------------------------
 
-pieceMoves :: Board -> GameState -> PieceType -> [Move]
+pieceMoves :: Board -> GameState -> PieceType -> [GenMove]
 pieceMoves b gs pt = concatMap genMoves sqs
   where
     c = turn gs
     bb = pieceBitboard b c pt
     sqs = map Square (scanForward bb)
 
-    genMoves :: Square -> [Move]
+    genMoves :: Square -> [GenMove]
     genMoves from =
         let att = attacks b from
             -- For non-pawns, valid moves are attacks on empty or enemy squares.
@@ -147,16 +232,16 @@ pieceMoves b gs pt = concatMap genMoves sqs
             -- We just need to exclude own pieces.
             valid = att .&. complement (occupiedBy b c)
             toSquares = map Square (scanForward valid)
-        in [ Move from to Nothing | to <- toSquares ]
+        in [ GenMove (Move from to Nothing) pt (fmap pieceType (pieceAt b to)) | to <- toSquares ]
 
-pawnMoves :: Board -> GameState -> [Move]
+pawnMoves :: Board -> GameState -> [GenMove]
 pawnMoves b gs = concatMap genPawnMoves sqs
   where
     c = turn gs
     bb = pieceBitboard b c Pawn
     sqs = map Square (scanForward bb)
 
-    genPawnMoves :: Square -> [Move]
+    genPawnMoves :: Square -> [GenMove]
     genPawnMoves from = pushes ++ captures
       where
         pushes =
@@ -167,15 +252,15 @@ pawnMoves b gs = concatMap genPawnMoves sqs
                 singlePush =
                     if pieceAt b to1 == Nothing
                     then if isPromRank to1
-                         then [ Move from to1 (Just p) | p <- [Queen, Rook, Bishop, Knight] ]
-                         else [ Move from to1 Nothing ]
+                         then [ GenMove (Move from to1 (Just p)) Pawn Nothing | p <- [Queen, Rook, Bishop, Knight] ]
+                         else [ GenMove (Move from to1 Nothing) Pawn Nothing ]
                     else []
 
                 doublePush =
                     let to2 = Square (unSquare to1 + fwd)
                         startRank = if c == White then 1 else 6
                     in if squareRank from == startRank && pieceAt b to1 == Nothing && pieceAt b to2 == Nothing
-                       then [ Move from to2 Nothing ]
+                       then [ GenMove (Move from to2 Nothing) Pawn Nothing ]
                        else []
             in singlePush ++ doublePush
 
@@ -194,13 +279,18 @@ pawnMoves b gs = concatMap genPawnMoves sqs
                 toSquares = map Square (scanForward valid)
 
                 mkMove to =
-                    if (c == White && squareRank to == 7) || (c == Black && squareRank to == 0)
-                    then [ Move from to (Just p) | p <- [Queen, Rook, Bishop, Knight] ]
-                    else [ Move from to Nothing ]
+                    -- Determine captured piece.
+                    -- If 'to' is occupied, it's a normal capture.
+                    -- If 'to' is empty (but valid), it's EP.
+                    let cap = fmap pieceType (pieceAt b to) -- Nothing for EP
+                        mvs = if (c == White && squareRank to == 7) || (c == Black && squareRank to == 0)
+                              then [ GenMove (Move from to (Just p)) Pawn cap | p <- [Queen, Rook, Bishop, Knight] ]
+                              else [ GenMove (Move from to Nothing) Pawn cap ]
+                    in mvs
 
             in concatMap mkMove toSquares
 
-castlingMoves :: Board -> GameState -> [Move]
+castlingMoves :: Board -> GameState -> [GenMove]
 castlingMoves b gs = ks ++ qs
   where
     c = turn gs
@@ -213,7 +303,7 @@ castlingMoves b gs = ks ++ qs
     mkCastlingMove isKingside =
         let toFile = if isKingside then 6 else 2 -- G1/G8 or C1/C8
             toSq = Square (rank * 8 + toFile)
-        in Move kingSq toSq Nothing
+        in GenMove (Move kingSq toSq Nothing) King Nothing
 
     kingsideClear =
         let f1 = Square (rank * 8 + 5) -- F
