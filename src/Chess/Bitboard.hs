@@ -182,6 +182,30 @@ scanForward bb
                     bb' = clearBit bb i
                 in i : scanForward bb'
 
+-- | Map a function over the set bits of a bitboard.
+-- Avoids intermediate list allocation of squares.
+mapBitboard :: (Square -> a) -> Bitboard -> [a]
+{-# INLINE mapBitboard #-}
+mapBitboard f = go
+  where
+    go 0 = []
+    go bb =
+        let i = countTrailingZeros bb
+            bb' = clearBit bb i
+        in f (Square i) : go bb'
+
+-- | Map a function returning a list over the set bits of a bitboard and concat.
+-- Avoids intermediate list allocation of squares.
+flatMapBitboard :: (Square -> [a]) -> Bitboard -> [a]
+{-# INLINE flatMapBitboard #-}
+flatMapBitboard f = go
+  where
+    go 0 = []
+    go bb =
+        let i = countTrailingZeros bb
+            bb' = clearBit bb i
+        in f (Square i) ++ go bb'
+
 -- | Index of most significant 1 bit, if any.
 msb :: Bitboard -> Maybe Int
 msb 0 = Nothing
