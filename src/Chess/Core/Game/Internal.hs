@@ -49,8 +49,7 @@ data CastlingRights = CastlingRights
 -- The Active Game State
 -- Indexed by the current turn, check status, and variant.
 data ActiveGame (v :: Variant) (turn :: Color) (status :: CheckStatus) = ActiveGame
-  { gameBoard :: Board
-  , internalBoard :: Base.Board
+  { internalBoard :: Base.Board
   , castlingRights :: CastlingRights
   , enPassantTarget :: Maybe File -- File of the pawn that moved two squares, if any
   , halfMoveClock :: Int
@@ -60,6 +59,12 @@ data ActiveGame (v :: Variant) (turn :: Color) (status :: CheckStatus) = ActiveG
 
 deriving instance Show (VariantState v) => Show (ActiveGame v turn status)
 deriving instance Eq (VariantState v) => Eq (ActiveGame v turn status)
+
+-- | View the high-level Board from the internal representation.
+viewBoard :: ActiveGame v turn status -> Board
+viewBoard ag = case fromBaseBoard (internalBoard ag) of
+                 Just b -> b
+                 Nothing -> error "ActiveGame internalBoard invariant broken: invalid board state"
 
 -- The Game Container
 data Game (v :: Variant) (p :: Phase) where

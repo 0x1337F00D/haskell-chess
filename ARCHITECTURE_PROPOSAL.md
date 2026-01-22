@@ -38,3 +38,21 @@ We propose removing the `gameBoard` field from `ActiveGame`. The `ActiveGame` ty
 *   **API Visibility**: `ActiveGame` becomes opaque and "raw". Debugging via `Show` will display bitmasks unless a custom instance using the view is defined.
 *   **Reconstruction Cost**: Reconstructing the full `Board` becomes an $O(N)$ operation. This is acceptable as it moves cost from the critical path (move generation) to the edge (IO).
 *   **Complexity**: Logic that relies on easy pattern matching (e.g. `case getPieceAt ...`) will need to use bitboard queries, which are more verbose but significantly faster.
+
+## Implementation Checklist
+
+- [x] **Refactor ActiveGame**
+    - [x] Remove `gameBoard` from `ActiveGame` definition in `src/Chess/Core/Game/Internal.hs`
+    - [x] Add `viewBoard` function to reconstruction `Board` from `internalBoard`
+
+- [x] **Update Core Rules**
+    - [x] Update `initialGame` to not use `gameBoard`
+    - [x] Update `gameFromFEN` to not use `gameBoard`
+    - [x] Update `toCoreMove` to use `Base.Board`
+    - [x] Update `generateMoves` for Standard
+    - [x] Update `executeMove` for Standard
+    - [x] Update `generateMoves` for Variants (Atomic, ThreeCheck, KOTH, RacingKings, Crazyhouse)
+    - [x] Update `executeMove` for Variants
+
+- [x] **Update Tests**
+    - [x] Update `test/CoreSpec.hs` to use `viewBoard`
