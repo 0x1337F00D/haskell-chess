@@ -8,12 +8,11 @@
 module CorePerftSpec where
 
 import Test.Hspec
-import Chess.Core.Board
 import Chess.Core.Board.Internal (KnownColor(..), SColor(..))
 import Chess.Core.Game
 import Chess.Core.Rules
 import Chess.Core.Perft
-import Chess.Core.Game.Internal (ActiveGame(..), Game(..))
+import Chess.Core.Game.Internal (Game(..))
 
 runPerft :: forall v. ChessVariant v => Int -> Game v 'Active -> Int
 runPerft d (InProgressGame (ag :: ActiveGame v c s)) =
