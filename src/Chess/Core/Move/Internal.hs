@@ -50,6 +50,14 @@ data Move (c :: Color) where
     , dmTo    :: Square
     } -> Move c
 
+  -- Castling 960 Move
+  Castling960Move ::
+    { cm960From :: Square
+    , cm960To   :: Square      -- Rook source (UCI target)
+    , cm960KingDest :: Square  -- Actual King destination
+    , cm960RookDest :: Square  -- Actual Rook destination
+    } -> Move c
+
 deriving instance Show (Move c)
 deriving instance Eq (Move c)
 
