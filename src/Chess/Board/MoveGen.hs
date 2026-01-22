@@ -218,11 +218,10 @@ kingSquare b c = fmap Square (lsb (pieceBitboard b c King))
 -- Move Generators ------------------------------------------------------------
 
 pieceMoves :: Board -> GameState -> PieceType -> [GenMove]
-pieceMoves b gs pt = concatMap genMoves sqs
+pieceMoves b gs pt = flatMapBitboard genMoves bb
   where
     c = turn gs
     bb = pieceBitboard b c pt
-    sqs = map Square (scanForward bb)
 
     genMoves :: Square -> [GenMove]
     genMoves from =
@@ -235,21 +234,21 @@ pieceMoves b gs pt = concatMap genMoves sqs
                     _      -> 0
 
             valid = att .&. complement (occupiedBy b c)
-            toSquares = map Square (scanForward valid)
 
             getCapture to =
                 if testBit (occupiedTotal b) (unSquare to)
                 then Just (findPieceType b (oppositeColor c) to)
                 else Nothing
 
-        in [ GenMove (Move from to Nothing) pt (getCapture to) | to <- toSquares ]
+            mkMove to = GenMove (Move from to Nothing) pt (getCapture to)
+
+        in mapBitboard mkMove valid
 
 pawnMoves :: Board -> GameState -> [GenMove]
-pawnMoves b gs = concatMap genPawnMoves sqs
+pawnMoves b gs = flatMapBitboard genPawnMoves bb
   where
     c = turn gs
     bb = pieceBitboard b c Pawn
-    sqs = map Square (scanForward bb)
 
     genPawnMoves :: Square -> [GenMove]
     genPawnMoves from = pushes ++ captures
@@ -286,7 +285,6 @@ pawnMoves b gs = concatMap genPawnMoves sqs
                             Nothing -> 0
 
                 valid = validMatches .|. epMatch
-                toSquares = map Square (scanForward valid)
 
                 mkMove to =
                     -- Determine captured piece.
@@ -301,7 +299,7 @@ pawnMoves b gs = concatMap genPawnMoves sqs
                               else [ GenMove (Move from to Nothing) Pawn cap ]
                     in mvs
 
-            in concatMap mkMove toSquares
+            in flatMapBitboard mkMove valid
 
 castlingMoves :: Board -> GameState -> [GenMove]
 castlingMoves b gs = ks ++ qs
