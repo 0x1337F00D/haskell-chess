@@ -31,8 +31,7 @@ initialGame :: Game 'Standard 'Active
 initialGame =
   let b = initialBoard
       ag = ActiveGame
-           { gameBoard = b
-           , internalBoard = toBaseBoard b
+           { internalBoard = toBaseBoard b
            , castlingRights = CastlingRights True True True True
            , enPassantTarget = Nothing
            , halfMoveClock = 0
@@ -45,7 +44,6 @@ initialGame =
 gameFromFEN :: String -> Maybe (Game 'Standard 'Active)
 gameFromFEN s = do
   (baseBoard, gs) <- Fen.parseFen s
-  board <- fromBaseBoard baseBoard
 
   let c = case GS.turn gs of
             T.White -> White
@@ -78,11 +76,11 @@ gameFromFEN s = do
   if hasMoves
     then case c of
       White -> if checked
-               then return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'White 'Checked)
-               else return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'White 'Safe)
+               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'White 'Checked)
+               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'White 'Safe)
       Black -> if checked
-               then return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'Black 'Checked)
-               else return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'Black 'Safe)
+               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'Black 'Checked)
+               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'Black 'Safe)
     else
       -- If no moves, game is finished. But this function returns Game 'Active.
       -- So we return Nothing? Or should we allow constructing FinishedGame?
@@ -94,7 +92,6 @@ gameFromFEN s = do
 crazyhouseGameFromFEN :: String -> Maybe (Game 'Crazyhouse 'Active)
 crazyhouseGameFromFEN s = do
   (baseBoard, gs, extra) <- Fen.parseFenRest s
-  board <- fromBaseBoard baseBoard
 
   let c = case GS.turn gs of
             T.White -> White
@@ -151,13 +148,13 @@ crazyhouseGameFromFEN s = do
   case c of
       White -> if hasMoves @'White
                then if checked
-                    then return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'White 'Checked)
-                    else return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'White 'Safe)
+                    then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'White 'Checked)
+                    else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'White 'Safe)
                else Nothing
       Black -> if hasMoves @'Black
                then if checked
-                    then return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'Black 'Checked)
-                    else return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'Black 'Safe)
+                    then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'Black 'Checked)
+                    else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'Black 'Safe)
                else Nothing
 
 -- Type-level Opposite Color
@@ -292,15 +289,15 @@ class ChessVariant (v :: Variant) where
 generateLegalMoves :: forall v c s. (KnownColor c, ChessVariant v) => ActiveGame v c s -> [Move c]
 generateLegalMoves = generateMoves
 
-toCoreMove :: Board -> T.Move -> Move c
+toCoreMove :: Base.Board -> T.Move -> Move c
 toCoreMove b (T.Move f t promo) =
   let fromSq = fromSquare f
       toSq = fromSquare t
-      p = getPieceAt fromSq b
+      p = Base.pieceAt b f
   in case (p, promo) of
-       (Just (SomePiece _), Just pt) ->
+       (Just _, Just pt) ->
           PromotionMove fromSq toSq (fromPieceType pt)
-       (Just (SomePiece piece), Nothing) ->
+       (Just piece, Nothing) ->
           if isCastlingMove piece fromSq toSq
           then CastlingMove fromSq toSq
           else if isEnPassantMove piece fromSq toSq b
@@ -310,33 +307,19 @@ toCoreMove b (T.Move f t promo) =
 toCoreMove _ (T.DropMove pt t) = DropMove (fromPieceType pt) (fromSquare t)
 toCoreMove _ T.NullMove = error "Null move generated"
 
-isCastlingMove :: Piece c -> Square -> Square -> Bool
+isCastlingMove :: T.Piece -> Square -> Square -> Bool
 isCastlingMove p from to =
-  pieceType p == King && abs (fromEnum (getFile from) - fromEnum (getFile to)) == 2
+  T.pieceType p == T.King && abs (fromEnum (getFile from) - fromEnum (getFile to)) == 2
 
-isEnPassantMove :: Piece c -> Square -> Square -> Board -> Bool
+isEnPassantMove :: T.Piece -> Square -> Square -> Base.Board -> Bool
 isEnPassantMove p from to b =
-  pieceType p == Pawn &&
+  T.pieceType p == T.Pawn &&
   getFile from /= getFile to &&
-  case getPieceAt to b of
+  case Base.pieceAt b (toSquare to) of
     Nothing -> True
     Just _ -> False
 
 -- Helpers for Apply Move
-mkPiece :: Color -> PieceType -> SomePiece
-mkPiece White King = SomePiece WKing
-mkPiece White Queen = SomePiece WQueen
-mkPiece White Rook = SomePiece WRook
-mkPiece White Bishop = SomePiece WBishop
-mkPiece White Knight = SomePiece WKnight
-mkPiece White Pawn = SomePiece WPawn
-mkPiece Black King = SomePiece BKing
-mkPiece Black Queen = SomePiece BQueen
-mkPiece Black Rook = SomePiece BRook
-mkPiece Black Bishop = SomePiece BBishop
-mkPiece Black Knight = SomePiece BKnight
-mkPiece Black Pawn = SomePiece BPawn
-
 getCastlingRookMove :: Square -> Square -> (Square, Square)
 getCastlingRookMove (Square FileE Rank1) (Square FileG Rank1) = (Square FileH Rank1, Square FileF Rank1) -- White King Side
 getCastlingRookMove (Square FileE Rank1) (Square FileC Rank1) = (Square FileA Rank1, Square FileD Rank1) -- White Queen Side
@@ -376,27 +359,6 @@ updateCastlingRights cr from to =
               Square FileA Rank8 -> cr1 { blackQueenSide = False }
               _ -> cr1
   in cr2
-
--- Apply Move Helper (pure board update)
-applyMoveBoard :: forall c. KnownColor c => Board -> Move c -> Board
-applyMoveBoard b m =
-    case m of
-       StandardMove f t -> movePiece f t b
-       PromotionMove f t pt ->
-         let b1 = removePieceAt f b
-             promoted = mkPiece (colorVal @c) pt
-         in putPieceAt t promoted b1
-       CastlingMove f t ->
-         let b1 = movePiece f t b
-             (rf, rt) = getCastlingRookMove f t
-         in movePiece rf rt b1
-       EnPassantMove f t ->
-         let b1 = movePiece f t b
-             capSq = getEpCapturedSquare f t
-         in removePieceAt capSq b1
-       DropMove p t ->
-         let promoted = mkPiece (colorVal @c) p
-         in putPieceAt t promoted b
 
 -- Apply Move Helper (Base Board update)
 applyMoveBase :: forall c. KnownColor c => Move c -> Base.Board -> Base.Board
@@ -444,18 +406,15 @@ applyMove = executeMove
 
 instance ChessVariant 'Standard where
   generateMoves (ag :: ActiveGame 'Standard c s) =
-    let b = gameBoard ag
-        baseBoard = internalBoard ag
+    let baseBoard = internalBoard ag
         gs = toGameState ag
         baseMoves = MG.legalMoves baseBoard gs
-    in map (toCoreMove b) baseMoves
+    in map (toCoreMove baseBoard) baseMoves
 
   executeMove (m :: Move c) (ag :: ActiveGame 'Standard c s) =
     let
         -- 1. Update Board
         c = colorVal @c
-        b = gameBoard ag
-        b' = applyMoveBoard b m
 
         -- Update Base Board
         internalB = internalBoard ag
@@ -474,10 +433,9 @@ instance ChessVariant 'Standard where
 
         -- Update EP Target
         -- Check if pawn moved
-        movedPiece = getPieceAt to b'
+        movedPiece = Base.pieceAt internalB' (toSquare to)
         isPawn = case movedPiece of
-                   Just (SomePiece WPawn) -> True
-                   Just (SomePiece BPawn) -> True
+                   Just p -> T.pieceType p == T.Pawn
                    _ -> False
 
         newEP = case m of
@@ -509,8 +467,7 @@ instance ChessVariant 'Standard where
          (True, False) -> Checkmate (Winner c)
          (False, False) -> Stalemate
          (True, True) -> Continue (ActiveGame
-                                    { gameBoard = b'
-                                    , internalBoard = internalB'
+                                    { internalBoard = internalB'
                                     , castlingRights = newCR
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
@@ -518,8 +475,7 @@ instance ChessVariant 'Standard where
                                     , variantState = ()
                                     } :: ActiveGame 'Standard (Opposite c) 'Checked)
          (False, True) -> Continue (ActiveGame
-                                    { gameBoard = b'
-                                    , internalBoard = internalB'
+                                    { internalBoard = internalB'
                                     , castlingRights = newCR
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
@@ -529,19 +485,16 @@ instance ChessVariant 'Standard where
 
 instance ChessVariant 'ThreeCheck where
   generateMoves (ag :: ActiveGame 'ThreeCheck c s) =
-    let b = gameBoard ag
-        baseBoard = internalBoard ag
+    let baseBoard = internalBoard ag
         gs = toGameState ag
         baseMoves = MG.legalMoves baseBoard gs
-    in map (toCoreMove b) baseMoves
+    in map (toCoreMove baseBoard) baseMoves
 
   executeMove (m :: Move c) (ag :: ActiveGame 'ThreeCheck c s) =
     let
         -- 1. Update Board
         c = colorVal @c
         oppC = colorVal @(Opposite c)
-        b = gameBoard ag
-        b' = applyMoveBoard b m
 
         -- Update Base Board
         internalB = internalBoard ag
@@ -556,10 +509,9 @@ instance ChessVariant 'ThreeCheck where
         -- 2. Update Game State
         newCR = updateCastlingRights (castlingRights ag) from to
 
-        movedPiece = getPieceAt to b'
+        movedPiece = Base.pieceAt internalB' (toSquare to)
         isPawn = case movedPiece of
-                   Just (SomePiece WPawn) -> True
-                   Just (SomePiece BPawn) -> True
+                   Just p -> T.pieceType p == T.Pawn
                    _ -> False
 
         newEP = case m of
@@ -600,8 +552,7 @@ instance ChessVariant 'ThreeCheck where
          (True, False) -> Checkmate (Winner c)
          (False, False) -> Stalemate
          (True, True) -> Continue (ActiveGame
-                                    { gameBoard = b'
-                                    , internalBoard = internalB'
+                                    { internalBoard = internalB'
                                     , castlingRights = newCR
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
@@ -609,8 +560,7 @@ instance ChessVariant 'ThreeCheck where
                                     , variantState = newVariantState
                                     } :: ActiveGame 'ThreeCheck (Opposite c) 'Checked)
          (False, True) -> Continue (ActiveGame
-                                    { gameBoard = b'
-                                    , internalBoard = internalB'
+                                    { internalBoard = internalB'
                                     , castlingRights = newCR
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
@@ -620,8 +570,7 @@ instance ChessVariant 'ThreeCheck where
 
 instance ChessVariant 'Atomic where
   generateMoves (ag :: ActiveGame 'Atomic c s) =
-    let b = gameBoard ag
-        baseBoard = internalBoard ag
+    let baseBoard = internalBoard ag
         gs = toGameState ag
         c = colorVal @c
 
@@ -660,15 +609,15 @@ instance ChessVariant 'Atomic where
         -- Apply standard check filtering (approximation)
         validMoves = filter (MG.isLegal baseBoard gs) atomicMoves
 
-    in map (toCoreMove b . (\(MG.GenMove m _ _) -> m)) validMoves
+    in map (toCoreMove baseBoard . (\(MG.GenMove m _ _) -> m)) validMoves
 
   executeMove (m :: Move c) (ag :: ActiveGame 'Atomic c s) =
     let c = colorVal @c
         oppC = colorVal @(Opposite c)
-        b = gameBoard ag
+        internalB = internalBoard ag
 
         -- 1. Apply Move Basic (Move piece, handle EP/Castling movement)
-        bBasic = applyMoveBoard b m
+        bBasic = applyMoveBase m internalB
 
         (from, to) = case m of
                        StandardMove f t -> (f, t)
@@ -678,8 +627,8 @@ instance ChessVariant 'Atomic where
 
         -- Check if capture
         isCapture = case m of
-                      StandardMove _ t -> getPieceAt t b /= Nothing
-                      PromotionMove _ t _ -> getPieceAt t b /= Nothing
+                      StandardMove _ t -> Base.pieceAt internalB (toSquare t) /= Nothing
+                      PromotionMove _ t _ -> Base.pieceAt internalB (toSquare t) /= Nothing
                       EnPassantMove _ _ -> True
                       _ -> False
 
@@ -688,21 +637,23 @@ instance ChessVariant 'Atomic where
           then
             let center = to
                 -- Capturing piece explodes (remove at center)
-                b1 = removePieceAt center bBasic
+                b1 = Base.removePieceAt bBasic (toSquare center)
 
                 -- Surrounding Squares
                 surrounds = getAdjacentSquares center
 
+                enemyKingSq = MG.kingSquare bBasic (toColor oppC)
+
                 -- Explode surrounding
                 explode sq (board, kingDead) =
-                  if sq == (if c == White then blackKing board else whiteKing board) -- Enemy King
+                  if Just (toSquare sq) == enemyKingSq
                   then (board, True)
                   else
-                    case getPieceAt sq board of
-                       Just (SomePiece p) ->
-                         if pieceType p == Pawn
+                    case Base.pieceAt board (toSquare sq) of
+                       Just p ->
+                         if T.pieceType p == T.Pawn
                          then (board, kingDead)
-                         else (removePieceAt sq board, kingDead)
+                         else (Base.removePieceAt board (toSquare sq), kingDead)
                        Nothing -> (board, kingDead)
 
                 (b2, kDead) = foldr explode (b1, False) surrounds
@@ -713,10 +664,9 @@ instance ChessVariant 'Atomic where
         newCR = updateCastlingRights (castlingRights ag) from to
 
         -- EP
-        movedPiece = getPieceAt to bBasic -- Note: use bBasic to check piece type before explosion
+        movedPiece = Base.pieceAt bBasic (toSquare to) -- Note: use bBasic to check piece type before explosion
         isPawn = case movedPiece of
-                   Just (SomePiece WPawn) -> True
-                   Just (SomePiece BPawn) -> True
+                   Just p -> T.pieceType p == T.Pawn
                    _ -> False
 
         newEP = case m of
@@ -736,7 +686,7 @@ instance ChessVariant 'Atomic where
           , GS.fullmoveNumber = newFMN
           }
 
-        baseBoard = toBaseBoard bFinal
+        baseBoard = bFinal
         isChecked = Val.isCheck baseBoard nextTurnGS
         hasMoves = Val.hasLegalMoves baseBoard nextTurnGS
 
@@ -746,8 +696,7 @@ instance ChessVariant 'Atomic where
          (True, False) -> Checkmate (Winner c)
          (False, False) -> Stalemate
          (True, True) -> Continue (ActiveGame
-                                    { gameBoard = bFinal
-                                    , internalBoard = baseBoard
+                                    { internalBoard = baseBoard
                                     , castlingRights = newCR
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
@@ -755,8 +704,7 @@ instance ChessVariant 'Atomic where
                                     , variantState = ()
                                     } :: ActiveGame 'Atomic (Opposite c) 'Checked)
          (False, True) -> Continue (ActiveGame
-                                    { gameBoard = bFinal
-                                    , internalBoard = baseBoard
+                                    { internalBoard = baseBoard
                                     , castlingRights = newCR
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
@@ -766,18 +714,15 @@ instance ChessVariant 'Atomic where
 
 instance ChessVariant 'KingOfTheHill where
   generateMoves (ag :: ActiveGame 'KingOfTheHill c s) =
-    let b = gameBoard ag
-        baseBoard = internalBoard ag
+    let baseBoard = internalBoard ag
         gs = toGameState ag
         baseMoves = MG.legalMoves baseBoard gs
-    in map (toCoreMove b) baseMoves
+    in map (toCoreMove baseBoard) baseMoves
 
   executeMove (m :: Move c) (ag :: ActiveGame 'KingOfTheHill c s) =
     let
         -- 1. Update Board
         c = colorVal @c
-        b = gameBoard ag
-        b' = applyMoveBoard b m
 
         -- Update Base Board
         internalB = internalBoard ag
@@ -792,15 +737,13 @@ instance ChessVariant 'KingOfTheHill where
         -- 2. Update Game State
         newCR = updateCastlingRights (castlingRights ag) from to
 
-        movedPiece = getPieceAt to b'
+        movedPiece = Base.pieceAt internalB' (toSquare to)
         isPawn = case movedPiece of
-                   Just (SomePiece WPawn) -> True
-                   Just (SomePiece BPawn) -> True
+                   Just p -> T.pieceType p == T.Pawn
                    _ -> False
 
         isKing = case movedPiece of
-                   Just (SomePiece WKing) -> True
-                   Just (SomePiece BKing) -> True
+                   Just p -> T.pieceType p == T.King
                    _ -> False
 
         newEP = case m of
@@ -835,8 +778,7 @@ instance ChessVariant 'KingOfTheHill where
          (True, False) -> Checkmate (Winner c)
          (False, False) -> Stalemate
          (True, True) -> Continue (ActiveGame
-                                    { gameBoard = b'
-                                    , internalBoard = internalB'
+                                    { internalBoard = internalB'
                                     , castlingRights = newCR
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
@@ -844,8 +786,7 @@ instance ChessVariant 'KingOfTheHill where
                                     , variantState = ()
                                     } :: ActiveGame 'KingOfTheHill (Opposite c) 'Checked)
          (False, True) -> Continue (ActiveGame
-                                    { gameBoard = b'
-                                    , internalBoard = internalB'
+                                    { internalBoard = internalB'
                                     , castlingRights = newCR
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
@@ -855,13 +796,12 @@ instance ChessVariant 'KingOfTheHill where
 
 instance ChessVariant 'RacingKings where
   generateMoves (ag :: ActiveGame 'RacingKings c s) =
-    let b = gameBoard ag
-        baseBoard = internalBoard ag
+    let baseBoard = internalBoard ag
         gs = toGameState ag
 
         -- Get Standard moves (handles own check safety)
         baseMoves = MG.legalMoves baseBoard gs
-        coreMoves = map (toCoreMove b) baseMoves
+        coreMoves = map (toCoreMove baseBoard) baseMoves
 
         c = colorVal @c
         oppC = opposite c
@@ -877,9 +817,6 @@ instance ChessVariant 'RacingKings where
 
   executeMove (m :: Move c) (ag :: ActiveGame 'RacingKings c s) =
     let c = colorVal @c
-        b = gameBoard ag
-
-        b' = applyMoveBoard b m
 
         -- Update Base Board
         internalB = internalBoard ag
@@ -893,10 +830,9 @@ instance ChessVariant 'RacingKings where
 
         newCR = updateCastlingRights (castlingRights ag) from to
 
-        movedPiece = getPieceAt to b'
+        movedPiece = Base.pieceAt internalB' (toSquare to)
         isPawn = case movedPiece of
-                   Just (SomePiece WPawn) -> True
-                   Just (SomePiece BPawn) -> True
+                   Just p -> T.pieceType p == T.Pawn
                    _ -> False
 
         newEP = case m of
@@ -910,8 +846,7 @@ instance ChessVariant 'RacingKings where
         -- But `generateMoves` requires `ActiveGame`. I can construct one.
         nextGameCandidate :: ActiveGame 'RacingKings (Opposite c) 'Safe
         nextGameCandidate = ActiveGame
-                                    { gameBoard = b'
-                                    , internalBoard = internalB'
+                                    { internalBoard = internalB'
                                     , castlingRights = newCR
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
@@ -925,10 +860,10 @@ instance ChessVariant 'RacingKings where
 
         -- Win Condition
         -- White King Rank
-        wKing = whiteKing b'
-        bKing = blackKing b'
-        wInGoal = case wKing of Square _ Rank8 -> True; _ -> False
-        bInGoal = case bKing of Square _ Rank8 -> True; _ -> False
+        wKingSq = MG.kingSquare internalB' T.White
+        bKingSq = MG.kingSquare internalB' T.Black
+        wInGoal = case wKingSq of Just sq -> T.squareRank sq == 7; _ -> False
+        bInGoal = case bKingSq of Just sq -> T.squareRank sq == 7; _ -> False
 
         result =
              if c == White
@@ -948,18 +883,17 @@ instance ChessVariant 'RacingKings where
 
 instance ChessVariant 'Crazyhouse where
   generateMoves (ag :: ActiveGame 'Crazyhouse c s) =
-    let b = gameBoard ag
-        baseBoard = internalBoard ag
+    let baseBoard = internalBoard ag
         gs = toGameState ag
         c = colorVal @c
 
         baseMoves = MG.legalMoves baseBoard gs
-        standardMoves = map (toCoreMove b) baseMoves
+        standardMoves = map (toCoreMove baseBoard) baseMoves
 
         (wPocket, bPocket, _) = variantState ag
         pocket = if c == White then wPocket else bPocket
 
-        emptySquares = [ Square f r | f <- [FileA .. FileH], r <- [Rank1 .. Rank8], getPieceAt (Square f r) b == Nothing ]
+        emptySquares = [ Square f r | f <- [FileA .. FileH], r <- [Rank1 .. Rank8], Base.pieceAt baseBoard (toSquare (Square f r)) == Nothing ]
 
         dropMoves = concatMap genDrops (Map.toList pocket)
 
@@ -983,8 +917,6 @@ instance ChessVariant 'Crazyhouse where
     let
         c = colorVal @c
         oppC = colorVal @(Opposite c)
-        b = gameBoard ag
-        b' = applyMoveBoard b m
         internalB = internalBoard ag
         internalB' = applyMoveBase m internalB
 
@@ -1007,9 +939,9 @@ instance ChessVariant 'Crazyhouse where
            _ ->
               -- Check capture
               let capture = case m of
-                              StandardMove _ t -> getPieceAt t b
-                              PromotionMove _ t _ -> getPieceAt t b
-                              EnPassantMove _ _ -> Just (mkPiece oppC Pawn) -- En Passant always captures Pawn
+                              StandardMove _ t -> Base.pieceAt internalB (toSquare t)
+                              PromotionMove _ t _ -> Base.pieceAt internalB (toSquare t)
+                              EnPassantMove _ _ -> Just (T.Piece (toColor oppC) T.Pawn) -- En Passant always captures Pawn
                               _ -> Nothing
 
                   capturedSquare = case m of
@@ -1018,8 +950,8 @@ instance ChessVariant 'Crazyhouse where
 
                   -- Update Pockets
                   pockets' = case capture of
-                     Just (SomePiece p) ->
-                        let capturedType = pieceType p
+                     Just (T.Piece _ pt) ->
+                        let capturedType = fromPieceType pt
                             isPromoted = case capturedSquare of
                                            Just sq -> Set.member sq promotedSet
                                            Nothing -> False
@@ -1049,10 +981,9 @@ instance ChessVariant 'Crazyhouse where
                   DropMove _ _ -> castlingRights ag
                   _ -> updateCastlingRights (castlingRights ag) from to
 
-        movedPiece = getPieceAt to b'
+        movedPiece = Base.pieceAt internalB' (toSquare to)
         isPawn = case movedPiece of
-                   Just (SomePiece WPawn) -> True
-                   Just (SomePiece BPawn) -> True
+                   Just p -> T.pieceType p == T.Pawn
                    _ -> False
 
         newEP = case m of
@@ -1060,8 +991,8 @@ instance ChessVariant 'Crazyhouse where
                   _ -> Nothing
 
         isCapture = case m of
-                      StandardMove _ t -> getPieceAt t b /= Nothing
-                      PromotionMove _ t _ -> getPieceAt t b /= Nothing
+                      StandardMove _ t -> Base.pieceAt internalB (toSquare t) /= Nothing
+                      PromotionMove _ t _ -> Base.pieceAt internalB (toSquare t) /= Nothing
                       EnPassantMove _ _ -> True
                       _ -> False
 
@@ -1104,8 +1035,7 @@ instance ChessVariant 'Crazyhouse where
          (True, False) -> Checkmate (Winner c)
          (False, False) -> Stalemate
          (True, True) -> Continue (ActiveGame
-                                    { gameBoard = b'
-                                    , internalBoard = internalB'
+                                    { internalBoard = internalB'
                                     , castlingRights = newCR
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC
@@ -1113,8 +1043,7 @@ instance ChessVariant 'Crazyhouse where
                                     , variantState = newState
                                     } :: ActiveGame 'Crazyhouse (Opposite c) 'Checked)
          (False, True) -> Continue (ActiveGame
-                                    { gameBoard = b'
-                                    , internalBoard = internalB'
+                                    { internalBoard = internalB'
                                     , castlingRights = newCR
                                     , enPassantTarget = newEP
                                     , halfMoveClock = newHMC

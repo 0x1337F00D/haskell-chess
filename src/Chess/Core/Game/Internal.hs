@@ -49,8 +49,7 @@ data CastlingRights = CastlingRights
 -- The Active Game State
 -- Indexed by the current turn, check status, and variant.
 data ActiveGame (v :: Variant) (turn :: Color) (status :: CheckStatus) = ActiveGame
-  { gameBoard :: Board
-  , internalBoard :: Base.Board
+  { internalBoard :: Base.Board
   , castlingRights :: CastlingRights
   , enPassantTarget :: Maybe File -- File of the pawn that moved two squares, if any
   , halfMoveClock :: Int

@@ -14,6 +14,12 @@ import Chess.Core.Board.Internal (movePiece)
 import Chess.Core.Game.Internal (ActiveGame(..), Game(..))
 import Chess.Core.Move.Internal (Move(..))
 import qualified Data.Map as Map
+import Data.Maybe (fromJust)
+import qualified Chess.Core.Board.Internal as CBI
+import qualified Chess.Board.Base as Base
+
+unsafeViewBoard :: Base.Board -> CBI.Board
+unsafeViewBoard bb = fromJust (CBI.fromBaseBoard bb)
 
 spec :: Spec
 spec = describe "Core Architecture" $ do
@@ -68,13 +74,13 @@ spec = describe "Core Architecture" $ do
   describe "Game Factory" $ do
     it "initialGame creates a valid game" $ do
       case initialGame of
-        InProgressGame ag -> gameBoard ag `shouldBe` initialBoard
+        InProgressGame ag -> unsafeViewBoard (internalBoard ag) `shouldBe` initialBoard
 
     it "gameFromFEN parses initial FEN" $ do
       let fenStr = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
       case gameFromFEN fenStr of
         Just (InProgressGame ag) -> do
-          gameBoard ag `shouldBe` initialBoard
+          unsafeViewBoard (internalBoard ag) `shouldBe` initialBoard
         Nothing -> expectationFailure "Failed to parse initial game FEN"
 
     it "gameFromFEN detects check" $ do
@@ -101,8 +107,7 @@ spec = describe "Core Architecture" $ do
     it "applyMove performs a move and switches turn" $ do
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
-               { gameBoard = initialBoard
-               , internalBoard = toBaseBoard initialBoard
+               { internalBoard = toBaseBoard initialBoard
                , castlingRights = CastlingRights True True True True
                , enPassantTarget = Nothing
                , halfMoveClock = 0
@@ -116,7 +121,7 @@ spec = describe "Core Architecture" $ do
       case res of
         Continue nextGame -> do
           -- We can verify the board in nextGame
-          let b' = gameBoard nextGame
+          let b' = unsafeViewBoard (internalBoard nextGame)
           case getPieceAt (Square FileE Rank4) b' of
              Just (SomePiece WPawn) -> return ()
              _ -> expectationFailure "Expected White Pawn at E4 in next game state"
@@ -125,8 +130,7 @@ spec = describe "Core Architecture" $ do
     it "generateLegalMoves generates 20 moves for initial board" $ do
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
-               { gameBoard = initialBoard
-               , internalBoard = toBaseBoard initialBoard
+               { internalBoard = toBaseBoard initialBoard
                , castlingRights = CastlingRights True True True True
                , enPassantTarget = Nothing
                , halfMoveClock = 0
@@ -153,8 +157,7 @@ spec = describe "Core Architecture" $ do
 
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
-               { gameBoard = b
-               , internalBoard = toBaseBoard b
+               { internalBoard = toBaseBoard b
                , castlingRights = CastlingRights True False False False
                , enPassantTarget = Nothing
                , halfMoveClock = 0
@@ -178,8 +181,7 @@ spec = describe "Core Architecture" $ do
 
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
-               { gameBoard = b
-               , internalBoard = toBaseBoard b
+               { internalBoard = toBaseBoard b
                , castlingRights = CastlingRights False False False False
                , enPassantTarget = Just FileF
                , halfMoveClock = 0
@@ -204,8 +206,7 @@ spec = describe "Core Architecture" $ do
 
       let ag :: ActiveGame 'Atomic 'White 'Safe
           ag = ActiveGame
-               { gameBoard = b
-               , internalBoard = toBaseBoard b
+               { internalBoard = toBaseBoard b
                , castlingRights = CastlingRights False False False False
                , enPassantTarget = Nothing
                , halfMoveClock = 0
@@ -218,7 +219,7 @@ spec = describe "Core Architecture" $ do
       let res = applyMove move ag
       case res of
         Continue nextGame -> do
-           let b' = gameBoard nextGame
+           let b' = unsafeViewBoard (internalBoard nextGame)
            -- D5 empty (Exploded center)
            getPieceAt (Square FileD Rank5) b' `shouldBe` Nothing
            -- C5 empty (Exploded neighbor Knight)
@@ -234,8 +235,7 @@ spec = describe "Core Architecture" $ do
       let b = initialBoard { whiteKing = Square FileE Rank3 }
       let ag :: ActiveGame 'KingOfTheHill 'White 'Safe
           ag = ActiveGame
-               { gameBoard = b
-               , internalBoard = toBaseBoard b
+               { internalBoard = toBaseBoard b
                , castlingRights = CastlingRights False False False False
                , enPassantTarget = Nothing
                , halfMoveClock = 0
@@ -259,8 +259,7 @@ spec = describe "Core Architecture" $ do
               }
         let ag :: ActiveGame 'RacingKings 'White 'Safe
             ag = ActiveGame
-               { gameBoard = b
-               , internalBoard = toBaseBoard b
+               { internalBoard = toBaseBoard b
                , castlingRights = CastlingRights False False False False
                , enPassantTarget = Nothing
                , halfMoveClock = 0
@@ -282,8 +281,7 @@ spec = describe "Core Architecture" $ do
        let b = initialBoard { whiteKing = Square FileE Rank7, blackKing = Square FileA Rank5 }
        let ag :: ActiveGame 'RacingKings 'White 'Safe
            ag = ActiveGame
-               { gameBoard = b
-               , internalBoard = toBaseBoard b
+               { internalBoard = toBaseBoard b
                , castlingRights = CastlingRights False False False False
                , enPassantTarget = Nothing
                , halfMoveClock = 0
@@ -308,8 +306,7 @@ spec = describe "Core Architecture" $ do
        -- Case 1: 0 checks -> 1 check
        let ag :: ActiveGame 'ThreeCheck 'White 'Safe
            ag = ActiveGame
-                { gameBoard = b
-                , internalBoard = toBaseBoard b
+                { internalBoard = toBaseBoard b
                 , castlingRights = CastlingRights False False False False
                 , enPassantTarget = Nothing
                 , halfMoveClock = 0
@@ -328,8 +325,7 @@ spec = describe "Core Architecture" $ do
        -- Case 2: 2 checks -> 3rd check (Win)
        let agTwo :: ActiveGame 'ThreeCheck 'White 'Safe
            agTwo = ActiveGame
-                { gameBoard = b
-                , internalBoard = toBaseBoard b
+                { internalBoard = toBaseBoard b
                 , castlingRights = CastlingRights False False False False
                 , enPassantTarget = Nothing
                 , halfMoveClock = 0
