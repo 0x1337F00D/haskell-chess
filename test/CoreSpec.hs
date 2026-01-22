@@ -11,15 +11,12 @@ import Chess.Core.Game
 import Chess.Core.Move
 import Chess.Core.Rules
 import Chess.Core.Board.Internal (movePiece)
-import Chess.Core.Game.Internal (ActiveGame(..), Game(..))
+import Chess.Core.Game.Internal (ActiveGame(..), Game(..), viewBoard)
 import Chess.Core.Move.Internal (Move(..))
 import qualified Data.Map as Map
 import Data.Maybe (fromJust)
 import qualified Chess.Core.Board.Internal as CBI
 import qualified Chess.Board.Base as Base
-
-unsafeViewBoard :: Base.Board -> CBI.Board
-unsafeViewBoard bb = fromJust (CBI.fromBaseBoard bb)
 
 spec :: Spec
 spec = describe "Core Architecture" $ do
@@ -78,13 +75,13 @@ spec = describe "Core Architecture" $ do
   describe "Game Factory" $ do
     it "initialGame creates a valid game" $ do
       case initialGame of
-        InProgressGame ag -> unsafeViewBoard (internalBoard ag) `shouldBe` initialBoard
+        InProgressGame ag -> viewBoard ag `shouldBe` initialBoard
 
     it "gameFromFEN parses initial FEN" $ do
       let fenStr = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
       case gameFromFEN fenStr of
         Just (InProgressGame ag) -> do
-          unsafeViewBoard (internalBoard ag) `shouldBe` initialBoard
+          viewBoard ag `shouldBe` initialBoard
         Nothing -> expectationFailure "Failed to parse initial game FEN"
 
     it "gameFromFEN detects check" $ do
@@ -125,7 +122,7 @@ spec = describe "Core Architecture" $ do
       case res of
         Continue nextGame -> do
           -- We can verify the board in nextGame
-          let b' = unsafeViewBoard (internalBoard nextGame)
+          let b' = viewBoard nextGame
           case getPieceAt (Square FileE Rank4) b' of
              Just (SomePiece WPawn) -> return ()
              _ -> expectationFailure "Expected White Pawn at E4 in next game state"
@@ -223,7 +220,7 @@ spec = describe "Core Architecture" $ do
       let res = applyMove move ag
       case res of
         Continue nextGame -> do
-           let b' = unsafeViewBoard (internalBoard nextGame)
+           let b' = viewBoard nextGame
            -- D5 empty (Exploded center)
            getPieceAt (Square FileD Rank5) b' `shouldBe` Nothing
            -- C5 empty (Exploded neighbor Knight)
