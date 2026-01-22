@@ -22,9 +22,10 @@ import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
 import qualified Chess.Board.Fen as Fen
-import Data.Bits (setBit, (.&.), (.|.), testBit, countTrailingZeros)
+import Data.Bits (setBit, (.&.), (.|.), testBit, countTrailingZeros, popCount)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.Maybe (listToMaybe, maybe)
 
 -- | Create the initial game state for Standard chess.
 initialGame :: Game 'Standard 'Active
@@ -40,6 +41,58 @@ initialGame =
            , variantState = ()
            } :: ActiveGame 'Standard 'White 'Safe
   in InProgressGame ag
+
+-- | Initial Game for Antichess
+initialAntichessGame :: Game 'Antichess 'Active
+initialAntichessGame =
+  let b = initialBoard
+      ag = ActiveGame
+           { gameBoard = b
+           , internalBoard = toBaseBoard b
+           , castlingRights = CastlingRights False False False False -- No castling in Antichess
+           , enPassantTarget = Nothing
+           , halfMoveClock = 0
+           , fullMoveNumber = 1
+           , variantState = ()
+           } :: ActiveGame 'Antichess 'White 'Safe
+  in InProgressGame ag
+
+-- | Initial Game for Horde
+initialHordeGame :: Game 'Horde 'Active
+initialHordeGame =
+  let b = initialHordeBoard
+      ag = ActiveGame
+           { gameBoard = b
+           , internalBoard = toBaseBoard b
+           , castlingRights = CastlingRights True True True True -- Black can castle, White cannot (no King)
+           , enPassantTarget = Nothing
+           , halfMoveClock = 0
+           , fullMoveNumber = 1
+           , variantState = ()
+           } :: ActiveGame 'Horde 'White 'Safe
+  in InProgressGame ag
+
+initialHordeBoard :: Board
+initialHordeBoard = Board
+  { whiteKing = Nothing
+  , blackKing = Just (Square FileE Rank8)
+  , pawns = Map.fromList $
+      -- White Pawns: Rank 1, 2, 3, 4 fully occupied + specific Rank 5
+      [ ((f, pr), White) | f <- [FileA .. FileH], pr <- [PRank1, PRank2, PRank3, PRank4] ] ++
+      [ ((f, PRank5), White) | f <- [FileB, FileC, FileF, FileG] ] ++
+      -- Black Pawns: Standard Rank 7
+      [ ((f, PRank7), Black) | f <- [FileA .. FileH] ]
+  , whitePieces = Map.empty -- White has only pawns
+  , blackPieces = Map.fromList
+      [ (Square FileA Rank8, MRook)
+      , (Square FileB Rank8, MKnight)
+      , (Square FileC Rank8, MBishop)
+      , (Square FileD Rank8, MQueen)
+      , (Square FileH Rank8, MRook)
+      , (Square FileG Rank8, MKnight)
+      , (Square FileF Rank8, MBishop)
+      ]
+  }
 
 -- | Create a game from FEN string (Standard variant).
 gameFromFEN :: String -> Maybe (Game 'Standard 'Active)
@@ -57,12 +110,6 @@ gameFromFEN s = do
            , blackKingSide = testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_H8)
            , blackQueenSide = testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_A8)
            }
-      -- Note: castlingRights bitboard indices might rely on lsb being correct.
-      -- A1=0, B1=1 ... H1=7.
-      -- BB.BB_H1 is bit 7.
-      -- BB.BB_A1 is bit 0.
-      -- But Data.Bits.testBit takes Int index.
-      -- So I should use countTrailingZeros on BB constants.
 
       ep = case GS.epSquare gs of
              Nothing -> Nothing
@@ -84,10 +131,6 @@ gameFromFEN s = do
                then return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'Black 'Checked)
                else return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'Black 'Safe)
     else
-      -- If no moves, game is finished. But this function returns Game 'Active.
-      -- So we return Nothing? Or should we allow constructing FinishedGame?
-      -- The type signature says Maybe (Game 'Standard 'Active).
-      -- So we MUST return Nothing if the game is finished.
       Nothing
 
 -- | Create a game from FEN string (Crazyhouse variant).
@@ -222,8 +265,8 @@ toBaseBoard b = Base.Board
 
     -- Extract squares for specific pieces
     -- Kings
-    wKings = squaresToBB [whiteKing b]
-    bKings = squaresToBB [blackKing b]
+    wKings = squaresToBB (maybe [] (:[]) (whiteKing b))
+    bKings = squaresToBB (maybe [] (:[]) (blackKing b))
 
     -- Pawns
     wPawnSqs = [ Square f (toRank pr) | ((f, pr), c) <- Map.toList (pawns b), c == White ]
@@ -695,7 +738,9 @@ instance ChessVariant 'Atomic where
 
                 -- Explode surrounding
                 explode sq (board, kingDead) =
-                  if sq == (if c == White then blackKing board else whiteKing board) -- Enemy King
+                  let kingSq = if c == White then blackKing board else whiteKing board
+                  in
+                  if Just sq == kingSq -- Enemy King
                   then (board, True)
                   else
                     case getPieceAt sq board of
@@ -927,8 +972,8 @@ instance ChessVariant 'RacingKings where
         -- White King Rank
         wKing = whiteKing b'
         bKing = blackKing b'
-        wInGoal = case wKing of Square _ Rank8 -> True; _ -> False
-        bInGoal = case bKing of Square _ Rank8 -> True; _ -> False
+        wInGoal = case wKing of Just (Square _ Rank8) -> True; _ -> False
+        bInGoal = case bKing of Just (Square _ Rank8) -> True; _ -> False
 
         result =
              if c == White
@@ -1121,6 +1166,203 @@ instance ChessVariant 'Crazyhouse where
                                     , fullMoveNumber = newFMN
                                     , variantState = newState
                                     } :: ActiveGame 'Crazyhouse (Opposite c) 'Safe)
+
+instance ChessVariant 'Antichess where
+  generateMoves (ag :: ActiveGame 'Antichess c s) =
+    let b = gameBoard ag
+        baseBoard = internalBoard ag
+        gs = toGameState ag
+
+        pseudos = MG.pseudoLegalMoves baseBoard gs
+
+        isCapture (MG.GenMove _ _ cap) =
+            case cap of
+              Just _ -> True
+              Nothing -> False
+
+        captures = filter isCapture pseudos
+        moves = if null captures then pseudos else captures
+
+    in map (toCoreMove b . (\(MG.GenMove m _ _) -> m)) moves
+
+  executeMove (m :: Move c) (ag :: ActiveGame 'Antichess c s) =
+    let c = colorVal @c
+        oppC = colorVal @(Opposite c)
+        b = gameBoard ag
+        b' = applyMoveBoard b m
+        internalB = internalBoard ag
+        internalB' = applyMoveBase m internalB
+
+        (from, to) = case m of
+                       StandardMove f t -> (f, t)
+                       PromotionMove f t _ -> (f, t)
+                       CastlingMove f t -> (f, t)
+                       EnPassantMove f t -> (f, t)
+
+        newCR = updateCastlingRights (castlingRights ag) from to
+
+        movedPiece = getPieceAt to b'
+        isPawn = case movedPiece of
+                   Just (SomePiece WPawn) -> True
+                   Just (SomePiece BPawn) -> True
+                   _ -> False
+
+        newEP = case m of
+                  StandardMove f t -> if isPawn && isDoublePush f t then Just (getFile f) else Nothing
+                  _ -> Nothing
+
+        newHMC = halfMoveClock ag + 1
+        newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
+
+        baseBoard = internalB'
+        nextTurnGS = GS.GameState
+          { GS.turn = toColor oppC
+          , GS.castlingRights = toCastlingRights newCR
+          , GS.epSquare = case newEP of
+                            Nothing -> Nothing
+                            Just f -> Just (toSquare (Square f (epRank oppC)))
+          , GS.halfmoveClock = newHMC
+          , GS.fullmoveNumber = newFMN
+          }
+
+        -- Win Condition: Lost all pieces
+        piecesLeft = popCount (Base.occupiedBy baseBoard (toColor c)) -- Should be 0 if I lost last piece?
+        -- No, executeMove is called after *I* move.
+        -- So I check if *I* have pieces left?
+        -- Wait.
+        -- Antichess: I win if I have no pieces.
+        -- After my move, if I have 0 pieces, I win.
+        myPieces = popCount (Base.occupiedBy internalB' (toColor c))
+
+        -- Also if Opponent has no pieces, Opponent wins?
+        -- Yes. But Opponent hasn't moved yet.
+        -- Usually we check win condition for player who just moved.
+
+        -- Stalemate: If Opponent has no moves, Opponent wins.
+
+        oppPieces = popCount (Base.occupiedBy internalB' (toColor oppC))
+
+        -- Generate opponent moves to check for stalemate
+        -- Pseudo legal moves + capture filter for opponent
+        oppPseudos = MG.pseudoLegalMoves baseBoard nextTurnGS
+        oppIsCapture (MG.GenMove _ _ cap) = case cap of Just _ -> True; Nothing -> False
+        oppCaptures = filter oppIsCapture oppPseudos
+        oppMoves = if null oppCaptures then oppPseudos else oppCaptures
+        oppHasMoves = not (null oppMoves)
+
+    in if myPieces == 0 then Checkmate (Winner c)
+       else if oppPieces == 0 then Checkmate (Winner oppC)
+       else if not oppHasMoves then Checkmate (Winner oppC)
+       else Continue (ActiveGame
+                        { gameBoard = b'
+                        , internalBoard = internalB'
+                        , castlingRights = newCR
+                        , enPassantTarget = newEP
+                        , halfMoveClock = newHMC
+                        , fullMoveNumber = newFMN
+                        , variantState = ()
+                        } :: ActiveGame 'Antichess (Opposite c) 'Safe) -- Use 'Safe as checked status is irrelevant
+
+instance ChessVariant 'Horde where
+  generateMoves (ag :: ActiveGame 'Horde c s) =
+    let b = gameBoard ag
+        baseBoard = internalBoard ag
+        gs = toGameState ag
+        c = colorVal @c
+
+        moves = if c == White
+                then
+                     -- White (Horde) has no King, so use pseudo-legal moves
+                     let pseudos = MG.pseudoLegalMoves baseBoard gs
+                     in map (\(MG.GenMove m _ _) -> m) pseudos
+                else
+                     -- Black (Standard) has King, use legal moves
+                     MG.legalMoves baseBoard gs
+    in map (toCoreMove b) moves
+
+  executeMove (m :: Move c) (ag :: ActiveGame 'Horde c s) =
+    let c = colorVal @c
+        oppC = colorVal @(Opposite c)
+        b = gameBoard ag
+        b' = applyMoveBoard b m
+        internalB = internalBoard ag
+        internalB' = applyMoveBase m internalB
+
+        (from, to) = case m of
+                       StandardMove f t -> (f, t)
+                       PromotionMove f t _ -> (f, t)
+                       CastlingMove f t -> (f, t)
+                       EnPassantMove f t -> (f, t)
+
+        newCR = updateCastlingRights (castlingRights ag) from to
+
+        movedPiece = getPieceAt to b'
+        isPawn = case movedPiece of
+                   Just (SomePiece WPawn) -> True
+                   Just (SomePiece BPawn) -> True
+                   _ -> False
+
+        newEP = case m of
+                  StandardMove f t -> if isPawn && isDoublePush f t then Just (getFile f) else Nothing
+                  _ -> Nothing
+
+        newHMC = halfMoveClock ag + 1
+        newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
+
+        baseBoard = internalB'
+        nextTurnGS = GS.GameState
+          { GS.turn = toColor oppC
+          , GS.castlingRights = toCastlingRights newCR
+          , GS.epSquare = case newEP of
+                            Nothing -> Nothing
+                            Just f -> Just (toSquare (Square f (epRank oppC)))
+          , GS.halfmoveClock = newHMC
+          , GS.fullmoveNumber = newFMN
+          }
+
+        -- Win Conditions
+
+        -- 1. White pieces count (for Black win)
+        wPieces = popCount (Base.occupiedWhite internalB')
+
+        -- 2. Black Checkmate/Stalemate (for White win/Draw)
+        isChecked = Val.isCheck baseBoard nextTurnGS
+
+        -- Generate moves for opponent to checkmate/stalemate
+        oppMoves = if oppC == White
+                   then map (\(MG.GenMove m _ _) -> m) (MG.pseudoLegalMoves baseBoard nextTurnGS)
+                   else MG.legalMoves baseBoard nextTurnGS
+        oppHasMoves = not (null oppMoves)
+
+    in if wPieces == 0
+       then Checkmate (Winner Black)
+       else case (isChecked, oppHasMoves) of
+         (True, False) -> Checkmate (Winner White) -- Black Checkmated (White can't checkmate if White is next, but here Opp is Black)
+                                                   -- Wait, if c=Black, oppC=White.
+                                                   -- If c=Black, we check if White is checkmated?
+                                                   -- White has no King, so isChecked is False.
+                                                   -- If White has no moves, Stalemate.
+
+         (False, False) -> Stalemate
+
+         (True, True) -> Continue (ActiveGame
+                                    { gameBoard = b'
+                                    , internalBoard = internalB'
+                                    , castlingRights = newCR
+                                    , enPassantTarget = newEP
+                                    , halfMoveClock = newHMC
+                                    , fullMoveNumber = newFMN
+                                    , variantState = ()
+                                    } :: ActiveGame 'Horde (Opposite c) 'Checked)
+         (False, True) -> Continue (ActiveGame
+                                    { gameBoard = b'
+                                    , internalBoard = internalB'
+                                    , castlingRights = newCR
+                                    , enPassantTarget = newEP
+                                    , halfMoveClock = newHMC
+                                    , fullMoveNumber = newFMN
+                                    , variantState = ()
+                                    } :: ActiveGame 'Horde (Opposite c) 'Safe)
 
 getAdjacentSquares :: Square -> [Square]
 getAdjacentSquares (Square f r) =

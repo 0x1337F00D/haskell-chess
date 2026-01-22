@@ -20,7 +20,7 @@ data Phase = Setup | Active | Finished
   deriving (Eq, Show)
 
 -- Variants
-data Variant = Standard | Atomic | KingOfTheHill | RacingKings | ThreeCheck | Crazyhouse
+data Variant = Standard | Atomic | KingOfTheHill | RacingKings | ThreeCheck | Crazyhouse | Antichess | Horde
   deriving (Eq, Show)
 
 -- Variant State Data Family

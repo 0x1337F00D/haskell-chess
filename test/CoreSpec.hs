@@ -19,8 +19,8 @@ spec :: Spec
 spec = describe "Core Architecture" $ do
   describe "Board" $ do
     it "initialBoard has Kings on correct squares" $ do
-      whiteKing initialBoard `shouldBe` Square FileE Rank1
-      blackKing initialBoard `shouldBe` Square FileE Rank8
+      whiteKing initialBoard `shouldBe` Just (Square FileE Rank1)
+      blackKing initialBoard `shouldBe` Just (Square FileE Rank8)
 
     it "initialBoard has correct number of Pawns" $ do
       Map.size (pawns initialBoard) `shouldBe` 16
@@ -47,8 +47,8 @@ spec = describe "Core Architecture" $ do
       let fenStr = "4k3/8/8/8/3P4/4P3/8/4K3 w - - 0 1"
       case fromFEN fenStr of
         Just b -> do
-          whiteKing b `shouldBe` Square FileE Rank1
-          blackKing b `shouldBe` Square FileE Rank8
+          whiteKing b `shouldBe` Just (Square FileE Rank1)
+          blackKing b `shouldBe` Just (Square FileE Rank8)
           -- Check Pawn at E3
           case getPieceAt (Square FileE Rank3) b of
              Just (SomePiece WPawn) -> return ()
@@ -61,9 +61,13 @@ spec = describe "Core Architecture" $ do
           getPieceAt (Square FileA Rank1) b `shouldBe` Nothing
         Nothing -> expectationFailure "Failed to parse custom FEN"
 
-    it "fromFEN returns Nothing for invalid FEN (missing King)" $ do
+    it "fromFEN allows board without King (relaxed for variants)" $ do
       let fenStr = "8/8/8/8/8/8/8/8 w - - 0 1"
-      fromFEN fenStr `shouldBe` Nothing
+      case fromFEN fenStr of
+        Just b -> do
+           whiteKing b `shouldBe` Nothing
+           blackKing b `shouldBe` Nothing
+        Nothing -> expectationFailure "Expected valid board"
 
   describe "Game Factory" $ do
     it "initialGame creates a valid game" $ do
@@ -231,7 +235,7 @@ spec = describe "Core Architecture" $ do
 
     it "KingOfTheHill: King to center wins" $ do
       -- Setup White King on E3. Move to E4 (Center).
-      let b = initialBoard { whiteKing = Square FileE Rank3 }
+      let b = initialBoard { whiteKing = Just (Square FileE Rank3) }
       let ag :: ActiveGame 'KingOfTheHill 'White 'Safe
           ag = ActiveGame
                { gameBoard = b
@@ -255,7 +259,7 @@ spec = describe "Core Architecture" $ do
               { pawns = Map.empty
               , whitePieces = Map.fromList [(Square FileA Rank1, MRook)]
               , blackPieces = Map.empty
-              , blackKing = Square FileA Rank8
+              , blackKing = Just (Square FileA Rank8)
               }
         let ag :: ActiveGame 'RacingKings 'White 'Safe
             ag = ActiveGame
@@ -279,7 +283,7 @@ spec = describe "Core Architecture" $ do
     it "RacingKings: Reaching Rank 8" $ do
        -- Setup White King on E7. Move to E8.
        -- Ensure Black King is safe and not at E8 (to avoid capture)
-       let b = initialBoard { whiteKing = Square FileE Rank7, blackKing = Square FileA Rank5 }
+       let b = initialBoard { whiteKing = Just (Square FileE Rank7), blackKing = Just (Square FileA Rank5) }
        let ag :: ActiveGame 'RacingKings 'White 'Safe
            ag = ActiveGame
                { gameBoard = b
@@ -302,7 +306,7 @@ spec = describe "Core Architecture" $ do
              { pawns = Map.empty
              , whitePieces = Map.fromList [(Square FileA Rank1, MRook)]
              , blackPieces = Map.empty
-             , blackKing = Square FileA Rank8
+             , blackKing = Just (Square FileA Rank8)
              }
 
        -- Case 1: 0 checks -> 1 check

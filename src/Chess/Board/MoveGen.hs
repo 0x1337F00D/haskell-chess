@@ -267,8 +267,8 @@ pawnMoves b gs = flatMapBitboard genPawnMoves bb
 
                 doublePush =
                     let to2 = Square (unSquare to1 + fwd)
-                        startRank = if c == White then 1 else 6
-                    in if squareRank from == startRank && not (testBit (occupiedTotal b) (unSquare to1)) && not (testBit (occupiedTotal b) (unSquare to2))
+                        isStartRank = if c == White then squareRank from <= 1 else squareRank from == 6
+                    in if isStartRank && not (testBit (occupiedTotal b) (unSquare to1)) && not (testBit (occupiedTotal b) (unSquare to2))
                        then [ GenMove (Move from to2 Nothing) Pawn Nothing ]
                        else []
             in singlePush ++ doublePush
