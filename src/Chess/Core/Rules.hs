@@ -24,6 +24,7 @@ import qualified Chess.Bitboard as BB
 import qualified Chess.Board.Fen as Fen
 import Data.Bits (setBit, (.&.), (.|.), testBit, countTrailingZeros)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 -- | Create the initial game state for Standard chess.
 initialGame :: Game 'Standard 'Active
@@ -88,6 +89,76 @@ gameFromFEN s = do
       -- The type signature says Maybe (Game 'Standard 'Active).
       -- So we MUST return Nothing if the game is finished.
       Nothing
+
+-- | Create a game from FEN string (Crazyhouse variant).
+crazyhouseGameFromFEN :: String -> Maybe (Game 'Crazyhouse 'Active)
+crazyhouseGameFromFEN s = do
+  (baseBoard, gs, extra) <- Fen.parseFenRest s
+  board <- fromBaseBoard baseBoard
+
+  let c = case GS.turn gs of
+            T.White -> White
+            T.Black -> Black
+
+      cr = CastlingRights
+           { whiteKingSide = testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_H1)
+           , whiteQueenSide = testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_A1)
+           , blackKingSide = testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_H8)
+           , blackQueenSide = testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_A8)
+           }
+
+      ep = case GS.epSquare gs of
+             Nothing -> Nothing
+             Just sq -> Just (getFile (fromBaseSquare sq))
+
+      hmc = GS.halfmoveClock gs
+      fmn = GS.fullmoveNumber gs
+
+      -- Parse pockets
+      pocketStr = case filter (\x -> not (null x) && head x == '[') extra of
+                    (p:_) -> p
+                    [] -> "[]"
+
+      (wPocket, bPocket) = foldr dist (Map.empty, Map.empty) (filter (`elem` "PNBRQKpnbrqk") pocketStr)
+        where
+          dist char (wm, bm) =
+             case T.fromSymbol char of
+                Just (T.Piece T.White pt) -> (Map.insertWith (+) (fromPieceType pt) 1 wm, bm)
+                Just (T.Piece T.Black pt) -> (wm, Map.insertWith (+) (fromPieceType pt) 1 bm)
+                Nothing -> (wm, bm)
+
+      vs = (wPocket, bPocket, Set.empty)
+
+      checked = Val.isCheck baseBoard gs
+
+      -- Helper to generate drops
+      generateDrops :: forall c. KnownColor c => [Move c]
+      generateDrops =
+           let col = colorVal @c
+               pocket = if col == White then wPocket else bPocket
+               emptySqs = [ Square f r | f <- [FileA .. FileH], r <- [Rank1 .. Rank8], Base.pieceAt baseBoard (toSquare (Square f r)) == Nothing ]
+               gen (pt, cnt) | cnt <= 0 = []
+                             | otherwise =
+                                 let valid = if pt == Pawn then filter (\(Square _ r) -> r /= Rank1 && r /= Rank8) emptySqs else emptySqs
+                                 in map (DropMove pt) valid
+               drops = concatMap gen (Map.toList pocket)
+               safe m = not (Val.isCheck (applyMoveBase m baseBoard) gs)
+           in filter safe drops
+
+      hasMoves :: forall c. KnownColor c => Bool
+      hasMoves = Val.hasLegalMoves baseBoard gs || not (null (generateDrops @c))
+
+  case c of
+      White -> if hasMoves @'White
+               then if checked
+                    then return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'White 'Checked)
+                    else return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'White 'Safe)
+               else Nothing
+      Black -> if hasMoves @'Black
+               then if checked
+                    then return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'Black 'Checked)
+                    else return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'Black 'Safe)
+               else Nothing
 
 -- Type-level Opposite Color
 type family Opposite (c :: Color) :: Color where
@@ -236,6 +307,7 @@ toCoreMove b (T.Move f t promo) =
                then EnPassantMove fromSq toSq
                else StandardMove fromSq toSq
        _ -> error "Invalid move generated" -- Should not happen if logic is consistent
+toCoreMove _ (T.DropMove pt t) = DropMove (fromPieceType pt) (fromSquare t)
 toCoreMove _ T.NullMove = error "Null move generated"
 
 isCastlingMove :: Piece c -> Square -> Square -> Bool
@@ -322,6 +394,9 @@ applyMoveBoard b m =
          let b1 = movePiece f t b
              capSq = getEpCapturedSquare f t
          in removePieceAt capSq b1
+       DropMove p t ->
+         let promoted = mkPiece (colorVal @c) p
+         in putPieceAt t promoted b
 
 -- Apply Move Helper (Base Board update)
 applyMoveBase :: forall c. KnownColor c => Move c -> Base.Board -> Base.Board
@@ -359,6 +434,9 @@ applyMoveBase m b =
                      Nothing -> b
               capSq = getEpCapturedSquare f t
           in Base.removePieceAt b1 (toSquare capSq)
+       DropMove p t ->
+          let promoted = T.Piece (toColor (colorVal @c)) (toPieceType p)
+          in Base.putPiece b (toSquare t) promoted
 
 -- Apply Move
 applyMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
@@ -867,6 +945,182 @@ instance ChessVariant 'RacingKings where
                   if realHasMoves then Continue nextGameCandidate else Stalemate
 
     in result
+
+instance ChessVariant 'Crazyhouse where
+  generateMoves (ag :: ActiveGame 'Crazyhouse c s) =
+    let b = gameBoard ag
+        baseBoard = internalBoard ag
+        gs = toGameState ag
+        c = colorVal @c
+
+        baseMoves = MG.legalMoves baseBoard gs
+        standardMoves = map (toCoreMove b) baseMoves
+
+        (wPocket, bPocket, _) = variantState ag
+        pocket = if c == White then wPocket else bPocket
+
+        emptySquares = [ Square f r | f <- [FileA .. FileH], r <- [Rank1 .. Rank8], getPieceAt (Square f r) b == Nothing ]
+
+        dropMoves = concatMap genDrops (Map.toList pocket)
+
+        genDrops (pt, count)
+          | count <= 0 = []
+          | otherwise =
+              let validSquares = if pt == Pawn
+                                 then filter (\(Square _ r) -> r /= Rank1 && r /= Rank8) emptySquares
+                                 else emptySquares
+              in map (DropMove pt) validSquares
+
+        isSafeDrop m =
+           let nextBase = applyMoveBase m baseBoard
+           in not (Val.isCheck nextBase gs)
+
+        validDropMoves = filter isSafeDrop dropMoves
+
+    in standardMoves ++ validDropMoves
+
+  executeMove (m :: Move c) (ag :: ActiveGame 'Crazyhouse c s) =
+    let
+        c = colorVal @c
+        oppC = colorVal @(Opposite c)
+        b = gameBoard ag
+        b' = applyMoveBoard b m
+        internalB = internalBoard ag
+        internalB' = applyMoveBase m internalB
+
+        (wPocket, bPocket, promotedSet) = variantState ag
+
+        (from, to) = case m of
+                       StandardMove f t -> (f, t)
+                       PromotionMove f t _ -> (f, t)
+                       CastlingMove f t -> (f, t)
+                       EnPassantMove f t -> (f, t)
+                       DropMove _ t -> (t, t) -- Dummy from
+
+        -- Handle Captures and Drops
+        ((wPocket', bPocket'), promotedSet') = case m of
+           DropMove p _ ->
+              let pockets = if c == White
+                            then (Map.adjust (\x -> x - 1) p wPocket, bPocket)
+                            else (wPocket, Map.adjust (\x -> x - 1) p bPocket)
+              in (pockets, promotedSet)
+           _ ->
+              -- Check capture
+              let capture = case m of
+                              StandardMove _ t -> getPieceAt t b
+                              PromotionMove _ t _ -> getPieceAt t b
+                              EnPassantMove _ _ -> Just (mkPiece oppC Pawn) -- En Passant always captures Pawn
+                              _ -> Nothing
+
+                  capturedSquare = case m of
+                                     EnPassantMove f t -> Just (getEpCapturedSquare f t)
+                                     _ -> if capture /= Nothing then Just to else Nothing
+
+                  -- Update Pockets
+                  pockets' = case capture of
+                     Just (SomePiece p) ->
+                        let capturedType = pieceType p
+                            isPromoted = case capturedSquare of
+                                           Just sq -> Set.member sq promotedSet
+                                           Nothing -> False
+                            addToPocket = if isPromoted then Pawn else capturedType
+                            (wm, bm) = (wPocket, bPocket)
+                        in if c == White
+                           then (Map.insertWith (+) addToPocket 1 wm, bm)
+                           else (wm, Map.insertWith (+) addToPocket 1 bm)
+                     Nothing -> (wPocket, bPocket)
+
+                  -- Update Promoted Set
+                  ps1 = case capturedSquare of
+                          Just sq -> Set.delete sq promotedSet
+                          Nothing -> promotedSet
+
+                  isMovingPromoted = Set.member from ps1
+                  ps2 = if isMovingPromoted then Set.insert to (Set.delete from ps1) else ps1
+
+                  ps3 = case m of
+                          PromotionMove _ t _ -> Set.insert to ps2
+                          _ -> ps2
+
+              in (pockets', ps3)
+
+        -- State Updates
+        newCR = case m of
+                  DropMove _ _ -> castlingRights ag
+                  _ -> updateCastlingRights (castlingRights ag) from to
+
+        movedPiece = getPieceAt to b'
+        isPawn = case movedPiece of
+                   Just (SomePiece WPawn) -> True
+                   Just (SomePiece BPawn) -> True
+                   _ -> False
+
+        newEP = case m of
+                  StandardMove f t -> if isPawn && isDoublePush f t then Just (getFile f) else Nothing
+                  _ -> Nothing
+
+        isCapture = case m of
+                      StandardMove _ t -> getPieceAt t b /= Nothing
+                      PromotionMove _ t _ -> getPieceAt t b /= Nothing
+                      EnPassantMove _ _ -> True
+                      _ -> False
+
+        resetClock = isPawn || isCapture
+
+        newHMC = if resetClock then 0 else halfMoveClock ag + 1
+        newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
+
+        baseBoard = internalB'
+
+        nextTurnGS = GS.GameState
+          { GS.turn = toColor oppC
+          , GS.castlingRights = toCastlingRights newCR
+          , GS.epSquare = case newEP of
+                            Nothing -> Nothing
+                            Just f -> Just (toSquare (Square f (epRank oppC)))
+          , GS.halfmoveClock = newHMC
+          , GS.fullmoveNumber = newFMN
+          }
+
+        newState = (wPocket', bPocket', promotedSet')
+
+        generateDrops :: forall col. KnownColor col => Base.Board -> GS.GameState -> (Map.Map PieceType Int, Map.Map PieceType Int, Set.Set Square) -> [Move col]
+        generateDrops board gs (wm, bm, _) =
+           let cVal = colorVal @col
+               pocket = if cVal == White then wm else bm
+               emptySqs = [ Square f r | f <- [FileA .. FileH], r <- [Rank1 .. Rank8], Base.pieceAt board (toSquare (Square f r)) == Nothing ]
+               gen (pt, cnt) | cnt <= 0 = []
+                             | otherwise =
+                                 let valid = if pt == Pawn then filter (\(Square _ r) -> r /= Rank1 && r /= Rank8) emptySqs else emptySqs
+                                 in map (DropMove pt) valid
+               drops = concatMap gen (Map.toList pocket)
+               safe m = not (Val.isCheck (applyMoveBase m board) gs)
+           in filter safe drops
+
+        isChecked = Val.isCheck baseBoard nextTurnGS
+        hasMoves = Val.hasLegalMoves baseBoard nextTurnGS || not (null (generateDrops @(Opposite c) baseBoard nextTurnGS newState))
+
+    in case (isChecked, hasMoves) of
+         (True, False) -> Checkmate (Winner c)
+         (False, False) -> Stalemate
+         (True, True) -> Continue (ActiveGame
+                                    { gameBoard = b'
+                                    , internalBoard = internalB'
+                                    , castlingRights = newCR
+                                    , enPassantTarget = newEP
+                                    , halfMoveClock = newHMC
+                                    , fullMoveNumber = newFMN
+                                    , variantState = newState
+                                    } :: ActiveGame 'Crazyhouse (Opposite c) 'Checked)
+         (False, True) -> Continue (ActiveGame
+                                    { gameBoard = b'
+                                    , internalBoard = internalB'
+                                    , castlingRights = newCR
+                                    , enPassantTarget = newEP
+                                    , halfMoveClock = newHMC
+                                    , fullMoveNumber = newFMN
+                                    , variantState = newState
+                                    } :: ActiveGame 'Crazyhouse (Opposite c) 'Safe)
 
 getAdjacentSquares :: Square -> [Square]
 getAdjacentSquares (Square f r) =

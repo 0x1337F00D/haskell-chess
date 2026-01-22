@@ -44,6 +44,12 @@ data Move (c :: Color) where
     , pmPromotion :: PieceType -- Promotion choice (Queen, Rook, Bishop, Knight)
     } -> Move c
 
+  -- Drop Move
+  DropMove ::
+    { dmPiece :: PieceType
+    , dmTo    :: Square
+    } -> Move c
+
 deriving instance Show (Move c)
 deriving instance Eq (Move c)
 

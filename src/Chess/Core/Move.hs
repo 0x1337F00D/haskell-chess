@@ -21,18 +21,29 @@ moveFrom (StandardMove f _) = f
 moveFrom (CastlingMove f _) = f
 moveFrom (EnPassantMove f _) = f
 moveFrom (PromotionMove f _ _) = f
+moveFrom (DropMove _ _) = error "moveFrom: DropMove has no origin"
 
 moveTo :: Move c -> Square
 moveTo (StandardMove _ t) = t
 moveTo (CastlingMove _ t) = t
 moveTo (EnPassantMove _ t) = t
 moveTo (PromotionMove _ t _) = t
+moveTo (DropMove _ t) = t
 
 toUCI :: Move c -> String
 toUCI (StandardMove f t) = squareToString f ++ squareToString t
 toUCI (CastlingMove f t) = squareToString f ++ squareToString t -- e1g1
 toUCI (EnPassantMove f t) = squareToString f ++ squareToString t
 toUCI (PromotionMove f t p) = squareToString f ++ squareToString t ++ pieceTypeChar p
+toUCI (DropMove p t) = pieceTypeSymbol p ++ "@" ++ squareToString t
+
+pieceTypeSymbol :: PieceType -> String
+pieceTypeSymbol Pawn   = "P"
+pieceTypeSymbol Knight = "N"
+pieceTypeSymbol Bishop = "B"
+pieceTypeSymbol Rook   = "R"
+pieceTypeSymbol Queen  = "Q"
+pieceTypeSymbol King   = "K"
 
 pieceTypeChar :: PieceType -> String
 pieceTypeChar Queen  = "q"
