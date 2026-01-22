@@ -43,7 +43,67 @@ initialGame =
 
 -- | Create a game from FEN string (Standard variant).
 gameFromFEN :: String -> Maybe (Game 'Standard 'Active)
-gameFromFEN s = do
+gameFromFEN = genericGameFromFEN
+
+-- | Create a game from FEN string (Atomic variant).
+atomicGameFromFEN :: String -> Maybe (Game 'Atomic 'Active)
+atomicGameFromFEN = genericGameFromFEN
+
+-- | Create a game from FEN string (King of the Hill variant).
+kingOfTheHillGameFromFEN :: String -> Maybe (Game 'KingOfTheHill 'Active)
+kingOfTheHillGameFromFEN = genericGameFromFEN
+
+-- | Create a game from FEN string (Racing Kings variant).
+racingKingsGameFromFEN :: String -> Maybe (Game 'RacingKings 'Active)
+racingKingsGameFromFEN = genericGameFromFEN
+
+-- | Create a game from FEN string (ThreeCheck variant).
+threeCheckGameFromFEN :: String -> Maybe (Game 'ThreeCheck 'Active)
+threeCheckGameFromFEN s = do
+  (baseBoard, gs, checks) <- CoreFen.parseThreeCheckFen s
+  board <- fromBaseBoard baseBoard
+
+  let c = case GS.turn gs of
+            T.White -> White
+            T.Black -> Black
+
+      cr = CastlingRights
+           { whiteKingSide = testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_H1)
+           , whiteQueenSide = testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_A1)
+           , blackKingSide = testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_H8)
+           , blackQueenSide = testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_A8)
+           }
+
+      ep = case GS.epSquare gs of
+             Nothing -> Nothing
+             Just sq -> Just (getFile (fromBaseSquare sq))
+
+      hmc = GS.halfmoveClock gs
+      fmn = GS.fullmoveNumber gs
+
+      -- Check if current player is in check
+      checked = Val.isCheck baseBoard gs
+
+      hasMovesFor :: forall col. (KnownColor col, KnownColor (Opposite col)) => Bool
+      hasMovesFor = not $ null $ generateMoves (ActiveGame board baseBoard cr ep hmc fmn checks :: ActiveGame 'ThreeCheck col 'Safe)
+
+      hasMoves = case c of
+        White -> hasMovesFor @'White
+        Black -> hasMovesFor @'Black
+
+  if hasMoves
+    then case c of
+      White -> if checked
+               then return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn checks :: ActiveGame 'ThreeCheck 'White 'Checked)
+               else return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn checks :: ActiveGame 'ThreeCheck 'White 'Safe)
+      Black -> if checked
+               then return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn checks :: ActiveGame 'ThreeCheck 'Black 'Checked)
+               else return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn checks :: ActiveGame 'ThreeCheck 'Black 'Safe)
+    else Nothing
+
+-- | Generic helper for variants with unit state
+genericGameFromFEN :: forall v. (VariantState v ~ (), ChessVariant v) => String -> Maybe (Game v 'Active)
+genericGameFromFEN s = do
   (baseBoard, gs) <- Fen.parseFen s
   board <- fromBaseBoard baseBoard
 
@@ -57,12 +117,6 @@ gameFromFEN s = do
            , blackKingSide = testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_H8)
            , blackQueenSide = testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_A8)
            }
-      -- Note: castlingRights bitboard indices might rely on lsb being correct.
-      -- A1=0, B1=1 ... H1=7.
-      -- BB.BB_H1 is bit 7.
-      -- BB.BB_A1 is bit 0.
-      -- But Data.Bits.testBit takes Int index.
-      -- So I should use countTrailingZeros on BB constants.
 
       ep = case GS.epSquare gs of
              Nothing -> Nothing
@@ -71,24 +125,25 @@ gameFromFEN s = do
       hmc = GS.halfmoveClock gs
       fmn = GS.fullmoveNumber gs
 
-      -- Check if current player is in check
+      -- Check if current player is in check (using standard logic for now)
       checked = Val.isCheck baseBoard gs
-      hasMoves = Val.hasLegalMoves baseBoard gs
+
+      hasMovesFor :: forall col. (KnownColor col, KnownColor (Opposite col)) => Bool
+      hasMovesFor = not $ null $ generateMoves (ActiveGame board baseBoard cr ep hmc fmn () :: ActiveGame v col 'Safe)
+
+      hasMoves = case c of
+        White -> hasMovesFor @'White
+        Black -> hasMovesFor @'Black
 
   if hasMoves
     then case c of
       White -> if checked
-               then return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'White 'Checked)
-               else return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'White 'Safe)
+               then return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn () :: ActiveGame v 'White 'Checked)
+               else return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn () :: ActiveGame v 'White 'Safe)
       Black -> if checked
-               then return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'Black 'Checked)
-               else return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'Black 'Safe)
-    else
-      -- If no moves, game is finished. But this function returns Game 'Active.
-      -- So we return Nothing? Or should we allow constructing FinishedGame?
-      -- The type signature says Maybe (Game 'Standard 'Active).
-      -- So we MUST return Nothing if the game is finished.
-      Nothing
+               then return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn () :: ActiveGame v 'Black 'Checked)
+               else return $ InProgressGame (ActiveGame board baseBoard cr ep hmc fmn () :: ActiveGame v 'Black 'Safe)
+    else Nothing
 
 -- | Create a game from FEN string (Crazyhouse variant).
 crazyhouseGameFromFEN :: String -> Maybe (Game 'Crazyhouse 'Active)
