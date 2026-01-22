@@ -25,12 +25,10 @@ import qualified EngineSpec
 import qualified TablebaseSpec
 import qualified PyChessCongruencySpec
 import qualified VariantSpec
-import qualified Chess960Spec
 
 main :: IO ()
 main = hspec $ do
   VariantSpec.spec
-  Chess960Spec.spec
   PyChessCongruencySpec.spec
   EngineSpec.spec
   TablebaseSpec.spec

@@ -11,7 +11,7 @@ import Chess.Core.Game
 import Chess.Core.Move
 import Chess.Core.Rules
 import Chess.Core.Board.Internal hiding (movePiece)
-import Chess.Core.Game.Internal (ActiveGame(..), Game(..), VariantState, Variant(..))
+import Chess.Core.Game.Internal (ActiveGame(..), Game(..), Variant(..))
 import Chess.Core.Move.Internal (Move(..))
 import qualified Data.Map as Map
 
