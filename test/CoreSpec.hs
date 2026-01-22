@@ -331,3 +331,29 @@ spec = describe "Core Architecture" $ do
        case res2 of
           Checkmate (Winner White) -> return ()
           _ -> expectationFailure "Expected White Win by 3rd Check"
+
+    it "Standard: Promotion resets halfmove clock" $ do
+       -- Setup: White Pawn on A7.
+       let b = initialBoard
+             { pawns = Map.fromList [((FileA, PRank7), White)]
+             , whitePieces = Map.empty
+             , blackPieces = Map.empty
+             }
+
+       let ag :: ActiveGame 'Standard 'White 'Safe
+           ag = ActiveGame
+                { internalBoard = toBaseBoard b
+                , castlingRights = CastlingRights False False False False
+                , enPassantTarget = Nothing
+                , halfMoveClock = 10 -- Should reset to 0
+                , fullMoveNumber = 1
+                , variantState = ()
+                }
+
+       let move = PromotionMove (Square FileA Rank7) (Square FileA Rank8) Queen
+       let res = applyMove move ag
+
+       case res of
+         Continue nextGame -> do
+            halfMoveClock nextGame `shouldBe` 0
+         _ -> expectationFailure "Expected Continue after promotion"

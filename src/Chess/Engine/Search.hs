@@ -94,4 +94,5 @@ orderMoves board moves = sortBy (comparing (Down . scoreMove)) moves
 isCapture :: Board -> Move -> Bool
 isCapture (Chess.Board.Board b _ _) (Move _ to _) =
     isJust (Base.pieceAt b to)
+isCapture _ (DropMove _ _) = False
 isCapture _ NullMove = False

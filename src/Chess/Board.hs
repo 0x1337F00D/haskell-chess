@@ -105,6 +105,31 @@ applyMove (Board b gs hist) m@(Move from to _) =
                      , GS.halfmoveClock = halfmove'
                      , GS.fullmoveNumber = fullmove'
                      }) histFinal
+applyMove (Board b gs hist) m@(DropMove pt _) =
+    let
+        -- 0. Update history
+        posRep = Val.PositionRep b (GS.turn gs) (GS.castlingRights gs) (GS.epSquare gs)
+        hist' = posRep : hist
+
+        -- 1. Update pieces
+        b' = MoveGen.applyMoveBoard b gs m
+
+        -- 2. State updates
+        c = GS.turn gs
+        halfmove' = if pt == Pawn then 0 else GS.halfmoveClock gs + 1
+        fullmove' = if c == Black then GS.fullmoveNumber gs + 1 else GS.fullmoveNumber gs
+
+        -- Drop moves do not affect castling rights or EP target
+        -- (Assuming drops are not possible if castling rights are at stake - e.g. can't drop on Rook start square to restore rights, which is true as square must be empty)
+
+        nextTurn = Base.oppositeColor c
+        histFinal = if halfmove' == 0 then [] else hist'
+
+    in Board b' (gs { GS.turn = nextTurn
+                    , GS.epSquare = Nothing -- Drops clear EP target
+                    , GS.halfmoveClock = halfmove'
+                    , GS.fullmoveNumber = fullmove'
+                    }) histFinal
 applyMove b NullMove = b
 
 -- | Generate all legal moves for the current position.
