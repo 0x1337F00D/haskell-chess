@@ -1,0 +1,2 @@
+PyChess | Start      | Depth 5 | Nodes:    4865609 | Time: 68.394s | NPS:      71141
+PyChess | KiwiPete   | Depth 4 | Nodes:    4085603 | Time: 55.547s | NPS:      73552

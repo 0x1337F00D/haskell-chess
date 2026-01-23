@@ -1,0 +1,64 @@
+Resolving dependencies...
+Build profile: -w ghc-9.4.7 -O1
+In order, the following will be built (use -v for more details):
+ - primitive-0.9.1.0 (lib) (requires download & build)
+ - vector-stream-0.1.0.1 (lib) (requires download & build)
+ - vector-0.13.2.0 (lib) (requires download & build)
+ - haskell-chess-0.1.0.0 (lib) (first run)
+ - haskell-chess-0.1.0.0 (exe:bench-haskell) (first run)
+Downloading  vector-stream-0.1.0.1
+Downloaded   vector-stream-0.1.0.1
+Downloading  primitive-0.9.1.0
+Starting     vector-stream-0.1.0.1 (lib)
+Downloaded   primitive-0.9.1.0
+Downloading  vector-0.13.2.0
+Starting     primitive-0.9.1.0 (lib)
+Downloaded   vector-0.13.2.0
+Building     vector-stream-0.1.0.1 (lib)
+Building     primitive-0.9.1.0 (lib)
+Installing   vector-stream-0.1.0.1 (lib)
+Completed    vector-stream-0.1.0.1 (lib)
+Installing   primitive-0.9.1.0 (lib)
+Completed    primitive-0.9.1.0 (lib)
+Starting     vector-0.13.2.0 (lib)
+Building     vector-0.13.2.0 (lib)
+Installing   vector-0.13.2.0 (lib)
+Completed    vector-0.13.2.0 (lib)
+Configuring library for haskell-chess-0.1.0.0..
+Preprocessing library for haskell-chess-0.1.0.0..
+Building library for haskell-chess-0.1.0.0..
+[ 1 of 28] Compiling Chess.Tablebase  ( src/Chess/Tablebase.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Tablebase.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Tablebase.dyn_o )
+[ 2 of 28] Compiling Chess.Types      ( src/Chess/Types.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Types.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Types.dyn_o )
+[ 3 of 28] Compiling Chess.Time       ( src/Chess/Time.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Time.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Time.dyn_o )
+[ 4 of 28] Compiling Chess.Board.Uci  ( src/Chess/Board/Uci.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Board/Uci.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Board/Uci.dyn_o )
+[ 5 of 28] Compiling Chess.Bitboard   ( src/Chess/Bitboard.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Bitboard.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Bitboard.dyn_o )
+[ 6 of 28] Compiling Chess.SquareSet  ( src/Chess/SquareSet.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/SquareSet.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/SquareSet.dyn_o )
+[ 7 of 28] Compiling Chess.Board.GameState ( src/Chess/Board/GameState.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Board/GameState.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Board/GameState.dyn_o )
+[ 8 of 28] Compiling Chess.Board.Base ( src/Chess/Board/Base.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Board/Base.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Board/Base.dyn_o )
+[ 9 of 28] Compiling Chess.Book.Polyglot ( src/Chess/Book/Polyglot.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Book/Polyglot.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Book/Polyglot.dyn_o )
+[10 of 28] Compiling Chess.Board.MoveGen ( src/Chess/Board/MoveGen.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Board/MoveGen.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Board/MoveGen.dyn_o )
+[11 of 28] Compiling Chess.Board.Validation ( src/Chess/Board/Validation.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Board/Validation.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Board/Validation.dyn_o )
+[12 of 28] Compiling Chess.Board.San  ( src/Chess/Board/San.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Board/San.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Board/San.dyn_o )
+[13 of 28] Compiling Chess.Board.Fen  ( src/Chess/Board/Fen.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Board/Fen.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Board/Fen.dyn_o )
+[14 of 28] Compiling Chess.Core.Fen   ( src/Chess/Core/Fen.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Core/Fen.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Core/Fen.dyn_o )
+[15 of 28] Compiling Chess.Core.Board.Internal ( src/Chess/Core/Board/Internal.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Core/Board/Internal.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Core/Board/Internal.dyn_o )
+[16 of 28] Compiling Chess.Core.Game.Internal ( src/Chess/Core/Game/Internal.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Core/Game/Internal.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Core/Game/Internal.dyn_o )
+[17 of 28] Compiling Chess.Core.Move.Internal ( src/Chess/Core/Move/Internal.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Core/Move/Internal.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Core/Move/Internal.dyn_o )
+[18 of 28] Compiling Chess.Core.Rules ( src/Chess/Core/Rules.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Core/Rules.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Core/Rules.dyn_o )
+[19 of 28] Compiling Chess.Core.Game  ( src/Chess/Core/Game.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Core/Game.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Core/Game.dyn_o )
+[20 of 28] Compiling Chess.Core.Board ( src/Chess/Core/Board.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Core/Board.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Core/Board.dyn_o )
+[21 of 28] Compiling Chess.Core.Move  ( src/Chess/Core/Move.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Core/Move.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Core/Move.dyn_o )
+[22 of 28] Compiling Chess.Core.Perft ( src/Chess/Core/Perft.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Core/Perft.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Core/Perft.dyn_o )
+[23 of 28] Compiling Chess.Board      ( src/Chess/Board.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Board.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Board.dyn_o )
+[24 of 28] Compiling Chess.Pgn        ( src/Chess/Pgn.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Pgn.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Pgn.dyn_o )
+[25 of 28] Compiling Chess.Engine.Evaluation ( src/Chess/Engine/Evaluation.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Engine/Evaluation.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Engine/Evaluation.dyn_o )
+[26 of 28] Compiling Chess.Engine.Search ( src/Chess/Engine/Search.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Engine/Search.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Engine/Search.dyn_o )
+[27 of 28] Compiling Chess.Engine.Uci ( src/Chess/Engine/Uci.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Engine/Uci.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Engine/Uci.dyn_o )
+[28 of 28] Compiling Chess            ( src/Chess.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess.dyn_o )
+Configuring executable 'bench-haskell' for haskell-chess-0.1.0.0..
+Preprocessing executable 'bench-haskell' for haskell-chess-0.1.0.0..
+Building executable 'bench-haskell' for haskell-chess-0.1.0.0..
+[1 of 1] Compiling Main             ( scripts/BenchHaskell.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/x/bench-haskell/build/bench-haskell/bench-haskell-tmp/Main.o )
+[2 of 2] Linking /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/x/bench-haskell/build/bench-haskell/bench-haskell
+Haskell | Start      | Depth 5 | Nodes:    4865609 | Time:  1.133s | NPS:    4293874
+Haskell | KiwiPete   | Depth 4 | Nodes:    4085603 | Time:  0.996s | NPS:    4100045
