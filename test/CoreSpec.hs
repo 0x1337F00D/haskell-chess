@@ -11,15 +11,24 @@ import Chess.Core.Game
 import Chess.Core.Move
 import Chess.Core.Rules
 import Chess.Core.Board.Internal (movePiece)
-import Chess.Core.Game.Internal (ActiveGame(..), Game(..))
+import Chess.Core.Game.Internal (ActiveGame(..), Game(..), CastlingRights(..), Pockets(..), CrazyhouseState(..), castlingWhiteKingSide, castlingWhiteQueenSide, castlingBlackKingSide, castlingBlackQueenSide)
 import Chess.Core.Move.Internal (Move(..))
 import qualified Data.Map as Map
 import Data.Maybe (fromJust)
 import qualified Chess.Core.Board.Internal as CBI
 import qualified Chess.Board.Base as Base
+import Data.Bits ((.|.))
+import Data.Word (Word8)
 
 unsafeViewBoard :: Base.Board -> CBI.Board
 unsafeViewBoard bb = fromJust (CBI.fromBaseBoard bb)
+
+mkCastlingRights :: Bool -> Bool -> Bool -> Bool -> CastlingRights
+mkCastlingRights wk wq bk bq = CastlingRights $
+    (if wk then castlingWhiteKingSide else 0) .|.
+    (if wq then castlingWhiteQueenSide else 0) .|.
+    (if bk then castlingBlackKingSide else 0) .|.
+    (if bq then castlingBlackQueenSide else 0)
 
 spec :: Spec
 spec = describe "Core Architecture" $ do
@@ -108,7 +117,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard initialBoard
-               , castlingRights = CastlingRights True True True True
+               , castlingRights = mkCastlingRights True True True True
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
@@ -131,7 +140,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard initialBoard
-               , castlingRights = CastlingRights True True True True
+               , castlingRights = mkCastlingRights True True True True
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
@@ -158,7 +167,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , castlingRights = CastlingRights True False False False
+               , castlingRights = mkCastlingRights True False False False
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
@@ -182,7 +191,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , castlingRights = CastlingRights False False False False
+               , castlingRights = mkCastlingRights False False False False
                , enPassantTarget = Just FileF
                , halfMoveClock = 0
                , fullMoveNumber = 1
@@ -207,7 +216,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Atomic 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , castlingRights = CastlingRights False False False False
+               , castlingRights = mkCastlingRights False False False False
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
@@ -236,7 +245,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'KingOfTheHill 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , castlingRights = CastlingRights False False False False
+               , castlingRights = mkCastlingRights False False False False
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
@@ -260,7 +269,7 @@ spec = describe "Core Architecture" $ do
         let ag :: ActiveGame 'RacingKings 'White 'Safe
             ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , castlingRights = CastlingRights False False False False
+               , castlingRights = mkCastlingRights False False False False
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
@@ -282,7 +291,7 @@ spec = describe "Core Architecture" $ do
        let ag :: ActiveGame 'RacingKings 'White 'Safe
            ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , castlingRights = CastlingRights False False False False
+               , castlingRights = mkCastlingRights False False False False
                , enPassantTarget = Nothing
                , halfMoveClock = 0
                , fullMoveNumber = 1
@@ -307,7 +316,7 @@ spec = describe "Core Architecture" $ do
        let ag :: ActiveGame 'ThreeCheck 'White 'Safe
            ag = ActiveGame
                 { internalBoard = toBaseBoard b
-                , castlingRights = CastlingRights False False False False
+                , castlingRights = mkCastlingRights False False False False
                 , enPassantTarget = Nothing
                 , halfMoveClock = 0
                 , fullMoveNumber = 1
@@ -326,7 +335,7 @@ spec = describe "Core Architecture" $ do
        let agTwo :: ActiveGame 'ThreeCheck 'White 'Safe
            agTwo = ActiveGame
                 { internalBoard = toBaseBoard b
-                , castlingRights = CastlingRights False False False False
+                , castlingRights = mkCastlingRights False False False False
                 , enPassantTarget = Nothing
                 , halfMoveClock = 0
                 , fullMoveNumber = 1
