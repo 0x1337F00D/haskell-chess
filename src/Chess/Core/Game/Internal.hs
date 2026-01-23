@@ -105,3 +105,10 @@ data Game (v :: Variant) (p :: Phase) where
   FinishedGame :: Outcome -> Game v 'Finished
 
 deriving instance Show (VariantState v) => Show (Game v p)
+
+-- | View the internal board as a high-level Board.
+-- Useful for tests and visualization.
+viewBoard :: ActiveGame v c s -> Board
+viewBoard ag = case fromBaseBoard (internalBoard ag) of
+                 Just b -> b
+                 Nothing -> error "Internal board corruption: ActiveGame contains invalid Base.Board"
