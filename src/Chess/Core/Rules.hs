@@ -1267,7 +1267,7 @@ generateCastlingMoves960 ag =
                        -- Dest (kTarget) not attacked.
 
                        oppC = toColor (opposite c)
-                       isAttacked f = Val.isAttackedBy b oppC (toSquare (Square (toEnum f) rank))
+                       isAttacked f = Base.isAttackedBy b oppC (toSquare (Square (toEnum f) rank))
 
                        safe = not (isAttacked kIdx) &&
                               all (not . isAttacked) pathKDest &&
