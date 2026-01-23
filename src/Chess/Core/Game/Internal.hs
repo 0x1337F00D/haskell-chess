@@ -22,7 +22,7 @@ data Phase = Setup | Active | Finished
   deriving (Eq, Show)
 
 -- Variants
-data Variant = Standard | Atomic | KingOfTheHill | RacingKings | ThreeCheck | Crazyhouse
+data Variant = Standard | Atomic | KingOfTheHill | RacingKings | ThreeCheck | Crazyhouse | FischerRandom
   deriving (Eq, Show)
 
 -- Crazyhouse State
@@ -47,6 +47,7 @@ data CrazyhouseState = CrazyhouseState
 type family VariantState (v :: Variant) where
   VariantState 'ThreeCheck = (Int, Int) -- (White Checks, Black Checks)
   VariantState 'Crazyhouse = CrazyhouseState
+  VariantState 'FischerRandom = (Maybe Square, Maybe Square, Maybe Square, Maybe Square) -- (White K-side, White Q-side, Black K-side, Black Q-side)
   VariantState _ = ()
 
 -- Check Status (Section 7)

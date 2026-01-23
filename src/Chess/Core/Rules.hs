@@ -25,6 +25,7 @@ import qualified Chess.Board.Fen as Fen
 import Data.Bits (setBit, clearBit, (.&.), (.|.), testBit, countTrailingZeros, complement, xor)
 import Data.Word (Word8)
 import qualified Data.Map as Map
+import Data.List (sortOn)
 
 -- | Create the initial game state for Standard chess.
 initialGame :: Game 'Standard 'Active
@@ -168,6 +169,85 @@ crazyhouseGameFromFEN s = do
                     else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'Black 'Safe)
                else Nothing
 
+-- | Create a game from FEN string (FischerRandom variant).
+fischerRandomGameFromFEN :: String -> Maybe (Game 'FischerRandom 'Active)
+fischerRandomGameFromFEN s = do
+  (baseBoard, gs, _) <- Fen.parseFenRest s
+
+  let c = case GS.turn gs of
+            T.White -> White
+            T.Black -> Black
+
+      wRights = GS.castlingRights gs .&. 0xFF
+      bRights = GS.castlingRights gs .&. 0xFF00000000000000
+
+      getIndices bb = [ i | i <- [0..63], testBit bb i ]
+      wIndices = getIndices wRights
+      bIndices = getIndices bRights
+
+      kingFile :: T.Color -> Maybe Int
+      kingFile col =
+          let bb = BB.pieceBitboard baseBoard col T.King
+          in case BB.lsb bb of
+               Just (T.Square s) -> Just (s `mod` 8)
+               Nothing -> Nothing
+
+      assignRooks :: Maybe Int -> [Int] -> (Maybe Square, Maybe Square)
+      assignRooks Nothing _ = (Nothing, Nothing)
+      assignRooks (Just kf) indices =
+          let files = [ (i, i `mod` 8) | i <- indices ]
+              qs = [ i | (i, f) <- files, f < kf ]
+              ks = [ i | (i, f) <- files, f > kf ]
+
+              -- Pick outermost if multiple
+              qRook = if null qs then Nothing else Just (minimum qs)
+              kRook = if null ks then Nothing else Just (maximum ks)
+          in (fmap (fromSquare . T.Square) qRook, fmap (fromSquare . T.Square) kRook)
+
+      (wQ, wK) = assignRooks (kingFile T.White) wIndices
+      (bQ, bK) = assignRooks (kingFile T.Black) bIndices
+
+      vs = (wK, wQ, bK, bQ)
+
+      isJust Nothing = False
+      isJust (Just _) = True
+
+      crVal = (if isJust wK then castlingWhiteKingSide else 0) .|.
+              (if isJust wQ then castlingWhiteQueenSide else 0) .|.
+              (if isJust bK then castlingBlackKingSide else 0) .|.
+              (if isJust bQ then castlingBlackQueenSide else 0)
+
+      cr = CastlingRights crVal
+
+      ep = case GS.epSquare gs of
+             Nothing -> Nothing
+             Just sq -> Just (getFile (fromBaseSquare sq))
+
+      hmc = GS.halfmoveClock gs
+      fmn = GS.fullmoveNumber gs
+
+      -- Determine check/safe and existence of moves by creating temp game
+      tempAg :: ActiveGame 'FischerRandom 'White 'Safe
+      tempAg = ActiveGame baseBoard cr ep hmc fmn vs
+
+      -- We need to check 'c' moves, so we might need a correctly typed AG
+      hasMovesW = not (null (generateMoves (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'FischerRandom 'White 'Safe)))
+      hasMovesB = not (null (generateMoves (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'FischerRandom 'Black 'Safe)))
+
+      checked = Val.isCheck baseBoard gs
+
+  case c of
+    White -> if hasMovesW
+             then if checked
+                  then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'FischerRandom 'White 'Checked)
+                  else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'FischerRandom 'White 'Safe)
+             else Nothing
+    Black -> if hasMovesB
+             then if checked
+                  then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'FischerRandom 'Black 'Checked)
+                  else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'FischerRandom 'Black 'Safe)
+             else Nothing
+
 -- Type-level Opposite Color
 type family Opposite (c :: Color) :: Color where
   Opposite 'White = 'Black
@@ -295,6 +375,8 @@ isCheck b c = Val.isCheck (toBaseBoard b) (dummyGameState c)
 class ChessVariant (v :: Variant) where
   generateMoves :: KnownColor c => ActiveGame v c s -> [Move c]
   executeMove :: (KnownColor c, KnownColor (Opposite c)) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
+  gameToGameState :: KnownColor c => ActiveGame v c s -> GS.GameState
+  gameToGameState = toGameState
 
 -- Generate Legal Moves
 generateLegalMoves :: forall v c s. (KnownColor c, ChessVariant v) => ActiveGame v c s -> [Move c]
@@ -418,6 +500,27 @@ applyMoveBase m b =
           let promoted = T.Piece (toColor (colorVal @c)) (toPieceType p)
           in Base.putPiece b (toSquare t) promoted
 
+       Castling960Move k r ->
+          let (Square kf kr) = k
+              (Square rf _) = r
+              isKingside = rf > kf
+              kTarget = Square (if isKingside then FileG else FileC) kr
+              rTarget = Square (if isKingside then FileF else FileD) kr
+
+              kPiece = Base.pieceAt b (toSquare k)
+              rPiece = Base.pieceAt b (toSquare r)
+
+              b1 = Base.removePieceAt b (toSquare k)
+              b2 = Base.removePieceAt b1 (toSquare r)
+
+              b3 = case kPiece of
+                     Just p -> Base.putPiece b2 (toSquare kTarget) p
+                     Nothing -> b2
+              b4 = case rPiece of
+                     Just p -> Base.putPiece b3 (toSquare rTarget) p
+                     Nothing -> b3
+          in b4
+
 -- Apply Move
 applyMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
 applyMove = executeMove
@@ -438,6 +541,7 @@ instance ChessVariant 'Standard where
                        StandardMove f t -> (f, t)
                        PromotionMove f t _ -> (f, t)
                        CastlingMove f t -> (f, t)
+                       Castling960Move _ _ -> error "Standard variant does not support Castling960Move"
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
 
@@ -492,6 +596,7 @@ instance ChessVariant 'ThreeCheck where
                        StandardMove f t -> (f, t)
                        PromotionMove f t _ -> (f, t)
                        CastlingMove f t -> (f, t)
+                       Castling960Move _ _ -> error "ThreeCheck variant does not support Castling960Move"
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
 
@@ -589,6 +694,7 @@ instance ChessVariant 'Atomic where
                        StandardMove f t -> (f, t)
                        PromotionMove f t _ -> (f, t)
                        CastlingMove f t -> (f, t)
+                       Castling960Move _ _ -> error "Atomic variant does not support Castling960Move"
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
 
@@ -669,6 +775,7 @@ instance ChessVariant 'KingOfTheHill where
                        StandardMove f t -> (f, t)
                        PromotionMove f t _ -> (f, t)
                        CastlingMove f t -> (f, t)
+                       Castling960Move _ _ -> error "KingOfTheHill variant does not support Castling960Move"
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
 
@@ -740,6 +847,7 @@ instance ChessVariant 'RacingKings where
                        StandardMove f t -> (f, t)
                        PromotionMove f t _ -> (f, t)
                        CastlingMove f t -> (f, t)
+                       Castling960Move _ _ -> error "RacingKings variant does not support Castling960Move"
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
 
@@ -841,6 +949,7 @@ instance ChessVariant 'Crazyhouse where
                        StandardMove f t -> (f, t)
                        PromotionMove f t _ -> (f, t)
                        CastlingMove f t -> (f, t)
+                       Castling960Move _ _ -> error "Crazyhouse variant does not support Castling960Move"
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
 
@@ -960,6 +1069,292 @@ instance ChessVariant 'Crazyhouse where
          (False, False) -> Stalemate
          (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newState :: ActiveGame 'Crazyhouse (Opposite c) 'Checked)
          (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newState :: ActiveGame 'Crazyhouse (Opposite c) 'Safe)
+
+instance ChessVariant 'FischerRandom where
+  gameToGameState ag =
+     let (wK, wQ, bK, bQ) = variantState ag
+         (CastlingRights cr) = castlingRights ag
+
+         rights =
+            (if testBit cr 0 then maybe 0 (setBit 0 . T.unSquare . toSquare) wK else 0) .|.
+            (if testBit cr 1 then maybe 0 (setBit 0 . T.unSquare . toSquare) wQ else 0) .|.
+            (if testBit cr 2 then maybe 0 (setBit 0 . T.unSquare . toSquare) bK else 0) .|.
+            (if testBit cr 3 then maybe 0 (setBit 0 . T.unSquare . toSquare) bQ else 0)
+
+         baseGS = toGameState ag
+     in baseGS { GS.castlingRights = rights }
+
+  generateMoves (ag :: ActiveGame 'FischerRandom c s) =
+     let baseBoard = internalBoard ag
+         gs = gameToGameState ag
+         c = colorVal @c
+
+         standardPseudos = concat
+            [ MG.pawnMoves baseBoard gs
+            , MG.pieceMoves baseBoard gs Knight
+            , MG.pieceMoves baseBoard gs Bishop
+            , MG.pieceMoves baseBoard gs Rook
+            , MG.pieceMoves baseBoard gs Queen
+            , MG.pieceMoves baseBoard gs King
+            ]
+
+         legalStandard = map (\(MG.GenMove m _ _) -> toCoreMove baseBoard m) $
+                         filter (MG.isLegal baseBoard gs) standardPseudos
+
+         castling = generateCastlingMoves960 ag
+     in legalStandard ++ castling
+
+  executeMove (m :: Move c) (ag :: ActiveGame 'FischerRandom c s) =
+    let
+        c = colorVal @c
+        internalB = internalBoard ag
+        internalB' = applyMoveBase m internalB
+        (from, to) = case m of
+                       StandardMove f t -> (f, t)
+                       PromotionMove f t _ -> (f, t)
+                       CastlingMove f t -> (f, t)
+                       Castling960Move k r -> (k, r) -- Wait, updateCastlingRights expects from/to.
+                                                     -- If we pass k, r, it checks if k moved (E1?) or r captured/moved.
+                                                     -- Standard updateCastlingRights uses hardcoded squares.
+                                                     -- We need 960-aware update.
+                       EnPassantMove f t -> (f, t)
+                       DropMove _ t -> (t, t)
+
+        -- Custom Castling Rights Update for 960
+        oldCR = castlingRights ag
+        newCR = case m of
+           Castling960Move _ _ ->
+               -- King moved, so lose both rights.
+               let (CastlingRights cr) = oldCR
+                   mask = if c == White
+                          then complement (castlingWhiteKingSide .|. castlingWhiteQueenSide)
+                          else complement (castlingBlackKingSide .|. castlingBlackQueenSide)
+               in CastlingRights (cr .&. mask)
+           _ ->
+               let crRooks = updateCastlingRights960 oldCR (variantState ag) from to
+                   isKingMove = case m of
+                                  StandardMove f _ ->
+                                      case Base.pieceAt internalB (toSquare f) of
+                                        Just p -> T.pieceType p == T.King
+                                        Nothing -> False
+                                  _ -> False
+                   (CastlingRights crVal) = crRooks
+                   mask = if c == White
+                          then complement (castlingWhiteKingSide .|. castlingWhiteQueenSide)
+                          else complement (castlingBlackKingSide .|. castlingBlackQueenSide)
+               in if isKingMove
+                  then CastlingRights (crVal .&. mask)
+                  else crRooks
+
+        movedPiece = Base.pieceAt internalB' (toSquare to)
+        isPawn = case movedPiece of
+                   Just p -> T.pieceType p == T.Pawn
+                   _ -> False
+
+        -- Special case: Castling960Move moves King to target, Rook to target.
+        -- 'to' above was set to 'r'. That's not the destination.
+        -- We should probably look at target squares for EP logic?
+        -- Castling never sets EP.
+
+        newEP = case m of
+                  StandardMove f t -> if isPawn && isDoublePush f t then Just (getFile f) else Nothing
+                  _ -> Nothing
+
+        newHMC = halfMoveClock ag + 1
+        newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
+
+        nextTurnGS = (gameToGameState ag) -- We need new GS
+          { GS.turn = toColor (colorVal @(Opposite c))
+          , GS.castlingRights = toCastlingRights960 newCR (variantState ag)
+          , GS.epSquare = case newEP of
+                            Nothing -> Nothing
+                            Just f -> Just (toSquare (Square f (epRank (colorVal @(Opposite c)))))
+          , GS.halfmoveClock = newHMC
+          , GS.fullmoveNumber = newFMN
+          }
+
+        -- We need `baseBoard` to be `internalB'`.
+        -- And `gameToGameState` above uses `ag` (old board/state).
+        -- We just constructed `nextTurnGS` manually.
+
+        isChecked = Val.isCheck internalB' nextTurnGS
+        hasMoves = Val.hasLegalMoves internalB' nextTurnGS -- Standard check.
+                   -- Should also check 960 castling?
+                   -- If only 960 castling is left, hasMoves might be false.
+                   -- We should use `generateMoves` on the next state to be sure.
+
+        nextAg :: ActiveGame 'FischerRandom (Opposite c) 'Safe
+        nextAg = ActiveGame internalB' newCR newEP newHMC newFMN (variantState ag)
+
+        realHasMoves = not (null (generateMoves nextAg))
+
+    in case (isChecked, realHasMoves) of
+         (True, False) -> Checkmate (Winner c)
+         (False, False) -> Stalemate
+         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN (variantState ag) :: ActiveGame 'FischerRandom (Opposite c) 'Checked)
+         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN (variantState ag) :: ActiveGame 'FischerRandom (Opposite c) 'Safe)
+
+generateCastlingMoves960 :: forall c s. KnownColor c => ActiveGame 'FischerRandom c s -> [Move c]
+generateCastlingMoves960 ag =
+  let c = colorVal @c
+      (CastlingRights cr) = castlingRights ag
+      (wK, wQ, bK, bQ) = variantState ag
+
+      -- Helper: Check path and safety
+      -- We need to check:
+      -- 1. Path between King and Rook is clear (except K/R).
+      -- 2. Destination squares (C/G and D/F) are clear (except K/R).
+      -- 3. King does not pass through check.
+      -- 4. King not in check at start (already checked by caller usually, but needed for castling rule).
+      -- 5. King not in check at end.
+
+      b = internalBoard ag
+      kSq = case MG.kingSquare b (toColor c) of
+              Just s -> fromSquare s
+              Nothing -> error "No King"
+
+      rank = if c == White then Rank1 else Rank8
+
+      tryCastle isKingSide rookSqMaybe bitMask =
+         if testBit cr bitMask
+         then case rookSqMaybe of
+                Just rSq ->
+                   let
+                       (Square kf _) = kSq
+                       (Square rf _) = rSq
+
+                       -- Destination
+                       kTargetFile = if isKingSide then FileG else FileC
+                       rTargetFile = if isKingSide then FileF else FileD
+                       kTarget = Square kTargetFile rank
+                       rTarget = Square rTargetFile rank
+
+                       -- Path Checks
+                       -- All squares between min(k,r) and max(k,r) must be empty (ignoring k,r).
+                       -- All squares between min(k,kTarget) and max(k,kTarget) must be empty/safe?
+                       -- Usually checks are:
+                       -- 1. Squares between King and Rook must be empty.
+                       -- 2. Destination squares must be empty (if different from K/R).
+                       -- 3. King path checks.
+
+                       between a b =
+                          let low = min a b
+                              high = max a b
+                          in [ low+1 .. high-1 ]
+
+                       kIdx = fromEnum (getFile kSq)
+                       rIdx = fromEnum (getFile rSq)
+                       ktIdx = fromEnum (getFile kTarget)
+                       rtIdx = fromEnum (getFile rTarget)
+
+                       pathKR = between kIdx rIdx
+                       pathKDest = between kIdx ktIdx -- Path King travels
+
+                       -- Determine checks for occupancy
+                       -- Everything in pathKR must be empty.
+                       -- destination squares must be empty (except if self-occupied).
+
+                       isEmpty f =
+                          let sq = Square (toEnum f) rank
+                          in (sq == kSq) || (sq == rSq) || Base.pieceAt b (toSquare sq) == Nothing
+
+                       pathClear = all isEmpty pathKR
+                       destClear = isEmpty ktIdx && isEmpty rtIdx
+
+                       -- King Safety
+                       -- Start (kSq) not attacked.
+                       -- Path (pathKDest) not attacked.
+                       -- Dest (kTarget) not attacked.
+
+                       oppC = toColor (opposite c)
+                       isAttacked f = Val.isAttackedBy b oppC (toSquare (Square (toEnum f) rank))
+
+                       safe = not (isAttacked kIdx) &&
+                              all (not . isAttacked) pathKDest &&
+                              not (isAttacked ktIdx)
+
+                   in if pathClear && destClear && safe
+                      then [Castling960Move kSq rSq]
+                      else []
+                Nothing -> []
+         else []
+
+      kSideMoves = tryCastle True (if c == White then wK else bK) 0 -- Bit 0/2
+      qSideMoves = tryCastle False (if c == White then wQ else bQ) 1 -- Bit 1/3
+
+      -- Adjust bits for Black (2, 3)
+      kSideMovesB = tryCastle True bK 2
+      qSideMovesB = tryCastle False bQ 3
+
+  in if c == White then kSideMoves ++ qSideMoves else kSideMovesB ++ qSideMovesB
+
+updateCastlingRights960 :: CastlingRights -> VariantState 'FischerRandom -> Square -> Square -> CastlingRights
+updateCastlingRights960 (CastlingRights cr) (wK, wQ, bK, bQ) from to =
+    let
+        -- Check if from/to matches any rook
+        checkRook sq rights bit idx =
+            case sq of
+               Just s -> if s == from || s == to then rights .&. complement (bit idx) else rights
+               Nothing -> rights
+
+        cr1 = checkRook wK cr setBit 0
+        cr2 = checkRook wQ cr1 setBit 1
+        cr3 = checkRook bK cr2 setBit 2
+        cr4 = checkRook bQ cr3 setBit 3
+
+        -- Check King moves (clears both)
+        -- We assume we know King position?
+        -- Or just if 'from' is King?
+        -- We don't have board access here.
+        -- But King is King.
+        -- Wait, 'from' is the square moved FROM.
+        -- If piece at 'from' was King.
+        -- But we don't know piece here.
+        -- However, usually King move is StandardMove.
+        -- We can pass piece type?
+        -- Or just assume if 'from' matches King's starting square?
+        -- But King moves around.
+        -- Wait, `updateCastlingRights` in Standard assumes King starts at E1.
+        -- If King moves from E1, rights cleared.
+        -- If King moves from E2, no rights change (already lost).
+        -- In 960, King starts at some square.
+        -- We don't track King start square in VariantState?
+        -- We only track Rooks.
+        -- But we can deduce King start from Rooks? No.
+        -- We should probably track King start too?
+        -- Or, we check if `from` matches the King's current position?
+        -- But `updateCastlingRights` is called AFTER move?
+        -- No, `executeMove` calls it.
+
+        -- In Standard: `Square FileE Rank1 -> complement ...`
+        -- In 960: If we don't know King's start square, we can't clear rights on King move purely by coordinate?
+        -- Unless we check the piece moving.
+        -- `executeMove` knows if `isPawn`, `isKing` etc.
+        -- `executeMove` calculates `movedPiece`.
+        -- `Standard` implementation:
+        -- `movedPiece = Base.pieceAt internalB' (toSquare to)`
+        -- `isPawn = ...`
+        -- It doesn't check `isKing`.
+        -- `Standard` uses hardcoded squares.
+
+        -- For 960, we MUST know if it was a King move.
+        -- `executeMove` has access to `move`.
+        -- `StandardMove f t`.
+        -- We can check piece at `f` on OLD board.
+        -- `executeMove` does `applyMoveBase m internalB`.
+        -- So `movedPiece` on new board is the piece.
+        -- So we can check if `movedPiece` is King.
+
+        -- So I will inline the logic in `executeMove` for 960 or pass `isKing`.
+
+    in CastlingRights cr4
+
+toCastlingRights960 :: CastlingRights -> VariantState 'FischerRandom -> GS.CastlingRights
+toCastlingRights960 (CastlingRights cr) (wK, wQ, bK, bQ) =
+   (if testBit cr 0 then maybe 0 (setBit 0 . T.unSquare . toSquare) wK else 0) .|.
+   (if testBit cr 1 then maybe 0 (setBit 0 . T.unSquare . toSquare) wQ else 0) .|.
+   (if testBit cr 2 then maybe 0 (setBit 0 . T.unSquare . toSquare) bK else 0) .|.
+   (if testBit cr 3 then maybe 0 (setBit 0 . T.unSquare . toSquare) bQ else 0)
 
 getAdjacentSquares :: Square -> [Square]
 getAdjacentSquares (Square f r) =

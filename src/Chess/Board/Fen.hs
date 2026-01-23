@@ -3,7 +3,7 @@ module Chess.Board.Fen where
 import Control.Monad (foldM, guard)
 import Data.Char (isDigit, ord)
 import Data.List (intercalate)
-import Data.Bits ((.|.), testBit)
+import Data.Bits ((.|.), testBit, setBit)
 import Text.Read (readMaybe)
 
 import Chess.Types
@@ -111,6 +111,9 @@ parseCastling s = foldM addRight GS.noCastling s
     addRight acc 'Q' = Just (acc .|. BB_A1)
     addRight acc 'k' = Just (acc .|. BB_H8)
     addRight acc 'q' = Just (acc .|. BB_A8)
+    addRight acc c
+      | c >= 'A' && c <= 'H' = Just (setBit acc (ord c - ord 'A'))
+      | c >= 'a' && c <= 'h' = Just (setBit acc (56 + ord c - ord 'a'))
     addRight _ _ = Nothing
 
 parseEp :: String -> Maybe (Maybe Square)
