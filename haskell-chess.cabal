@@ -181,4 +181,3 @@ test-suite haskell-chess-test
         bytestring >= 0.11,
         binary >= 0.8,
         directory >= 1.3
-
