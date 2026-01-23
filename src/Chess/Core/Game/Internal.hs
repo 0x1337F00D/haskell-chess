@@ -12,6 +12,7 @@ import Chess.Core.Board.Internal
 import qualified Chess.Board.Base as Base
 import Data.Map (Map)
 import Data.Set (Set)
+import Data.Maybe (fromJust)
 
 -- 3. Game Phases as Type States
 
@@ -20,7 +21,7 @@ data Phase = Setup | Active | Finished
   deriving (Eq, Show)
 
 -- Variants
-data Variant = Standard | Atomic | KingOfTheHill | RacingKings | ThreeCheck | Crazyhouse
+data Variant = Standard | Atomic | KingOfTheHill | RacingKings | ThreeCheck | Crazyhouse | Antichess | Horde
   deriving (Eq, Show)
 
 -- Variant State Data Family
@@ -56,6 +57,10 @@ data ActiveGame (v :: Variant) (turn :: Color) (status :: CheckStatus) = ActiveG
   , fullMoveNumber :: Int
   , variantState :: VariantState v
   }
+
+-- | Backward compatibility view for tests and debugging.
+viewBoard :: ActiveGame v turn status -> Board
+viewBoard ag = fromJust (fromBaseBoard (internalBoard ag))
 
 deriving instance Show (VariantState v) => Show (ActiveGame v turn status)
 deriving instance Eq (VariantState v) => Eq (ActiveGame v turn status)
