@@ -25,7 +25,7 @@ import qualified Chess.Board.Fen as Fen
 import Data.Bits (setBit, (.&.), (.|.), testBit, countTrailingZeros, complement)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.Maybe (maybeToList, isJust, fromMaybe, listToMaybe)
+import Data.Maybe (maybeToList, isJust, fromMaybe, listToMaybe, catMaybes)
 import qualified Data.List as List
 
 -- | Create the initial game state for Standard chess.
@@ -1196,7 +1196,7 @@ fischerRandomGameFromFEN s = do
                      Just k -> getRook k bRooks
                      Nothing -> (Nothing, Nothing)
 
-      vs = (wks, wqs, bks, bqs)
+      vs = (fmap fromSquare wks, fmap fromSquare wqs, fmap fromSquare bks, fmap fromSquare bqs)
 
       cr = CastlingRights
            { whiteKingSide = isJust wks
@@ -1545,7 +1545,7 @@ generateCastlingMoves960 ag =
       (wks, wqs, bks, bqs) = variantState ag
 
       board = internalBoard ag
-      kingSq = MG.kingSquare board (toColor c)
+      kingSqT = MG.kingSquare board (toColor c)
 
       (ksRook, qsRook) = if c == White then (wks, wqs) else (bks, bqs)
       (canKS, canQS) = if c == White
@@ -1564,16 +1564,21 @@ generateCastlingMoves960 ag =
       checkCastling (Just rookSq) kDest rDest allowed
         | not allowed = Nothing
         | otherwise =
-           case kingSq of
+           case kingSqT of
              Nothing -> Nothing
-             Just kSq ->
+             Just kSqT ->
                let
-                   bbPathK = BB.between kSq kDest .|. BB.bbFromSquare kDest
-                   bbPathR = BB.between rookSq rDest .|. BB.bbFromSquare rDest
+                   -- Convert Core Squares to Types.Square for BB operations
+                   rookSqT = toSquare rookSq
+                   kDestT = toSquare kDest
+                   rDestT = toSquare rDest
+
+                   bbPathK = BB.between kSqT kDestT .|. BB.bbFromSquare kDestT
+                   bbPathR = BB.between rookSqT rDestT .|. BB.bbFromSquare rDestT
 
                    requiredEmpty = bbPathK .|. bbPathR
 
-                   ignored = BB.bbFromSquare kSq .|. BB.bbFromSquare rookSq
+                   ignored = BB.bbFromSquare kSqT .|. BB.bbFromSquare rookSqT
                    occupied = Base.occupiedTotal board .&. complement ignored
 
                    pathClear = (requiredEmpty .&. occupied) == 0
@@ -1581,11 +1586,11 @@ generateCastlingMoves960 ag =
                    oppC = Base.oppositeColor (toColor c)
                    isSafe sq = not (Base.isAttackedBy board oppC sq)
 
-                   kingPathSquares = BB.mapBitboard id (BB.between kSq kDest) ++ [kSq, kDest]
+                   kingPathSquares = BB.mapBitboard id (BB.between kSqT kDestT) ++ [kSqT, kDestT]
                    pathSafe = all isSafe kingPathSquares
 
                in if pathClear && pathSafe
-                  then Just (Castling960Move kSq rookSq)
+                  then Just (Castling960Move (fromSquare kSqT) rookSq) -- Use Core Squares for Move
                   else Nothing
 
       moves = catMaybes
