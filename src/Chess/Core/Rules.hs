@@ -1422,7 +1422,7 @@ instance ChessVariant 'FischerRandom where
         c = colorVal @c
 
         isStandardCastling (T.Move from to _) =
-             case Base.pieceAt baseBoard (toSquare from) of
+             case Base.pieceAt baseBoard from of
                 Just (T.Piece _ T.King) -> abs (T.unSquare from - T.unSquare to) == 2
                 _ -> False
         isStandardCastling _ = False
