@@ -8,3 +8,9 @@ scripts/*.hi
 scripts/*.o
 *.hi
 *.o
+debug_*
+cabal.project.local
+*~
+*.swp
+*.chi
+*.chs.h
