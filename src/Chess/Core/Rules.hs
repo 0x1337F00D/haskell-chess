@@ -925,6 +925,7 @@ instance ChessVariant 'Crazyhouse where
 
         newState = CrazyhouseState wPocket' bPocket' promoted'
 
+        genDrops :: forall col. KnownColor col => PieceType -> Int -> [Move col]
         genDrops pt count =
           if count <= 0 then []
           else
@@ -933,18 +934,20 @@ instance ChessVariant 'Crazyhouse where
                                 else emptySquares
              in map (DropMove pt) validSquares
 
+        dropMoves :: [Move (Opposite c)]
         dropMoves = concat
-           [ genDrops Pawn (pocketPawns (if oppC == White then wPocket' else bPocket'))
-           , genDrops Knight (pocketKnights (if oppC == White then wPocket' else bPocket'))
-           , genDrops Bishop (pocketBishops (if oppC == White then wPocket' else bPocket'))
-           , genDrops Rook (pocketRooks (if oppC == White then wPocket' else bPocket'))
-           , genDrops Queen (pocketQueens (if oppC == White then wPocket' else bPocket'))
+           [ genDrops @(Opposite c) Pawn (pocketPawns (if oppC == White then wPocket' else bPocket'))
+           , genDrops @(Opposite c) Knight (pocketKnights (if oppC == White then wPocket' else bPocket'))
+           , genDrops @(Opposite c) Bishop (pocketBishops (if oppC == White then wPocket' else bPocket'))
+           , genDrops @(Opposite c) Rook (pocketRooks (if oppC == White then wPocket' else bPocket'))
+           , genDrops @(Opposite c) Queen (pocketQueens (if oppC == White then wPocket' else bPocket'))
            ]
 
         emptySquares = [ Square f r | f <- [FileA .. FileH], r <- [Rank1 .. Rank8], Base.pieceAt internalB' (toSquare (Square f r)) == Nothing ]
 
+        isSafeDrop :: Move (Opposite c) -> Bool
         isSafeDrop m =
-           let nextBase = applyMoveBase m internalB'
+           let nextBase = applyMoveBase @(Opposite c) m internalB'
            in not (Val.isCheck nextBase nextTurnGS)
 
         canDrop = not (null (filter isSafeDrop dropMoves))
