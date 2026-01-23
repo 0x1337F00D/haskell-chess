@@ -1519,7 +1519,7 @@ instance ChessVariant 'FischerRandom where
   gameToGameState ag =
       let (wks, wqs, bks, bqs) = variantState ag
           cr = castlingRights ag
-          bitFor s = BB.bbFromSquare s
+          bitFor s = BB.bbFromSquare (toSquare s)
           wksB = if whiteKingSide cr then maybe 0 bitFor wks else 0
           wqsB = if whiteQueenSide cr then maybe 0 bitFor wqs else 0
           bksB = if blackKingSide cr then maybe 0 bitFor bks else 0
@@ -1531,7 +1531,7 @@ instance ChessVariant 'FischerRandom where
 
 toCastlingRights960 :: CastlingRights -> VariantState 'FischerRandom -> GS.CastlingRights
 toCastlingRights960 cr (wks, wqs, bks, bqs) =
-    let bitFor s = BB.bbFromSquare s
+    let bitFor s = BB.bbFromSquare (toSquare s)
         wksB = if whiteKingSide cr then maybe 0 bitFor wks else 0
         wqsB = if whiteQueenSide cr then maybe 0 bitFor wqs else 0
         bksB = if blackKingSide cr then maybe 0 bitFor bks else 0
