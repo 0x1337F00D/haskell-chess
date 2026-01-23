@@ -5,14 +5,15 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE StrictData #-}
 
 module Chess.Core.Game.Internal where
 
 import Chess.Core.Board.Internal
 import qualified Chess.Board.Base as Base
-import Data.Map (Map)
-import Data.Set (Set)
-import Data.Maybe (fromJust)
+import Data.Word (Word8)
+import Data.Bits ((.|.), (.&.), complement, testBit, setBit, clearBit)
+import Chess.Bitboard (Bitboard)
 
 -- 3. Game Phases as Type States
 
@@ -21,13 +22,31 @@ data Phase = Setup | Active | Finished
   deriving (Eq, Show)
 
 -- Variants
-data Variant = Standard | Atomic | KingOfTheHill | RacingKings | ThreeCheck | Crazyhouse | Antichess | Horde
+data Variant = Standard | Atomic | KingOfTheHill | RacingKings | ThreeCheck | Crazyhouse
   deriving (Eq, Show)
+
+-- Crazyhouse State
+data Pockets = Pockets
+  { pocketPawns   :: Int
+  , pocketKnights :: Int
+  , pocketBishops :: Int
+  , pocketRooks   :: Int
+  , pocketQueens  :: Int
+  } deriving (Eq, Show)
+
+emptyPockets :: Pockets
+emptyPockets = Pockets 0 0 0 0 0
+
+data CrazyhouseState = CrazyhouseState
+  { whitePocket :: Pockets
+  , blackPocket :: Pockets
+  , promoted    :: Bitboard
+  } deriving (Eq, Show)
 
 -- Variant State Data Family
 type family VariantState (v :: Variant) where
   VariantState 'ThreeCheck = (Int, Int) -- (White Checks, Black Checks)
-  VariantState 'Crazyhouse = (Map PieceType Int, Map PieceType Int, Set Square) -- (White Pocket, Black Pocket, Promoted Pieces)
+  VariantState 'Crazyhouse = CrazyhouseState
   VariantState _ = ()
 
 -- Check Status (Section 7)
@@ -38,12 +57,25 @@ data Outcome = Winner Color | Draw
   deriving (Eq, Show)
 
 -- Castling Rights
-data CastlingRights = CastlingRights
-  { whiteKingSide :: Bool
-  , whiteQueenSide :: Bool
-  , blackKingSide :: Bool
-  , blackQueenSide :: Bool
-  } deriving (Show, Eq)
+-- Packed into a Word8
+-- Bit 0: White King Side
+-- Bit 1: White Queen Side
+-- Bit 2: Black King Side
+-- Bit 3: Black Queen Side
+newtype CastlingRights = CastlingRights Word8
+  deriving (Eq, Show)
+
+castlingWhiteKingSide :: Word8
+castlingWhiteKingSide = 0x1
+
+castlingWhiteQueenSide :: Word8
+castlingWhiteQueenSide = 0x2
+
+castlingBlackKingSide :: Word8
+castlingBlackKingSide = 0x4
+
+castlingBlackQueenSide :: Word8
+castlingBlackQueenSide = 0x8
 
 -- 4. Turn Safety and Dynamic State
 
@@ -57,10 +89,6 @@ data ActiveGame (v :: Variant) (turn :: Color) (status :: CheckStatus) = ActiveG
   , fullMoveNumber :: Int
   , variantState :: VariantState v
   }
-
--- | Backward compatibility view for tests and debugging.
-viewBoard :: ActiveGame v turn status -> Board
-viewBoard ag = fromJust (fromBaseBoard (internalBoard ag))
 
 deriving instance Show (VariantState v) => Show (ActiveGame v turn status)
 deriving instance Eq (VariantState v) => Eq (ActiveGame v turn status)
@@ -77,3 +105,10 @@ data Game (v :: Variant) (p :: Phase) where
   FinishedGame :: Outcome -> Game v 'Finished
 
 deriving instance Show (VariantState v) => Show (Game v p)
+
+-- | View the internal board as a high-level Board.
+-- Useful for tests and visualization.
+viewBoard :: ActiveGame v c s -> Board
+viewBoard ag = case fromBaseBoard (internalBoard ag) of
+                 Just b -> b
+                 Nothing -> error "Internal board corruption: ActiveGame contains invalid Base.Board"

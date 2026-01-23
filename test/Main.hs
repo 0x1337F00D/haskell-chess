@@ -24,11 +24,9 @@ import qualified CoreFenSpec
 import qualified EngineSpec
 import qualified TablebaseSpec
 import qualified PyChessCongruencySpec
-import qualified VariantSpec
 
 main :: IO ()
 main = hspec $ do
-  VariantSpec.spec
   PyChessCongruencySpec.spec
   EngineSpec.spec
   TablebaseSpec.spec

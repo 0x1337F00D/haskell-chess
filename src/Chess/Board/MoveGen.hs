@@ -35,7 +35,7 @@ isLegal b gs (GenMove m pt cap) =
         b' = applyMoveBoardFast b gs m pt cap
         kingSq = kingSquare b' c
     in case kingSq of
-        Nothing -> True -- If no King, checking for check is irrelevant (always legal).
+        Nothing -> False -- Should not happen if king exists
         Just k -> not (isAttackedBy b' (oppositeColor c) k) && castlingSafe b gs m pt
 
     where
@@ -234,10 +234,8 @@ pawnMoves b gs = flatMapBitboard genPawnMoves bb
 
                 doublePush =
                     let to2 = Square (unSquare to1 + fwd)
-                        canDouble = if c == White
-                                    then squareRank from == 1 || squareRank from == 0
-                                    else squareRank from == 6
-                    in if canDouble && not (testBit (occupiedTotal b) (unSquare to1)) && not (testBit (occupiedTotal b) (unSquare to2))
+                        startRank = if c == White then 1 else 6
+                    in if squareRank from == startRank && not (testBit (occupiedTotal b) (unSquare to1)) && not (testBit (occupiedTotal b) (unSquare to2))
                        then [ GenMove (Move from to2 Nothing) Pawn Nothing ]
                        else []
             in singlePush ++ doublePush

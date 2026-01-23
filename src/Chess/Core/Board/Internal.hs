@@ -53,12 +53,11 @@ data File = FileA | FileB | FileC | FileD | FileE | FileF | FileG | FileH
 data Rank = Rank1 | Rank2 | Rank3 | Rank4 | Rank5 | Rank6 | Rank7 | Rank8
   deriving (Eq, Ord, Show, Enum, Bounded)
 
-data PawnRank = PRank1 | PRank2 | PRank3 | PRank4 | PRank5 | PRank6 | PRank7
+data PawnRank = PRank2 | PRank3 | PRank4 | PRank5 | PRank6 | PRank7
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 -- Isomorphism between Rank and PawnRank for valid subset
 toRank :: PawnRank -> Rank
-toRank PRank1 = Rank1
 toRank PRank2 = Rank2
 toRank PRank3 = Rank3
 toRank PRank4 = Rank4
@@ -136,8 +135,8 @@ deriving instance Eq (MajorMinorPiece c)
 
 -- The Composite Board Structure
 data Board = Board
-  { whiteKing   :: Maybe Square
-  , blackKing   :: Maybe Square
+  { whiteKing   :: Square
+  , blackKing   :: Square
   , pawns       :: Map (File, PawnRank) Color -- Tracks color of pawn at coordinate
   , whitePieces :: Map Square (MajorMinorPiece 'White)
   , blackPieces :: Map Square (MajorMinorPiece 'Black)
@@ -145,8 +144,8 @@ data Board = Board
 
 initialBoard :: Board
 initialBoard = Board
-  { whiteKing = Just (Square FileE Rank1)
-  , blackKing = Just (Square FileE Rank8)
+  { whiteKing = Square FileE Rank1
+  , blackKing = Square FileE Rank8
   , pawns = Map.fromList $
       [ ((f, PRank2), White) | f <- [FileA .. FileH] ] ++
       [ ((f, PRank7), Black) | f <- [FileA .. FileH] ]
@@ -183,12 +182,12 @@ fromBaseSquare (T.Square i) = Square (toEnum (i `mod` 8)) (toEnum (i `div` 8))
 -- Convert Base.Board to Core.Board
 fromBaseBoard :: Base.Board -> Maybe Board
 fromBaseBoard bb = do
-  -- Validate Kings: Max one per side
-  if popCount (Base.whiteKings bb) > 1 then Nothing else return ()
-  if popCount (Base.blackKings bb) > 1 then Nothing else return ()
+  -- Validate Kings: Exactly one per side
+  if popCount (Base.whiteKings bb) /= 1 then Nothing else return ()
+  if popCount (Base.blackKings bb) /= 1 then Nothing else return ()
 
-  let wKingSq = if Base.whiteKings bb == 0 then Nothing else Just (fromBaseSquare (T.Square (countTrailingZeros (Base.whiteKings bb))))
-  let bKingSq = if Base.blackKings bb == 0 then Nothing else Just (fromBaseSquare (T.Square (countTrailingZeros (Base.blackKings bb))))
+  let wKingSq = fromBaseSquare (T.Square (countTrailingZeros (Base.whiteKings bb)))
+  let bKingSq = fromBaseSquare (T.Square (countTrailingZeros (Base.blackKings bb)))
 
   -- Collect Pawns
   wPawns <- collectPawns (Base.whitePawns bb) White
@@ -300,7 +299,6 @@ instance Eq SomePiece where
 
 -- Helper to convert Rank to PawnRank
 toPawnRank :: Rank -> Maybe PawnRank
-toPawnRank Rank1 = Just PRank1
 toPawnRank Rank2 = Just PRank2
 toPawnRank Rank3 = Just PRank3
 toPawnRank Rank4 = Just PRank4
@@ -318,8 +316,8 @@ toPawnSquare (Square f r) = case toPawnRank r of
 -- Get piece at a square
 getPieceAt :: Square -> Board -> Maybe SomePiece
 getPieceAt sq b
-  | whiteKing b == Just sq = Just (SomePiece WKing)
-  | blackKing b == Just sq = Just (SomePiece BKing)
+  | whiteKing b == sq = Just (SomePiece WKing)
+  | blackKing b == sq = Just (SomePiece BKing)
   | otherwise =
       case Map.lookup sq (whitePieces b) of
         Just MQueen  -> Just (SomePiece WQueen)
@@ -349,8 +347,7 @@ removePieceAt sq b = b
   , pawns = case toPawnSquare sq of
               Just psq -> Map.delete psq (pawns b)
               Nothing -> pawns b
-  , whiteKing = if whiteKing b == Just sq then Nothing else whiteKing b
-  , blackKing = if blackKing b == Just sq then Nothing else blackKing b
+  -- We don't remove Kings (invariant)
   }
 
 -- Put piece at square (overwriting)
@@ -358,8 +355,8 @@ putPieceAt :: Square -> SomePiece -> Board -> Board
 putPieceAt sq (SomePiece p) b =
   let b' = removePieceAt sq b -- Ensure square is empty first
   in case p of
-       WKing -> b' { whiteKing = Just sq }
-       BKing -> b' { blackKing = Just sq }
+       WKing -> b' { whiteKing = sq }
+       BKing -> b' { blackKing = sq }
        WPawn -> case toPawnSquare sq of
                   Just psq -> b' { pawns = Map.insert psq White (pawns b') }
                   Nothing -> b' -- Invalid pawn placement, ignore or error?
