@@ -22,10 +22,11 @@ import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
 import qualified Chess.Board.Fen as Fen
-import Data.Bits (setBit, (.&.), (.|.), testBit, countTrailingZeros)
+import Data.Bits (setBit, (.&.), (.|.), testBit, countTrailingZeros, complement)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.Maybe (maybeToList, isJust)
+import Data.Maybe (maybeToList, isJust, fromMaybe, listToMaybe)
+import qualified Data.List as List
 
 -- | Create the initial game state for Standard chess.
 initialGame :: Game 'Standard 'Active
@@ -253,8 +254,11 @@ toBaseBoard b = Base.Board
     bOcc = bPawns .|. bKnights .|. bBishops .|. bRooks .|. bQueens .|. bKings
 
 -- | Convert ActiveGame to Engine GameState
-toGameState :: forall v c s. KnownColor c => ActiveGame v c s -> GS.GameState
-toGameState ag = GS.GameState
+toGameState :: forall v c s. (KnownColor c, ChessVariant v) => ActiveGame v c s -> GS.GameState
+toGameState = gameToGameState
+
+defaultToGameState :: forall v c s. KnownColor c => ActiveGame v c s -> GS.GameState
+defaultToGameState ag = GS.GameState
   { GS.turn = toColor (colorVal @c)
   , GS.castlingRights = toCastlingRights (castlingRights ag)
   , GS.epSquare = case enPassantTarget ag of
@@ -285,6 +289,8 @@ isCheck b c = Val.isCheck (toBaseBoard b) (dummyGameState c)
 class ChessVariant (v :: Variant) where
   generateMoves :: KnownColor c => ActiveGame v c s -> [Move c]
   executeMove :: (KnownColor c, KnownColor (Opposite c)) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
+  gameToGameState :: KnownColor c => ActiveGame v c s -> GS.GameState
+  gameToGameState = defaultToGameState
 
 -- Generate Legal Moves
 generateLegalMoves :: forall v c s. (KnownColor c, ChessVariant v) => ActiveGame v c s -> [Move c]
@@ -338,6 +344,9 @@ isDoublePush _ _ = False
 
 getFile :: Square -> File
 getFile (Square f _) = f
+
+getRank :: Square -> Rank
+getRank (Square _ r) = r
 
 updateCastlingRights :: CastlingRights -> Square -> Square -> CastlingRights
 updateCastlingRights cr from to =
@@ -401,6 +410,20 @@ applyMoveBase m b =
           let promoted = T.Piece (toColor (colorVal @c)) (toPieceType p)
           in Base.putPiece b (toSquare t) promoted
 
+       Castling960Move kFrom rFrom ->
+          let rank = getRank kFrom
+              isKingSide = getFile rFrom > getFile kFrom
+              kTo = Square (if isKingSide then FileG else FileC) rank
+              rTo = Square (if isKingSide then FileF else FileD) rank
+              pc = toColor (colorVal @c)
+
+              -- We use unsafe operations because we know pieces and colors
+              b1 = Base.unsafeRemovePiece b (toSquare kFrom) pc T.King
+              b2 = Base.unsafeRemovePiece b1 (toSquare rFrom) pc T.Rook
+              b3 = Base.unsafePutPiece b2 (toSquare kTo) (T.Piece pc T.King)
+              b4 = Base.unsafePutPiece b3 (toSquare rTo) (T.Piece pc T.Rook)
+          in b4
+
 -- Apply Move
 applyMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
 applyMove = executeMove
@@ -427,6 +450,7 @@ instance ChessVariant 'Standard where
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t) -- Should not happen
+                       Castling960Move f _ -> (f, f)
 
         -- 2. Update Game State
 
@@ -508,6 +532,7 @@ instance ChessVariant 'ThreeCheck where
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
+                       Castling960Move f _ -> (f, f)
 
         -- 2. Update Game State
         newCR = updateCastlingRights (castlingRights ag) from to
@@ -630,6 +655,7 @@ instance ChessVariant 'Atomic where
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
+                       Castling960Move f _ -> (f, f)
 
         -- Check if capture
         isCapture = case m of
@@ -740,6 +766,7 @@ instance ChessVariant 'KingOfTheHill where
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
+                       Castling960Move f _ -> (f, f)
 
         -- 2. Update Game State
         newCR = updateCastlingRights (castlingRights ag) from to
@@ -835,6 +862,7 @@ instance ChessVariant 'RacingKings where
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
+                       Castling960Move f _ -> (f, f)
 
         newCR = updateCastlingRights (castlingRights ag) from to
 
@@ -936,6 +964,7 @@ instance ChessVariant 'Crazyhouse where
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t) -- Dummy from
+                       Castling960Move f _ -> (f, f)
 
         -- Handle Captures and Drops
         ((wPocket', bPocket'), promotedSet') = case m of
@@ -1136,6 +1165,76 @@ hordeGameFromFEN s = do
                else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () :: ActiveGame 'Horde 'Black 'Safe)
   else Nothing
 
+-- | Create a game from FEN string (Fischer Random variant).
+fischerRandomGameFromFEN :: String -> Maybe (Game 'FischerRandom 'Active)
+fischerRandomGameFromFEN s = do
+  (baseBoard, gs, _) <- Fen.parseFenRest s
+
+  let c = case GS.turn gs of
+            T.White -> White
+            T.Black -> Black
+
+      wKingSq = MG.kingSquare baseBoard T.White
+      bKingSq = MG.kingSquare baseBoard T.Black
+
+      wRooksBits = GS.castlingRights gs .&. BB.bbRank1 .&. Base.whiteRooks baseBoard
+      bRooksBits = GS.castlingRights gs .&. BB.bbRank8 .&. Base.blackRooks baseBoard
+
+      wRooks = BB.mapBitboard id wRooksBits
+      bRooks = BB.mapBitboard id bRooksBits
+
+      getRook kingSq rooks =
+         let kFile = T.squareFile kingSq
+             (ks, qs) = List.partition (\sq -> T.squareFile sq > kFile) rooks
+         in (listToMaybe ks, listToMaybe qs)
+
+      (wks, wqs) = case wKingSq of
+                     Just k -> getRook k wRooks
+                     Nothing -> (Nothing, Nothing)
+
+      (bks, bqs) = case bKingSq of
+                     Just k -> getRook k bRooks
+                     Nothing -> (Nothing, Nothing)
+
+      vs = (wks, wqs, bks, bqs)
+
+      cr = CastlingRights
+           { whiteKingSide = isJust wks
+           , whiteQueenSide = isJust wqs
+           , blackKingSide = isJust bks
+           , blackQueenSide = isJust bqs
+           }
+
+      ep = case GS.epSquare gs of
+             Nothing -> Nothing
+             Just sq -> Just (getFile (fromBaseSquare sq))
+
+      hmc = GS.halfmoveClock gs
+      fmn = GS.fullmoveNumber gs
+
+  -- Construct candidate to generate moves and check status
+  let agCandidate = ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'FischerRandom 'White 'Safe
+
+  case c of
+    White ->
+       let ag = ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'FischerRandom 'White 'Safe
+           moves = generateMoves ag
+           isChecked = Val.isCheck baseBoard gs
+       in if null moves
+          then Nothing
+          else if isChecked
+               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'FischerRandom 'White 'Checked)
+               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'FischerRandom 'White 'Safe)
+    Black ->
+       let ag = ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'FischerRandom 'Black 'Safe
+           moves = generateMoves ag
+           isChecked = Val.isCheck baseBoard gs
+       in if null moves
+          then Nothing
+          else if isChecked
+               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'FischerRandom 'Black 'Checked)
+               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'FischerRandom 'Black 'Safe)
+
 instance ChessVariant 'Antichess where
   generateMoves (ag :: ActiveGame 'Antichess c s) =
     let baseBoard = internalBoard ag
@@ -1168,6 +1267,7 @@ instance ChessVariant 'Antichess where
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
+                       Castling960Move f _ -> (f, f)
 
         movedPiece = Base.pieceAt internalB' (toSquare to)
         isPawn = case movedPiece of
@@ -1246,6 +1346,7 @@ instance ChessVariant 'Horde where
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
+                       Castling960Move f _ -> (f, f)
 
         newCR = updateCastlingRights (castlingRights ag) from to
 
@@ -1313,3 +1414,182 @@ instance ChessVariant 'Horde where
          (False, False) -> Stalemate
          (True, True) -> Continue nextGameChecked
          (False, True) -> Continue nextGameCandidate
+
+instance ChessVariant 'FischerRandom where
+  generateMoves (ag :: ActiveGame 'FischerRandom c s) =
+    let baseBoard = internalBoard ag
+        gs = defaultToGameState ag
+        c = colorVal @c
+
+        isStandardCastling (T.Move from to _) =
+             case Base.pieceAt baseBoard (toSquare from) of
+                Just (T.Piece _ T.King) -> abs (T.unSquare from - T.unSquare to) == 2
+                _ -> False
+        isStandardCastling _ = False
+
+        baseMoves = MG.legalMoves baseBoard gs
+        validBaseMoves = filter (not . isStandardCastling) baseMoves
+
+        coreBaseMoves = map (toCoreMove baseBoard) validBaseMoves
+
+        castling960 = generateCastlingMoves960 ag
+
+    in coreBaseMoves ++ castling960
+
+  executeMove (m :: Move c) (ag :: ActiveGame 'FischerRandom c s) =
+    let c = colorVal @c
+        oppC = colorVal @(Opposite c)
+        internalB = internalBoard ag
+
+        internalB' = applyMoveBase m internalB
+
+        (from, to) = case m of
+             Castling960Move kFrom _ -> (kFrom, kFrom)
+             StandardMove f t -> (f, t)
+             PromotionMove f t _ -> (f, t)
+             CastlingMove f t -> (f, t)
+             EnPassantMove f t -> (f, t)
+             DropMove _ t -> (t, t)
+
+        oldCR = castlingRights ag
+        newCR = case m of
+             Castling960Move _ _ ->
+                 if c == White
+                 then oldCR { whiteKingSide = False, whiteQueenSide = False }
+                 else oldCR { blackKingSide = False, blackQueenSide = False }
+             _ ->
+                 let (wks, wqs, bks, bqs) = variantState ag
+
+                     upd right (Just rSq) | from == rSq || to == rSq = False
+                     upd right _ = right
+
+                     movingPiece = Base.pieceAt internalB (toSquare from)
+                     isKing = case movingPiece of Just (T.Piece _ T.King) -> True; _ -> False
+
+                     oldWKS = whiteKingSide oldCR
+                     oldWQS = whiteQueenSide oldCR
+                     oldBKS = blackKingSide oldCR
+                     oldBQS = blackQueenSide oldCR
+
+                     wks' = if isKing && c == White then False else upd oldWKS wks
+                     wqs' = if isKing && c == White then False else upd oldWQS wqs
+                     bks' = if isKing && c == Black then False else upd oldBKS bks
+                     bqs' = if isKing && c == Black then False else upd oldBQS bqs
+
+                 in CastlingRights wks' wqs' bks' bqs'
+
+        movedPiece = Base.pieceAt internalB' (toSquare to)
+        isPawn = case movedPiece of
+                   Just p -> T.pieceType p == T.Pawn
+                   _ -> False
+
+        newEP = case m of
+                  StandardMove f t -> if isPawn && isDoublePush f t then Just (getFile f) else Nothing
+                  _ -> Nothing
+
+        newHMC = halfMoveClock ag + 1
+        newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
+
+        vs = variantState ag
+
+        -- Opponent check
+        oppCR = newCR
+        oppGame = ActiveGame internalB' newCR newEP newHMC newFMN vs :: ActiveGame 'FischerRandom (Opposite c) 'Safe
+        oppMoves = generateMoves oppGame
+        realHasMoves = not (null oppMoves)
+
+        nextTurnGS = (defaultToGameState ag)
+          { GS.turn = toColor oppC
+          , GS.castlingRights = toCastlingRights960 newCR vs
+          , GS.epSquare = case newEP of
+                            Nothing -> Nothing
+                            Just f -> Just (toSquare (Square f (epRank oppC)))
+          , GS.halfmoveClock = newHMC
+          , GS.fullmoveNumber = newFMN
+          }
+
+        isChecked = Val.isCheck internalB' nextTurnGS
+
+    in case (isChecked, realHasMoves) of
+         (True, False) -> Checkmate (Winner c)
+         (False, False) -> Stalemate
+         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN vs :: ActiveGame 'FischerRandom (Opposite c) 'Checked)
+         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN vs :: ActiveGame 'FischerRandom (Opposite c) 'Safe)
+
+  gameToGameState ag =
+      let (wks, wqs, bks, bqs) = variantState ag
+          cr = castlingRights ag
+          bitFor s = BB.bbFromSquare s
+          wksB = if whiteKingSide cr then maybe 0 bitFor wks else 0
+          wqsB = if whiteQueenSide cr then maybe 0 bitFor wqs else 0
+          bksB = if blackKingSide cr then maybe 0 bitFor bks else 0
+          bqsB = if blackQueenSide cr then maybe 0 bitFor bqs else 0
+          newCR = wksB .|. wqsB .|. bksB .|. bqsB
+
+          baseGS = defaultToGameState ag
+      in baseGS { GS.castlingRights = newCR }
+
+toCastlingRights960 :: CastlingRights -> VariantState 'FischerRandom -> GS.CastlingRights
+toCastlingRights960 cr (wks, wqs, bks, bqs) =
+    let bitFor s = BB.bbFromSquare s
+        wksB = if whiteKingSide cr then maybe 0 bitFor wks else 0
+        wqsB = if whiteQueenSide cr then maybe 0 bitFor wqs else 0
+        bksB = if blackKingSide cr then maybe 0 bitFor bks else 0
+        bqsB = if blackQueenSide cr then maybe 0 bitFor bqs else 0
+    in wksB .|. wqsB .|. bksB .|. bqsB
+
+generateCastlingMoves960 :: forall c s. KnownColor c => ActiveGame 'FischerRandom c s -> [Move c]
+generateCastlingMoves960 ag =
+  let c = colorVal @c
+      cr = castlingRights ag
+      (wks, wqs, bks, bqs) = variantState ag
+
+      board = internalBoard ag
+      kingSq = MG.kingSquare board (toColor c)
+
+      (ksRook, qsRook) = if c == White then (wks, wqs) else (bks, bqs)
+      (canKS, canQS) = if c == White
+                       then (whiteKingSide cr, whiteQueenSide cr)
+                       else (blackKingSide cr, blackQueenSide cr)
+
+      rank = if c == White then Rank1 else Rank8
+
+      ksKingDest = Square FileG rank
+      ksRookDest = Square FileF rank
+      qsKingDest = Square FileC rank
+      qsRookDest = Square FileD rank
+
+      checkCastling :: Maybe Square -> Square -> Square -> Bool -> Maybe (Move c)
+      checkCastling Nothing _ _ _ = Nothing
+      checkCastling (Just rookSq) kDest rDest allowed
+        | not allowed = Nothing
+        | otherwise =
+           case kingSq of
+             Nothing -> Nothing
+             Just kSq ->
+               let
+                   bbPathK = BB.between kSq kDest .|. BB.bbFromSquare kDest
+                   bbPathR = BB.between rookSq rDest .|. BB.bbFromSquare rDest
+
+                   requiredEmpty = bbPathK .|. bbPathR
+
+                   ignored = BB.bbFromSquare kSq .|. BB.bbFromSquare rookSq
+                   occupied = Base.occupiedTotal board .&. complement ignored
+
+                   pathClear = (requiredEmpty .&. occupied) == 0
+
+                   oppC = Base.oppositeColor (toColor c)
+                   isSafe sq = not (Base.isAttackedBy board oppC sq)
+
+                   kingPathSquares = BB.mapBitboard id (BB.between kSq kDest) ++ [kSq, kDest]
+                   pathSafe = all isSafe kingPathSquares
+
+               in if pathClear && pathSafe
+                  then Just (Castling960Move kSq rookSq)
+                  else Nothing
+
+      moves = catMaybes
+              [ checkCastling ksRook ksKingDest ksRookDest canKS
+              , checkCastling qsRook qsKingDest qsRookDest canQS
+              ]
+  in moves

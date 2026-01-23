@@ -25,9 +25,11 @@ import qualified EngineSpec
 import qualified TablebaseSpec
 import qualified PyChessCongruencySpec
 import qualified VariantSpec
+import qualified FischerRandomSpec
 
 main :: IO ()
 main = hspec $ do
+  FischerRandomSpec.spec
   VariantSpec.spec
   PyChessCongruencySpec.spec
   EngineSpec.spec

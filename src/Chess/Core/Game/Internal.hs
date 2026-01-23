@@ -21,13 +21,14 @@ data Phase = Setup | Active | Finished
   deriving (Eq, Show)
 
 -- Variants
-data Variant = Standard | Atomic | KingOfTheHill | RacingKings | ThreeCheck | Crazyhouse | Antichess | Horde
+data Variant = Standard | Atomic | KingOfTheHill | RacingKings | ThreeCheck | Crazyhouse | Antichess | Horde | FischerRandom
   deriving (Eq, Show)
 
 -- Variant State Data Family
 type family VariantState (v :: Variant) where
   VariantState 'ThreeCheck = (Int, Int) -- (White Checks, Black Checks)
   VariantState 'Crazyhouse = (Map PieceType Int, Map PieceType Int, Set Square) -- (White Pocket, Black Pocket, Promoted Pieces)
+  VariantState 'FischerRandom = (Maybe Square, Maybe Square, Maybe Square, Maybe Square) -- (WKS, WQS, BKS, BQS) Rooks
   VariantState _ = ()
 
 -- Check Status (Section 7)

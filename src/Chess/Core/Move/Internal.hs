@@ -31,6 +31,12 @@ data Move (c :: Color) where
     , cmTo   :: Square
     } -> Move c
 
+  -- Castling 960 Move
+  Castling960Move ::
+    { cmKingFrom :: Square
+    , cmRookFrom :: Square
+    } -> Move c
+
   -- En Passant Move
   EnPassantMove ::
     { epFrom :: Square
