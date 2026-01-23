@@ -152,53 +152,20 @@ movePieceFast b from to c pt =
 -- | Apply a move to the board (without updating game state like counters).
 -- Handles en passant capture removal and castling rook moves.
 applyMoveBoard :: Board -> GameState -> Move -> Board
-applyMoveBoard b gs (Move from to promo) =
-    let p = pieceAt b from
-        c = turn gs
-    in case p of
-        Nothing -> b -- Should not happen
-        Just (Piece _ pt) ->
-            let
-                -- Handle Basic Move and Promotion
-                bAfterMove =
-                    case promo of
-                        Just ppt ->
-                            -- If promotion:
-                            -- 1. Remove pawn from 'from'
-                            -- 2. Remove potential capture at 'to'
-                            -- 3. Put promoted piece at 'to'
-                            let b1 = unsafeRemovePiece b from c Pawn
-                                captured = if testBit (occupiedTotal b) (unSquare to) then pieceAt b to else Nothing
-                                b2 = case captured of
-                                       Nothing -> b1
-                                       Just (Piece capC capPt) -> unsafeRemovePiece b1 to capC capPt
-                                newPiece = Piece c ppt
-                            in unsafePutPiece b2 to newPiece
-                        Nothing ->
-                            -- Normal move: use optimized movePiece
-                            movePiece b from to c pt
-
-                -- Handle En Passant capture
-                -- If pawn moves diagonally to empty square, it's EP.
-                isEP = pt == Pawn && squareFile from /= squareFile to && not (testBit (occupiedTotal b) (unSquare to))
-
-                bAfterEP = if isEP
-                           then let capSq = Square (unSquare to + (if c == White then -8 else 8))
-                                    -- Capture is opposite color Pawn
-                                in unsafeRemovePiece bAfterMove capSq (oppositeColor c) Pawn
-                           else bAfterMove
-
-                -- Handle Castling (move rook)
-                isCastling = pt == King && abs (unSquare from - unSquare to) == 2
-                bFinal = if isCastling
-                         then let (rookFrom, rookTo) = castlingRookMove from to
-                                  -- Rook is same color, Rook.
-                                  -- Move rook from rookFrom to rookTo.
-                              in movePiece bAfterEP rookFrom rookTo c Rook
-                         else bAfterEP
-
-            in bFinal
+applyMoveBoard b gs m@(Move from to _) =
+    let c = turn gs
+        fromI = unSquare from
+    in if not (testBit (occupiedBy b c) fromI)
+       then b
+       else
+           let pt = findPieceType b c from
+               toI = unSquare to
+               capturedPt = if testBit (occupiedTotal b) toI
+                            then Just (findPieceType b (oppositeColor c) to)
+                            else Nothing
+           in applyMoveBoardFast b gs m pt capturedPt
 applyMoveBoard b _ NullMove = b
+applyMoveBoard b _ _ = b
 
 -- Helper to determine rook move for castling
 castlingRookMove :: Square -> Square -> (Square, Square)

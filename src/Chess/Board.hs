@@ -24,6 +24,7 @@ module Chess.Board
   ) where
 
 import Data.Maybe (isJust)
+import Data.Bits (testBit)
 
 import Chess.Types
 import qualified Chess.Board.Base as Base
@@ -51,61 +52,67 @@ initialBoard =
 -- | Apply a move to the board, updating pieces and game state (counters, rights, etc).
 applyMove :: Board -> Move -> Board
 applyMove (Board b gs hist) m@(Move from to _) =
-    let
-        -- 0. Update history
-        posRep = Val.PositionRep b (GS.turn gs) (GS.castlingRights gs) (GS.epSquare gs)
-        hist' = posRep : hist
+    let c = GS.turn gs
+        fromI = unSquare from
+    in if not (testBit (Base.occupiedBy b c) fromI)
+       then Board b gs hist -- Invalid move (empty or wrong color)
+       else
+        let
+            -- Resolve pieces efficiently (avoiding pieceAt lookups)
+            pt = Base.findPieceType b c from
+            toI = unSquare to
+            capturedPt = if testBit (Base.occupiedTotal b) toI
+                         then Just (Base.findPieceType b (Base.oppositeColor c) to)
+                         else Nothing
 
-        -- 1. Update pieces (using MoveGen's logic which handles capture/promo/castling/ep-capture piece placement)
-        b' = MoveGen.applyMoveBoard b gs m
+            -- 1. Update pieces (using fast path)
+            b' = MoveGen.applyMoveBoardFast b gs m pt capturedPt
 
-        -- 2. Analyze move for state updates
-        p = Base.pieceAt b from
-        captured = Base.pieceAt b to
-        c = GS.turn gs
+            -- 2. Analyze move for state updates using resolved pieces
+            isPawn = pt == Pawn
+            isEp = isPawn && capturedPt == Nothing && squareFile from /= squareFile to
+            isCap = isJust capturedPt || isEp
 
-        -- Check if it was an EP capture (MoveGen handles the removal, but we need to know for clock reset)
-        isPawn = fmap pieceType p == Just Pawn
-        isEp = isEpCapture b gs m
-        isCap = isJust captured || isEp
+            -- Halfmove clock: Reset on pawn move or capture
+            halfmove' = if isPawn || isCap then 0 else GS.halfmoveClock gs + 1
 
-        -- Halfmove clock: Reset on pawn move or capture
-        halfmove' = if isPawn || isCap then 0 else GS.halfmoveClock gs + 1
+            -- Fullmove number: Increment after Black's move
+            fullmove' = if c == Black then GS.fullmoveNumber gs + 1 else GS.fullmoveNumber gs
 
-        -- Fullmove number: Increment after Black's move
-        fullmove' = if c == Black then GS.fullmoveNumber gs + 1 else GS.fullmoveNumber gs
+            -- Castling rights updates
+            -- If moving King, lose castling rights for that color
+            gs1 = case pt of
+                    King -> GS.removeColorCastlingRights gs c
+                    Rook -> GS.removeCastlingRight gs from
+                    _ -> gs
 
-        -- Castling rights updates
-        -- Start with current rights wrapped in a dummy GS to use GS helper functions (or just access/update field)
-        -- We'll just chain updates on 'gs'
+            -- If capturing Rook, lose castling rights for that rook's square
+            gs2 = case capturedPt of
+                    Just Rook -> GS.removeCastlingRight gs1 to
+                    _ -> gs1
 
-        -- If moving King, lose castling rights for that color
-        gs1 = case p of
-                Just (Piece _ King) -> GS.removeColorCastlingRights gs c
-                Just (Piece _ Rook) -> GS.removeCastlingRight gs from
-                _ -> gs
+            -- En Passant square
+            -- Set if pawn double push
+            ep' = if isPawn && abs (squareRank from - squareRank to) == 2
+                  then Just (midSquare from to)
+                  else Nothing
 
-        -- If capturing Rook, lose castling rights for that rook's square
-        gs2 = case captured of
-                Just (Piece _ Rook) -> GS.removeCastlingRight gs1 to
-                _ -> gs1
+            nextTurn = Base.oppositeColor c
 
-        -- En Passant square
-        -- Set if pawn double push
-        ep' = if isDoublePush b from to then Just (midSquare from to) else Nothing
+            -- 0. Update history
+            posRep = Val.PositionRep b c (GS.castlingRights gs) (GS.epSquare gs)
+            hist' = posRep : hist
 
-        nextTurn = Base.oppositeColor c
+            -- Optimization: Clear history if halfmove clock resets (pawn move or capture)
+            histFinal = if halfmove' == 0 then [] else hist'
 
-        -- Optimization: Clear history if halfmove clock resets (pawn move or capture)
-        -- as previous positions cannot be reached again.
-        histFinal = if halfmove' == 0 then [] else hist'
-
-    in Board b' (gs2 { GS.turn = nextTurn
-                     , GS.epSquare = ep'
-                     , GS.halfmoveClock = halfmove'
-                     , GS.fullmoveNumber = fullmove'
-                     }) histFinal
+        in Board b' (gs2 { GS.turn = nextTurn
+                         , GS.epSquare = ep'
+                         , GS.halfmoveClock = halfmove'
+                         , GS.fullmoveNumber = fullmove'
+                         }) histFinal
 applyMove b NullMove = b
+applyMove b _ = b
 
 -- | Generate all legal moves for the current position.
 legalMoves :: Board -> [Move]
@@ -163,20 +170,5 @@ fromUci = Uci.fromUci
 
 -- Helpers
 
-isDoublePush :: Base.Board -> Square -> Square -> Bool
-isDoublePush b f t =
-    let p = Base.pieceAt b f
-    in fmap pieceType p == Just Pawn && abs (squareRank f - squareRank t) == 2
-
 midSquare :: Square -> Square -> Square
 midSquare f t = Square ((unSquare f + unSquare t) `div` 2)
-
-isEpCapture :: Base.Board -> GS.GameState -> Move -> Bool
-isEpCapture b _ (Move from to _) =
-    case Base.pieceAt b from of
-        Just (Piece _ Pawn) ->
-             case Base.pieceAt b to of
-                 Nothing -> squareFile from /= squareFile to
-                 _ -> False
-        _ -> False
-isEpCapture _ _ _ = False
