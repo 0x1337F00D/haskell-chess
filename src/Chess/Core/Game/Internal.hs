@@ -22,7 +22,7 @@ data Phase = Setup | Active | Finished
   deriving (Eq, Show)
 
 -- Variants
-data Variant = Standard | Atomic | KingOfTheHill | RacingKings | ThreeCheck | Crazyhouse | Antichess | Horde
+data Variant = Standard | Atomic | KingOfTheHill | RacingKings | ThreeCheck | Crazyhouse
   deriving (Eq, Show)
 
 -- Crazyhouse State
@@ -89,10 +89,6 @@ data ActiveGame (v :: Variant) (turn :: Color) (status :: CheckStatus) = ActiveG
   , fullMoveNumber :: Int
   , variantState :: VariantState v
   }
-
--- | Backward compatibility view for tests and debugging.
-viewBoard :: ActiveGame v turn status -> Board
-viewBoard ag = fromJust (fromBaseBoard (internalBoard ag))
 
 deriving instance Show (VariantState v) => Show (ActiveGame v turn status)
 deriving instance Eq (VariantState v) => Eq (ActiveGame v turn status)

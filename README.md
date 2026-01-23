@@ -9,7 +9,7 @@ A Haskell port of the [PyChess](https://github.com/pychess/pychess) library. Thi
 | **Core Rules** | `[██████████]` 100% | ✅ Implemented (Bitboards, MoveGen, Validation) |
 | **Formats** | `[██████████]` 100% | ✅ Implemented (FEN ✅, PGN ✅, UCI ✅) |
 | **Engine** | `[██████████]` 100% | ✅ Implemented (Search/Eval) |
-| **Variants** | `[██████████]` 100% | ✅ Atomic, KotH, RacingKings, ThreeCheck, Crazyhouse, Antichess, Horde |
+| **Variants** | `[████████░░]` 80% | 🚧 Atomic, KotH, RacingKings, ThreeCheck |
 | **Extras** | `[██████████]` 100% | ✅ Implemented (Books, TB, Time) |
 
 ## Feature Comparison
@@ -56,8 +56,6 @@ To achieve parity with PyChess, the following tasks are identified:
     - [x] Racing Kings
     - [x] Three-Check
     - [x] Crazyhouse
-    - [x] Antichess
-    - [x] Horde
 
 ## Supported Variants
 
@@ -72,8 +70,8 @@ Comparison of variants supported by PyChess vs haskell-chess:
 | **Three-Check** | ✅ | ✅ | Win by 3 checks implemented. |
 | **Crazyhouse** | ✅ | ✅ | Drop Moves implemented. |
 | **Chess960** | ✅ | ❌ | Pending (Fischer Random). |
-| **Antichess** | ✅ | ✅ | Mandatory capture & win by losing pieces. |
-| **Horde** | ✅ | ✅ | Asymmetric setup implemented. |
+| **Antichess** | ✅ | ❌ | (Giveaway/Suicide/Losers) Pending. |
+| **Horde** | ✅ | ❌ | Pending. |
 
 ## Architecture
 
