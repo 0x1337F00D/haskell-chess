@@ -1091,11 +1091,11 @@ instance ChessVariant 'FischerRandom where
 
          standardPseudos = concat
             [ MG.pawnMoves baseBoard gs
-            , MG.pieceMoves baseBoard gs Knight
-            , MG.pieceMoves baseBoard gs Bishop
-            , MG.pieceMoves baseBoard gs Rook
-            , MG.pieceMoves baseBoard gs Queen
-            , MG.pieceMoves baseBoard gs King
+            , MG.pieceMoves baseBoard gs T.Knight
+            , MG.pieceMoves baseBoard gs T.Bishop
+            , MG.pieceMoves baseBoard gs T.Rook
+            , MG.pieceMoves baseBoard gs T.Queen
+            , MG.pieceMoves baseBoard gs T.King
             ]
 
          legalStandard = map (\(MG.GenMove m _ _) -> toCoreMove baseBoard m) $
@@ -1292,15 +1292,15 @@ updateCastlingRights960 :: CastlingRights -> VariantState 'FischerRandom -> Squa
 updateCastlingRights960 (CastlingRights cr) (wK, wQ, bK, bQ) from to =
     let
         -- Check if from/to matches any rook
-        checkRook sq rights bit idx =
+        checkRook sq rights idx =
             case sq of
-               Just s -> if s == from || s == to then rights .&. complement (bit idx) else rights
+               Just s -> if s == from || s == to then clearBit rights idx else rights
                Nothing -> rights
 
-        cr1 = checkRook wK cr setBit 0
-        cr2 = checkRook wQ cr1 setBit 1
-        cr3 = checkRook bK cr2 setBit 2
-        cr4 = checkRook bQ cr3 setBit 3
+        cr1 = checkRook wK cr 0
+        cr2 = checkRook wQ cr1 1
+        cr3 = checkRook bK cr2 2
+        cr4 = checkRook bQ cr3 3
 
         -- Check King moves (clears both)
         -- We assume we know King position?
