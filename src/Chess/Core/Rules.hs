@@ -187,9 +187,9 @@ fischerRandomGameFromFEN s = do
 
       kingFile :: T.Color -> Maybe Int
       kingFile col =
-          let bb = BB.pieceBitboard baseBoard col T.King
+          let bb = Base.pieceBitboard baseBoard col T.King
           in case BB.lsb bb of
-               Just (T.Square s) -> Just (s `mod` 8)
+               Just s -> Just (s `mod` 8)
                Nothing -> Nothing
 
       assignRooks :: Maybe Int -> [Int] -> (Maybe Square, Maybe Square)
