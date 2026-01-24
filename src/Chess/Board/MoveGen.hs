@@ -119,6 +119,9 @@ applyMoveBoardFast b gs (Move from to promo) pt capturedPt =
                      else bAfterEP
 
         in bFinal
+applyMoveBoardFast b gs (DropMove pt to) _ _ =
+    let c = turn gs
+    in unsafePutPiece b to (Piece c pt)
 applyMoveBoardFast b _ NullMove _ _ = b
 
 -- | Optimized movePiece that assumes capture handling is done or not needed (target empty).
