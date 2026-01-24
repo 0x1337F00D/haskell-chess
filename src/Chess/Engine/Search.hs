@@ -1,7 +1,5 @@
 module Chess.Engine.Search (search) where
 
-import Data.List (sortBy)
-import Data.Ord (comparing, Down(..))
 import Data.Maybe (isJust)
 
 import Chess.Types
@@ -80,13 +78,19 @@ mateValue = 20000
 
 -- | Move ordering: Captures first, then promotion.
 orderMoves :: Board -> [Move] -> [Move]
-orderMoves board moves = sortBy (comparing (Down . scoreMove)) moves
+orderMoves board moves = capProms ++ caps ++ proms ++ quiets
   where
-    scoreMove :: Move -> Int
-    scoreMove m =
-        let captureBonus = if isCapture board m then 1000 else 0
-            promoBonus = case promotion m of Nothing -> 0; Just _ -> 900
-        in captureBonus + promoBonus
+    (capProms, caps, proms, quiets) = foldr partitionMoves ([], [], [], []) moves
+
+    partitionMoves m (cp, c, p, q)
+        | isCapture board m =
+            if isPromotion m
+            then (m:cp, c, p, q)
+            else (cp, m:c, p, q)
+        | isPromotion m = (cp, c, m:p, q)
+        | otherwise     = (cp, c, p, m:q)
+
+    isPromotion m = isJust (promotion m)
 
 -- | Check if a move is a capture.
 -- Note: This misses En Passant captures as checking for them strictly requires GameState access
