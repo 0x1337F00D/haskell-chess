@@ -16,12 +16,6 @@ import Data.Char (isDigit, toLower)
 import Control.Exception (try, IOException)
 import Data.List (find, isPrefixOf)
 
-import Network.HTTP.Client
-import Network.HTTP.Client.TLS (tlsManagerSettings)
-import Network.HTTP.Types.Status (statusCode)
-import qualified Data.ByteString.Lazy.Char8 as L8
-import System.IO.Unsafe (unsafePerformIO)
-
 data WDL = Win | Loss | Draw | CursedWin | BlessedLoss
     deriving (Show, Eq)
 
@@ -37,26 +31,15 @@ type ProcessRunner = FilePath -> [String] -> String -> IO String
 probeSyzygy :: String -> IO (Either String SyzygyResult)
 probeSyzygy = probeOnline
 
--- | Global Manager to reuse connections.
--- unsafePerformIO is used to create a top-level manager without wrapping everything in a ReaderT or initializing IO.
-{-# NOINLINE globalManager #-}
-globalManager :: Manager
-globalManager = unsafePerformIO $ newManager tlsManagerSettings
-
 -- | Probe the Lichess Online Tablebase API.
 probeOnline :: String -> IO (Either String SyzygyResult)
 probeOnline fen = do
     let url = "https://tablebase.lichess.ovh/standard?fen=" ++ mapSpace fen
-    request <- parseRequest url
-    result <- try (httpLbs request globalManager) :: IO (Either HttpException (Response L8.ByteString))
-
+    -- curl -s to be silent
+    result <- try (readProcess "curl" ["-s", url] "") :: IO (Either IOException String)
     case result of
         Left err -> return $ Left $ "Network error: " ++ show err
-        Right response ->
-            let status = statusCode (responseStatus response)
-            in if status == 200
-               then return $ parseResponse (L8.unpack (responseBody response))
-               else return $ Left $ "HTTP Error: " ++ show status
+        Right response -> return $ parseResponse response
 
 -- | Probe using a local Syzygy tool (e.g. Fathom).
 probeLocal :: FilePath -> FilePath -> String -> IO (Either String SyzygyResult)

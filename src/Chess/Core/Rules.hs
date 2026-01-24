@@ -300,21 +300,23 @@ class ChessVariant (v :: Variant) where
 generateLegalMoves :: forall v c s. (KnownColor c, ChessVariant v) => ActiveGame v c s -> [Move c]
 generateLegalMoves = generateMoves
 
-toCoreMove :: MG.GenMove -> Move c
-toCoreMove (MG.GenMove (T.Move f t promo) pt captured) =
+toCoreMove :: Base.Board -> T.Move -> Move c
+toCoreMove b (T.Move f t promo) =
   let fromSq = fromSquare f
       toSq = fromSquare t
-  in case promo of
-       Just ppt ->
+      p = Base.pieceAt b f
+  in case (p, promo) of
+       (Just _, Just pt) ->
           PromotionMove fromSq toSq (fromPieceType pt)
-       Nothing ->
-          if pt == T.King && abs (T.unSquare f - T.unSquare t) == 2
+       (Just piece, Nothing) ->
+          if isCastlingMove piece fromSq toSq
           then CastlingMove fromSq toSq
-          else if pt == T.Pawn && captured == Nothing && T.squareFile f /= T.squareFile t
+          else if isEnPassantMove piece fromSq toSq b
                then EnPassantMove fromSq toSq
                else StandardMove fromSq toSq
-toCoreMove (MG.GenMove (T.DropMove _ _) _ _) = error "DropMove in GenMove"
-toCoreMove (MG.GenMove T.NullMove _ _) = error "NullMove in GenMove"
+       _ -> error "Invalid move generated"
+toCoreMove _ (T.DropMove pt t) = DropMove (fromPieceType pt) (fromSquare t)
+toCoreMove _ T.NullMove = error "Null move generated"
 
 isCastlingMove :: T.Piece -> Square -> Square -> Bool
 isCastlingMove p from to =
@@ -424,8 +426,8 @@ instance ChessVariant 'Standard where
   generateMoves (ag :: ActiveGame 'Standard c s) =
     let baseBoard = internalBoard ag
         gs = toGameState ag
-        baseMoves = MG.legalGenMoves baseBoard gs
-    in map toCoreMove baseMoves
+        baseMoves = MG.legalMoves baseBoard gs
+    in map (toCoreMove baseBoard) baseMoves
 
   executeMove (m :: Move c) (ag :: ActiveGame 'Standard c s) =
     let
@@ -477,8 +479,8 @@ instance ChessVariant 'ThreeCheck where
   generateMoves (ag :: ActiveGame 'ThreeCheck c s) =
     let baseBoard = internalBoard ag
         gs = toGameState ag
-        baseMoves = MG.legalGenMoves baseBoard gs
-    in map toCoreMove baseMoves
+        baseMoves = MG.legalMoves baseBoard gs
+    in map (toCoreMove baseBoard) baseMoves
 
   executeMove (m :: Move c) (ag :: ActiveGame 'ThreeCheck c s) =
     let
@@ -575,7 +577,7 @@ instance ChessVariant 'Atomic where
         atomicMoves = filter (\(MG.GenMove m _ _) -> not (isKingCapture m) && not (isSelfExplosion m)) pseudos
         validMoves = filter (MG.isLegal baseBoard gs) atomicMoves
 
-    in map toCoreMove validMoves
+    in map (toCoreMove baseBoard . (\(MG.GenMove m _ _) -> m)) validMoves
 
   executeMove (m :: Move c) (ag :: ActiveGame 'Atomic c s) =
     let c = colorVal @c
@@ -655,8 +657,8 @@ instance ChessVariant 'KingOfTheHill where
   generateMoves (ag :: ActiveGame 'KingOfTheHill c s) =
     let baseBoard = internalBoard ag
         gs = toGameState ag
-        baseMoves = MG.legalGenMoves baseBoard gs
-    in map toCoreMove baseMoves
+        baseMoves = MG.legalMoves baseBoard gs
+    in map (toCoreMove baseBoard) baseMoves
 
   executeMove (m :: Move c) (ag :: ActiveGame 'KingOfTheHill c s) =
     let
@@ -717,8 +719,8 @@ instance ChessVariant 'RacingKings where
   generateMoves (ag :: ActiveGame 'RacingKings c s) =
     let baseBoard = internalBoard ag
         gs = toGameState ag
-        baseMoves = MG.legalGenMoves baseBoard gs
-        coreMoves = map toCoreMove baseMoves
+        baseMoves = MG.legalMoves baseBoard gs
+        coreMoves = map (toCoreMove baseBoard) baseMoves
         c = colorVal @c
         oppC = opposite c
 
@@ -785,8 +787,8 @@ instance ChessVariant 'Crazyhouse where
         gs = toGameState ag
         c = colorVal @c
 
-        baseMoves = MG.legalGenMoves baseBoard gs
-        standardMoves = map toCoreMove baseMoves
+        baseMoves = MG.legalMoves baseBoard gs
+        standardMoves = map (toCoreMove baseBoard) baseMoves
 
         (CrazyhouseState wPocket bPocket _) = variantState ag
         pocket = if c == White then wPocket else bPocket

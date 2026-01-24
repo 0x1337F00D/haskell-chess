@@ -70,7 +70,7 @@ with open("test/PyChessData.hs", "w") as f:
         nodes = get_perft(fen, depth)
         moves = get_moves_clean(fen)
         fen_esc = fen.replace('"', '\\"')
-        moves_str = ",".join('"' + m + '"' for m in moves)
+        moves_str = ",".join(['"' + m + '"' for m in moves])
         comma = "," if i < num_positions - 1 else ""
         f.write(f"  PyChessCase \"{fen_esc}\" {depth} {nodes} [{moves_str}]{comma}\n")
 

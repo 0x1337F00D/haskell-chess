@@ -101,10 +101,7 @@ library
         bytestring >= 0.11,
         binary >= 0.8,
         process >= 1.6,
-        mtl >= 2.2,
-        http-client,
-        http-client-tls,
-        http-types
+        mtl >= 2.2
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -194,10 +191,3 @@ test-suite haskell-chess-test
         bytestring >= 0.11,
         binary >= 0.8,
         directory >= 1.3
-
-executable reproduce-pawn-moves
-    import:           warnings
-    default-language: Haskell2010
-    main-is:          reproduce_pawn_moves.hs
-    hs-source-dirs:   scripts
-    build-depends:    base, haskell-chess, vector

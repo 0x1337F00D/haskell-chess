@@ -1,12 +1,9 @@
 module Main where
 
 import Chess (parseFen)
-import Chess.Board (Board, uci)
-import Chess.Types (Move)
 import Chess.Engine.Search (search)
 import Data.Time.Clock
 import Text.Printf
-import Control.Exception (evaluate)
 import System.IO (hSetBuffering, stdout, BufferMode(NoBuffering))
 
 runBench :: String -> String -> Int -> IO ()
