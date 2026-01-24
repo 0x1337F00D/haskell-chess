@@ -1,5 +1,7 @@
 module Chess.Engine.Search (search) where
 
+import Data.List (sortBy, foldl')
+import Data.Ord (comparing, Down(..))
 import Data.Maybe (isJust)
 
 import Chess.Types
@@ -26,7 +28,7 @@ alphaBetaRoot board depth =
     in case moves of
         [] -> (nullMove, 0) -- Should check game over before calling search
         (m:ms) ->
-            let (bestM, bestScore) = foldl searchMove (m, -infinity) (m:ms)
+            let (bestM, bestScore) = foldl' searchMove (m, -infinity) (m:ms)
             in (bestM, bestScore)
   where
     searchMove (bestM, bestScore) move =
