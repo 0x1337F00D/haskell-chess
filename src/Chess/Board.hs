@@ -7,6 +7,7 @@ module Chess.Board
   , applyMove
   , legalMoves
   , pseudoLegalMoves
+  , captureMoves
   , isCheck
   , isCheckmate
   , isStalemate
@@ -121,6 +122,10 @@ legalMoves (Board b gs _) = MoveGen.legalMoves b gs
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> [Move]
 pseudoLegalMoves (Board b gs _) = map (\(MoveGen.GenMove m _ _) -> m) $ MoveGen.pseudoLegalMoves b gs
+
+-- | Generate all legal capture moves.
+captureMoves :: Board -> [Move]
+captureMoves (Board b gs _) = MoveGen.legalCaptures b gs
 
 -- | Check if the side to move is in check.
 isCheck :: Board -> Bool

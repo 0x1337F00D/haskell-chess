@@ -31,6 +31,21 @@ legalMoves b gs = map (\(GenMove m _ _) -> m) $ filter (isLegal b gs) (pseudoLeg
 legalGenMoves :: Board -> GameState -> [GenMove]
 legalGenMoves b gs = filter (isLegal b gs) (pseudoLegalMoves b gs)
 
+-- | Generate all pseudo-legal capture moves.
+pseudoLegalCaptures :: Board -> GameState -> [GenMove]
+pseudoLegalCaptures b gs = concat
+    [ pawnCaptures b gs
+    , pieceCaptures b gs Knight
+    , pieceCaptures b gs Bishop
+    , pieceCaptures b gs Rook
+    , pieceCaptures b gs Queen
+    , pieceCaptures b gs King
+    ]
+
+-- | Generate all legal capture moves.
+legalCaptures :: Board -> GameState -> [Move]
+legalCaptures b gs = map (\(GenMove m _ _) -> m) $ filter (isLegal b gs) (pseudoLegalCaptures b gs)
+
 -- | Check if a move is legal (does not leave own king in check).
 -- Note: This function assumes the move is pseudo-legal.
 isLegal :: Board -> GameState -> GenMove -> Bool
@@ -215,6 +230,31 @@ pieceMoves b gs pt = flatMapBitboard genMoves bb
 
         in mapBitboard mkMove valid
 
+pieceCaptures :: Board -> GameState -> PieceType -> [GenMove]
+pieceCaptures b gs pt = flatMapBitboard genMoves bb
+  where
+    c = turn gs
+    bb = pieceBitboard b c pt
+
+    genMoves :: Square -> [GenMove]
+    genMoves from =
+        let att = case pt of
+                    Knight -> knightAttacks from
+                    Bishop -> bishopAttacks from (occupiedTotal b)
+                    Rook   -> rookAttacks from (occupiedTotal b)
+                    Queen  -> bishopAttacks from (occupiedTotal b) .|. rookAttacks from (occupiedTotal b)
+                    King   -> kingAttacks from
+                    _      -> 0
+
+            -- Only squares occupied by enemy
+            valid = att .&. occupiedBy b (oppositeColor c)
+
+            getCapture to = Just (findPieceType b (oppositeColor c) to)
+
+            mkMove to = GenMove (Move from to Nothing) pt (getCapture to)
+
+        in mapBitboard mkMove valid
+
 pawnMoves :: Board -> GameState -> [GenMove]
 pawnMoves b gs =
     if c == White
@@ -351,6 +391,108 @@ pawnMoves b gs =
                        else []
 
         in pushMoves ++ capLeftMoves ++ capRightMoves ++ epMoves
+
+pawnCaptures :: Board -> GameState -> [GenMove]
+pawnCaptures b gs =
+    if c == White
+    then whitePawnCaptures
+    else blackPawnCaptures
+  where
+    c = turn gs
+    pawns = pieceBitboard b c Pawn
+    enemy = occupiedBy b (oppositeColor c)
+
+    mkCap from dest =
+        let capPt = Just (findPieceType b (oppositeColor c) dest)
+        in if unSquare dest >= 56 || unSquare dest <= 7 -- Rank 8 or Rank 1
+           then [ GenMove (Move from dest (Just p)) Pawn capPt | p <- [Queen, Rook, Bishop, Knight] ]
+           else [ GenMove (Move from dest Nothing) Pawn capPt ]
+
+    whitePawnCaptures =
+        [ m
+        | from <- mapBitboard id pawns
+        , let i = unSquare from
+        , m <- genWhiteCaptures i from
+        ]
+
+    genWhiteCaptures i from =
+        let
+            -- Capture Left (UpLeft +7) - exclude File A
+            capLeftMoves =
+                if (i `mod` 8) /= 0
+                then
+                    let to7 = i + 7
+                    in if testBit enemy to7
+                       then mkCap from (Square to7)
+                       else []
+                else []
+
+            -- Capture Right (UpRight +9) - exclude File H
+            capRightMoves =
+                if (i `mod` 8) /= 7
+                then
+                    let to9 = i + 9
+                    in if testBit enemy to9
+                       then mkCap from (Square to9)
+                       else []
+                else []
+
+            -- En Passant
+            epMoves = case epSquare gs of
+                Nothing -> []
+                Just ep ->
+                    let epIdx = unSquare ep
+                    in
+                       if (i + 7) == epIdx && (i `mod` 8) /= 0
+                       then [GenMove (Move from ep Nothing) Pawn Nothing]
+                       else if (i + 9) == epIdx && (i `mod` 8) /= 7
+                       then [GenMove (Move from ep Nothing) Pawn Nothing]
+                       else []
+
+        in capLeftMoves ++ capRightMoves ++ epMoves
+
+    blackPawnCaptures =
+        [ m
+        | from <- mapBitboard id pawns
+        , let i = unSquare from
+        , m <- genBlackCaptures i from
+        ]
+
+    genBlackCaptures i from =
+        let
+            -- Capture Left (DownLeft -9) - exclude File A
+            capLeftMoves =
+                if (i `mod` 8) /= 0
+                then
+                    let to9 = i - 9
+                    in if testBit enemy to9
+                       then mkCap from (Square to9)
+                       else []
+                else []
+
+            -- Capture Right (DownRight -7) - exclude File H
+            capRightMoves =
+                if (i `mod` 8) /= 7
+                then
+                    let to7 = i - 7
+                    in if testBit enemy to7
+                       then mkCap from (Square to7)
+                       else []
+                else []
+
+            -- En Passant
+            epMoves = case epSquare gs of
+                Nothing -> []
+                Just ep ->
+                    let epIdx = unSquare ep
+                    in
+                       if (i - 9) == epIdx && (i `mod` 8) /= 0
+                       then [GenMove (Move from ep Nothing) Pawn Nothing]
+                       else if (i - 7) == epIdx && (i `mod` 8) /= 7
+                       then [GenMove (Move from ep Nothing) Pawn Nothing]
+                       else []
+
+        in capLeftMoves ++ capRightMoves ++ epMoves
 
 castlingMoves :: Board -> GameState -> [GenMove]
 castlingMoves b gs = ks ++ qs
