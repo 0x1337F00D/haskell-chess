@@ -101,7 +101,10 @@ library
         bytestring >= 0.11,
         binary >= 0.8,
         process >= 1.6,
-        mtl >= 2.2
+        mtl >= 2.2,
+        http-client,
+        http-client-tls,
+        http-types
 
     -- Directories containing source files.
     hs-source-dirs:   src
