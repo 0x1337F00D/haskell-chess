@@ -219,132 +219,134 @@ pawnMoves b gs =
   where
     c = turn gs
     pawns = pieceBitboard b c Pawn
-    empty = complement (occupiedTotal b)
+    occ   = occupiedTotal b
     enemy = occupiedBy b (oppositeColor c)
 
+    mkCap from dest =
+        let capPt = Just (findPieceType b (oppositeColor c) dest)
+        in if unSquare dest >= 56 || unSquare dest <= 7 -- Rank 8 or Rank 1
+           then [ GenMove (Move from dest (Just p)) Pawn capPt | p <- [Queen, Rook, Bishop, Knight] ]
+           else [ GenMove (Move from dest Nothing) Pawn capPt ]
+
     whitePawnMoves =
-        -- Single Push (Up 8)
-        let singleDest = (pawns `shiftL` 8) .&. empty
-            promDest = singleDest .&. bbRank8
-            normalDest = singleDest .&. complement bbRank8
+        [ m
+        | from <- mapBitboard id pawns
+        , let i = unSquare from
+        , m <- genWhiteMoves i from
+        ]
 
-            genProm dest = [ GenMove (Move (Square (unSquare dest - 8)) dest (Just p)) Pawn Nothing | p <- [Queen, Rook, Bishop, Knight] ]
-            genNormal dest = GenMove (Move (Square (unSquare dest - 8)) dest Nothing) Pawn Nothing
+    genWhiteMoves i from =
+        let
+            -- Single Push (Up 8)
+            to8 = i + 8
+            pushMoves =
+                if not (testBit occ to8)
+                then
+                   let dest = Square to8
+                   in if to8 >= 56 -- Rank 8
+                      then [ GenMove (Move from dest (Just p)) Pawn Nothing | p <- [Queen, Rook, Bishop, Knight] ]
+                      else
+                          let moves = [GenMove (Move from dest Nothing) Pawn Nothing]
+                              to16 = i + 16
+                          in if i >= 8 && i <= 15 -- Rank 2
+                                && not (testBit occ to16)
+                             then moves ++ [GenMove (Move from (Square to16) Nothing) Pawn Nothing]
+                             else moves
+                else []
 
-            promMoves = flatMapBitboard genProm promDest
-            normalMoves = mapBitboard genNormal normalDest
+            -- Capture Left (UpLeft +7) - exclude File A
+            capLeftMoves =
+                if (i `mod` 8) /= 0
+                then
+                    let to7 = i + 7
+                    in if testBit enemy to7
+                       then mkCap from (Square to7)
+                       else []
+                else []
 
-            -- Double Push (Up 16) - from Rank 2 to Rank 4
-            -- Note: Must pass through Rank 3 empty.
-            -- singleDest contains pawns on Rank 3 (and other ranks).
-            -- We filter singleDest for Rank 3, then shift Up.
-            doubleDest = ((singleDest .&. bbRank3) `shiftL` 8) .&. empty
-            genDouble dest = GenMove (Move (Square (unSquare dest - 16)) dest Nothing) Pawn Nothing
-            doubleMoves = mapBitboard genDouble doubleDest
-
-            -- Captures
-            -- Capture Left (UpLeft +7) - exclude file H (source file A handled by result file?)
-            -- Source at A (0) + 7 = 7 (H). Invalid for UpLeft (Source A has no left).
-            -- So we must mask Source A.
-            capLeftDest = ((pawns .&. complement bbFileA) `shiftL` 7) .&. enemy
-            -- Capture Right (UpRight +9)
-            -- Source at H (7) + 9 = 16 (A). Invalid for UpRight (Source H has no right).
-            -- So we must mask Source H.
-            capRightDest = ((pawns .&. complement bbFileH) `shiftL` 9) .&. enemy
-
-            mkCap offset dest =
-                let src = Square (unSquare dest - offset)
-                    captured = findPieceType b Black dest
-                in if unSquare dest >= 56 -- Rank 8
-                   then [ GenMove (Move src dest (Just p)) Pawn (Just captured) | p <- [Queen, Rook, Bishop, Knight] ]
-                   else [ GenMove (Move src dest Nothing) Pawn (Just captured) ]
-
-            capLeftMoves = flatMapBitboard (mkCap 7) capLeftDest
-            capRightMoves = flatMapBitboard (mkCap 9) capRightDest
+            -- Capture Right (UpRight +9) - exclude File H
+            capRightMoves =
+                if (i `mod` 8) /= 7
+                then
+                    let to9 = i + 9
+                    in if testBit enemy to9
+                       then mkCap from (Square to9)
+                       else []
+                else []
 
             -- En Passant
             epMoves = case epSquare gs of
                 Nothing -> []
                 Just ep ->
                     let epIdx = unSquare ep
-                        -- Check capture left (UpLeft +7 from source). Source = ep - 7.
-                        srcLeft = epIdx - 7
-                        -- Check capture right (UpRight +9 from source). Source = ep - 9.
-                        srcRight = epIdx - 9
+                    in
+                       if (i + 7) == epIdx && (i `mod` 8) /= 0
+                       then [GenMove (Move from ep Nothing) Pawn Nothing]
+                       else if (i + 9) == epIdx && (i `mod` 8) /= 7
+                       then [GenMove (Move from ep Nothing) Pawn Nothing]
+                       else []
 
-                        -- Source must be pawn and White.
-                        -- EP square is Rank 6 (index 40-47). Source is Rank 5.
-                        -- Valid checks:
-                        moveLeft =
-                            if srcLeft >= 0 && testBit pawns srcLeft && (epIdx `mod` 8) < (srcLeft `mod` 8)
-                            then [GenMove (Move (Square srcLeft) ep Nothing) Pawn Nothing]
-                            else []
-                        moveRight =
-                            if srcRight >= 0 && testBit pawns srcRight && (epIdx `mod` 8) > (srcRight `mod` 8)
-                            then [GenMove (Move (Square srcRight) ep Nothing) Pawn Nothing]
-                            else []
-                    in moveLeft ++ moveRight
-
-        in promMoves ++ normalMoves ++ doubleMoves ++ capLeftMoves ++ capRightMoves ++ epMoves
+        in pushMoves ++ capLeftMoves ++ capRightMoves ++ epMoves
 
     blackPawnMoves =
-        -- Single Push (Down 8)
-        let singleDest = (pawns `shiftR` 8) .&. empty
-            promDest = singleDest .&. bbRank1
-            normalDest = singleDest .&. complement bbRank1
+        [ m
+        | from <- mapBitboard id pawns
+        , let i = unSquare from
+        , m <- genBlackMoves i from
+        ]
 
-            genProm dest = [ GenMove (Move (Square (unSquare dest + 8)) dest (Just p)) Pawn Nothing | p <- [Queen, Rook, Bishop, Knight] ]
-            genNormal dest = GenMove (Move (Square (unSquare dest + 8)) dest Nothing) Pawn Nothing
+    genBlackMoves i from =
+        let
+            -- Single Push (Down 8)
+            to8 = i - 8
+            pushMoves =
+                if not (testBit occ to8)
+                then
+                   let dest = Square to8
+                   in if to8 <= 7 -- Rank 1
+                      then [ GenMove (Move from dest (Just p)) Pawn Nothing | p <- [Queen, Rook, Bishop, Knight] ]
+                      else
+                          let moves = [GenMove (Move from dest Nothing) Pawn Nothing]
+                              to16 = i - 16
+                          in if i >= 48 && i <= 55 -- Rank 7
+                                && not (testBit occ to16)
+                             then moves ++ [GenMove (Move from (Square to16) Nothing) Pawn Nothing]
+                             else moves
+                else []
 
-            promMoves = flatMapBitboard genProm promDest
-            normalMoves = mapBitboard genNormal normalDest
+            -- Capture Left (DownLeft -9) - exclude File A
+            capLeftMoves =
+                if (i `mod` 8) /= 0
+                then
+                    let to9 = i - 9
+                    in if testBit enemy to9
+                       then mkCap from (Square to9)
+                       else []
+                else []
 
-            -- Double Push (Down 16) - from Rank 7 to Rank 5
-            doubleDest = ((singleDest .&. bbRank6) `shiftR` 8) .&. empty
-            genDouble dest = GenMove (Move (Square (unSquare dest + 16)) dest Nothing) Pawn Nothing
-            doubleMoves = mapBitboard genDouble doubleDest
-
-            -- Captures
-            -- Capture Left (DownLeft -9) - Source > Dest.
-            -- Source at A (0). DownLeft invalid.
-            -- Mask A.
-            capLeftDest = ((pawns .&. complement bbFileA) `shiftR` 9) .&. enemy
-            -- Capture Right (DownRight -7)
-            -- Source at H (7). DownRight invalid.
-            -- Mask H.
-            capRightDest = ((pawns .&. complement bbFileH) `shiftR` 7) .&. enemy
-
-            mkCap offset dest =
-                let src = Square (unSquare dest + offset)
-                    captured = findPieceType b White dest
-                in if unSquare dest <= 7 -- Rank 1
-                   then [ GenMove (Move src dest (Just p)) Pawn (Just captured) | p <- [Queen, Rook, Bishop, Knight] ]
-                   else [ GenMove (Move src dest Nothing) Pawn (Just captured) ]
-
-            capLeftMoves = flatMapBitboard (mkCap 9) capLeftDest
-            capRightMoves = flatMapBitboard (mkCap 7) capRightDest
+            -- Capture Right (DownRight -7) - exclude File H
+            capRightMoves =
+                if (i `mod` 8) /= 7
+                then
+                    let to7 = i - 7
+                    in if testBit enemy to7
+                       then mkCap from (Square to7)
+                       else []
+                else []
 
             -- En Passant
             epMoves = case epSquare gs of
                 Nothing -> []
                 Just ep ->
                     let epIdx = unSquare ep
-                        -- Capture Left (DownLeft -9 from source). Source = ep + 9.
-                        srcLeft = epIdx + 9
-                        -- Capture Right (DownRight -7 from source). Source = ep + 7.
-                        srcRight = epIdx + 7
+                    in
+                       if (i - 9) == epIdx && (i `mod` 8) /= 0
+                       then [GenMove (Move from ep Nothing) Pawn Nothing]
+                       else if (i - 7) == epIdx && (i `mod` 8) /= 7
+                       then [GenMove (Move from ep Nothing) Pawn Nothing]
+                       else []
 
-                        moveLeft =
-                            if srcLeft < 64 && testBit pawns srcLeft && (epIdx `mod` 8) < (srcLeft `mod` 8)
-                            then [GenMove (Move (Square srcLeft) ep Nothing) Pawn Nothing]
-                            else []
-                        moveRight =
-                            if srcRight < 64 && testBit pawns srcRight && (epIdx `mod` 8) > (srcRight `mod` 8)
-                            then [GenMove (Move (Square srcRight) ep Nothing) Pawn Nothing]
-                            else []
-                    in moveLeft ++ moveRight
-
-        in promMoves ++ normalMoves ++ doubleMoves ++ capLeftMoves ++ capRightMoves ++ epMoves
+        in pushMoves ++ capLeftMoves ++ capRightMoves ++ epMoves
 
 castlingMoves :: Board -> GameState -> [GenMove]
 castlingMoves b gs = ks ++ qs
