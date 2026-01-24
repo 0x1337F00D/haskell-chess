@@ -139,6 +139,7 @@ test-suite haskell-chess-test
     other-modules:    CoreSpec
                     , CorePerftSpec
                     , CoreFenSpec
+                    , FischerRandomSpec
                     , EngineSpec
                     , PyChessCongruencySpec
                     , PyChessData

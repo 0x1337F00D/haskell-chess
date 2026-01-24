@@ -1,6 +1,10 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module FischerRandomSpec (spec) where
 
@@ -14,6 +18,12 @@ import qualified Chess.Types as T
 import qualified Chess.Board.Base as Base
 import Data.Maybe (isJust, fromJust)
 import Data.List (find)
+
+-- | Helper to refine color constraint.
+withOpposite :: forall c r. KnownColor c => (KnownColor (Opposite c) => r) -> r
+withOpposite f = case sColor @c of
+  SWhite -> f
+  SBlack -> f
 
 spec :: Spec
 spec = do
@@ -53,38 +63,42 @@ spec = do
 
     it "executes castling correctly (King-side)" $ do
       let fen = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1"
-      let Just (InProgressGame ag) = fischerRandomGameFromFEN fen
-      let moves = generateMoves ag
-      let Just move = find (\m -> cm960Rook m == Square FileH Rank1) moves
+      case fischerRandomGameFromFEN fen of
+        Just (InProgressGame (ag :: ActiveGame 'FischerRandom turn status)) -> do
+          let moves = generateMoves ag
+          let Just move = find (\m -> case m of Castling960Move _ r -> r == Square FileH Rank1; _ -> False) moves
 
-      let res = executeMove move ag
-      case res of
-        Continue nextAg -> do
-           let b = viewBoard nextAg
-           -- King should be at G1
-           whiteKing b `shouldBe` Square FileG Rank1
-           -- Rook should be at F1
-           Base.pieceAt (internalBoard nextAg) (toSquare (Square FileF Rank1)) `shouldSatisfy` (\p -> fmap T.pieceType p == Just T.Rook)
-           -- Old squares empty
-           Base.pieceAt (internalBoard nextAg) (toSquare (Square FileE Rank1)) `shouldBe` Nothing
-           Base.pieceAt (internalBoard nextAg) (toSquare (Square FileH Rank1)) `shouldBe` Nothing
-        _ -> expectationFailure "Move execution failed"
+          let res = withOpposite @turn (executeMove move ag)
+          case res of
+            Continue nextAg -> do
+               let b = viewBoard nextAg
+               -- King should be at G1
+               whiteKing b `shouldBe` Square FileG Rank1
+               -- Rook should be at F1
+               Base.pieceAt (internalBoard nextAg) (toSquare (Square FileF Rank1)) `shouldSatisfy` (\p -> fmap T.pieceType p == Just T.Rook)
+               -- Old squares empty
+               Base.pieceAt (internalBoard nextAg) (toSquare (Square FileE Rank1)) `shouldBe` Nothing
+               Base.pieceAt (internalBoard nextAg) (toSquare (Square FileH Rank1)) `shouldBe` Nothing
+            _ -> expectationFailure "Move execution failed"
+        _ -> expectationFailure "Failed to parse game"
 
     it "executes castling correctly (Queen-side)" $ do
       let fen = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1"
-      let Just (InProgressGame ag) = fischerRandomGameFromFEN fen
-      let moves = generateMoves ag
-      let Just move = find (\m -> cm960Rook m == Square FileA Rank1) moves
+      case fischerRandomGameFromFEN fen of
+        Just (InProgressGame (ag :: ActiveGame 'FischerRandom turn status)) -> do
+          let moves = generateMoves ag
+          let Just move = find (\m -> case m of Castling960Move _ r -> r == Square FileA Rank1; _ -> False) moves
 
-      let res = executeMove move ag
-      case res of
-        Continue nextAg -> do
-           let b = viewBoard nextAg
-           -- King should be at C1
-           whiteKing b `shouldBe` Square FileC Rank1
-           -- Rook should be at D1
-           Base.pieceAt (internalBoard nextAg) (toSquare (Square FileD Rank1)) `shouldSatisfy` (\p -> fmap T.pieceType p == Just T.Rook)
-        _ -> expectationFailure "Move execution failed"
+          let res = withOpposite @turn (executeMove move ag)
+          case res of
+            Continue nextAg -> do
+               let b = viewBoard nextAg
+               -- King should be at C1
+               whiteKing b `shouldBe` Square FileC Rank1
+               -- Rook should be at D1
+               Base.pieceAt (internalBoard nextAg) (toSquare (Square FileD Rank1)) `shouldSatisfy` (\p -> fmap T.pieceType p == Just T.Rook)
+            _ -> expectationFailure "Move execution failed"
+        _ -> expectationFailure "Failed to parse game"
 
     it "parses Shredder-FEN castling rights (HAha)" $ do
       -- Custom position: Rooks at B1, G1. King at E1.
