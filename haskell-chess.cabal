@@ -82,6 +82,14 @@ library
                     , Chess.Core.Move.Internal
                     , Chess.Core.Perft
                     , Chess.Core.Rules
+                    , Chess.Core.Rules.Class
+                    , Chess.Core.Rules.Common
+                    , Chess.Core.Rules.Standard
+                    , Chess.Core.Rules.ThreeCheck
+                    , Chess.Core.Rules.Atomic
+                    , Chess.Core.Rules.KingOfTheHill
+                    , Chess.Core.Rules.RacingKings
+                    , Chess.Core.Rules.Crazyhouse
                     , Chess.Core.Fen
                     , Chess.Engine.Evaluation
                     , Chess.Engine.Search
