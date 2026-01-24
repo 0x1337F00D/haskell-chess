@@ -27,6 +27,21 @@ pseudoLegalMoves b gs = concat
 legalMoves :: Board -> GameState -> [Move]
 legalMoves b gs = map (\(GenMove m _ _) -> m) $ filter (isLegal b gs) (pseudoLegalMoves b gs)
 
+-- | Generate all pseudo-legal capturing moves.
+pseudoLegalCaptures :: Board -> GameState -> [GenMove]
+pseudoLegalCaptures b gs = concat
+    [ pawnCaptures b gs
+    , pieceCaptures b gs Knight
+    , pieceCaptures b gs Bishop
+    , pieceCaptures b gs Rook
+    , pieceCaptures b gs Queen
+    , pieceCaptures b gs King
+    ]
+
+-- | Generate all legal capturing moves.
+legalCaptures :: Board -> GameState -> [Move]
+legalCaptures b gs = map (\(GenMove m _ _) -> m) $ filter (isLegal b gs) (pseudoLegalCaptures b gs)
+
 -- | Check if a move is legal (does not leave own king in check).
 -- Note: This function assumes the move is pseudo-legal.
 isLegal :: Board -> GameState -> GenMove -> Bool
@@ -211,6 +226,31 @@ pieceMoves b gs pt = flatMapBitboard genMoves bb
 
         in mapBitboard mkMove valid
 
+pieceCaptures :: Board -> GameState -> PieceType -> [GenMove]
+pieceCaptures b gs pt = flatMapBitboard genMoves bb
+  where
+    c = turn gs
+    bb = pieceBitboard b c pt
+    enemy = occupiedBy b (oppositeColor c)
+
+    genMoves :: Square -> [GenMove]
+    genMoves from =
+        let att = case pt of
+                    Knight -> knightAttacks from
+                    Bishop -> bishopAttacks from (occupiedTotal b)
+                    Rook   -> rookAttacks from (occupiedTotal b)
+                    Queen  -> bishopAttacks from (occupiedTotal b) .|. rookAttacks from (occupiedTotal b)
+                    King   -> kingAttacks from
+                    _      -> 0
+
+            valid = att .&. enemy
+
+            mkMove to =
+                let captured = findPieceType b (oppositeColor c) to
+                in GenMove (Move from to Nothing) pt (Just captured)
+
+        in mapBitboard mkMove valid
+
 pawnMoves :: Board -> GameState -> [GenMove]
 pawnMoves b gs =
     if c == White
@@ -345,6 +385,49 @@ pawnMoves b gs =
                     in moveLeft ++ moveRight
 
         in promMoves ++ normalMoves ++ doubleMoves ++ capLeftMoves ++ capRightMoves ++ epMoves
+
+pawnCaptures :: Board -> GameState -> [GenMove]
+pawnCaptures b gs =
+    if c == White
+    then whitePawnCaptures
+    else blackPawnCaptures
+  where
+    c = turn gs
+    pawns = pieceBitboard b c Pawn
+    enemy = occupiedBy b (oppositeColor c)
+
+    whitePawnCaptures =
+        let
+            -- Captures
+            capLeftDest = ((pawns .&. complement bbFileA) `shiftL` 7) .&. enemy
+            capRightDest = ((pawns .&. complement bbFileH) `shiftL` 9) .&. enemy
+
+            mkCap offset dest =
+                let src = Square (unSquare dest - offset)
+                    captured = findPieceType b Black dest
+                in if unSquare dest >= 56 -- Rank 8
+                   then [ GenMove (Move src dest (Just p)) Pawn (Just captured) | p <- [Queen, Rook, Bishop, Knight] ]
+                   else [ GenMove (Move src dest Nothing) Pawn (Just captured) ]
+
+            capLeftMoves = flatMapBitboard (mkCap 7) capLeftDest
+            capRightMoves = flatMapBitboard (mkCap 9) capRightDest
+        in capLeftMoves ++ capRightMoves
+
+    blackPawnCaptures =
+        let
+            capLeftDest = ((pawns .&. complement bbFileA) `shiftR` 9) .&. enemy
+            capRightDest = ((pawns .&. complement bbFileH) `shiftR` 7) .&. enemy
+
+            mkCap offset dest =
+                let src = Square (unSquare dest + offset)
+                    captured = findPieceType b White dest
+                in if unSquare dest <= 7 -- Rank 1
+                   then [ GenMove (Move src dest (Just p)) Pawn (Just captured) | p <- [Queen, Rook, Bishop, Knight] ]
+                   else [ GenMove (Move src dest Nothing) Pawn (Just captured) ]
+
+            capLeftMoves = flatMapBitboard (mkCap 9) capLeftDest
+            capRightMoves = flatMapBitboard (mkCap 7) capRightDest
+        in capLeftMoves ++ capRightMoves
 
 castlingMoves :: Board -> GameState -> [GenMove]
 castlingMoves b gs = ks ++ qs

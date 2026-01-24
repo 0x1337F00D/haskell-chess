@@ -5,7 +5,7 @@ import Data.Ord (comparing, Down(..))
 import Data.Maybe (isJust)
 
 import Chess.Types
-import Chess.Board (Board(..), legalMoves, applyMove, isCheck, uci)
+import Chess.Board (Board(..), legalMoves, captureMoves, applyMove, isCheck, uci)
 import qualified Chess.Board.Base as Base
 import Chess.Engine.Evaluation (evaluate)
 
@@ -59,7 +59,7 @@ quiescence board alpha beta =
     in if standPat >= beta
        then beta
        else
-           let moves = filter (isCapture board) (legalMoves board)
+           let moves = captureMoves board
                sortedMoves = orderMoves board moves
            in go sortedMoves a
   where
@@ -95,3 +95,4 @@ isCapture :: Board -> Move -> Bool
 isCapture (Chess.Board.Board b _ _) (Move _ to _) =
     isJust (Base.pieceAt b to)
 isCapture _ NullMove = False
+isCapture _ (DropMove _ _) = False

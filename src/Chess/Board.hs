@@ -6,6 +6,7 @@ module Chess.Board
     -- * Game Logic
   , applyMove
   , legalMoves
+  , captureMoves
   , pseudoLegalMoves
   , isCheck
   , isCheckmate
@@ -117,6 +118,10 @@ applyMove b _ = b
 -- | Generate all legal moves for the current position.
 legalMoves :: Board -> [Move]
 legalMoves (Board b gs _) = MoveGen.legalMoves b gs
+
+-- | Generate all legal capturing moves for the current position.
+captureMoves :: Board -> [Move]
+captureMoves (Board b gs _) = MoveGen.legalCaptures b gs
 
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> [Move]

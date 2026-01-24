@@ -128,6 +128,16 @@ executable haskell-chess
         haskell-chess,
         time
 
+executable bench-search
+    import:           warnings
+    default-language: Haskell2010
+    main-is:          BenchSearch.hs
+    hs-source-dirs:   scripts
+    build-depends:
+        base ^>=4.17.2.0,
+        haskell-chess,
+        time
+
 test-suite haskell-chess-test
     -- Import common warning flags.
     import:           warnings
