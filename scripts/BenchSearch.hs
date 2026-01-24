@@ -1,25 +1,18 @@
 module Main where
 
-import Chess (parseFen)
-import Chess.Board (Board)
+import Data.Time.Clock (getCurrentTime, diffUTCTime)
+import Chess.Board (parseFen, Board(..))
 import Chess.Engine.Search (search)
-import Data.Time.Clock
-import Text.Printf
-import Control.Exception (evaluate)
 
-runBench :: String -> String -> Int -> IO ()
-runBench name fenStr depth = do
-    let Just board = parseFen fenStr
-    start <- getCurrentTime
-    move <- search board depth
-    _ <- evaluate move
-    end <- getCurrentTime
-    let duration = diffUTCTime end start
-    let seconds = realToFrac duration :: Double
-
-    printf "Haskell | %-10s | Depth %d | Time: %6.3fs\n" name depth seconds
+-- KiwiPete position
+fen :: String
+fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
 
 main :: IO ()
 main = do
-    -- KiwiPete position
-    runBench "KiwiPete" "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1" 4
+    putStrLn "Starting Benchmark (KiwiPete Depth 2)..."
+    let Just b = parseFen fen
+    start <- getCurrentTime
+    _ <- search b 2
+    end <- getCurrentTime
+    putStrLn $ "Time: " ++ show (diffUTCTime end start)
