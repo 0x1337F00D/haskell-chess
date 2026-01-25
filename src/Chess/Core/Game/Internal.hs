@@ -53,6 +53,14 @@ type family VariantState (v :: Variant) where
 data CheckStatus = Safe | Checked
   deriving (Eq, Show)
 
+-- | Singleton for CheckStatus to reify the type index at runtime.
+data SCheckStatus (s :: CheckStatus) where
+  SSafe    :: SCheckStatus 'Safe
+  SChecked :: SCheckStatus 'Checked
+
+deriving instance Show (SCheckStatus s)
+deriving instance Eq (SCheckStatus s)
+
 data Outcome = Winner Color | Draw
   deriving (Eq, Show)
 
@@ -88,6 +96,7 @@ data ActiveGame (v :: Variant) (turn :: Color) (status :: CheckStatus) = ActiveG
   , halfMoveClock :: Int
   , fullMoveNumber :: Int
   , variantState :: VariantState v
+  , checkStatus :: SCheckStatus status
   }
 
 deriving instance Show (VariantState v) => Show (ActiveGame v turn status)

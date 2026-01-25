@@ -38,6 +38,7 @@ initialGame =
            , halfMoveClock = 0
            , fullMoveNumber = 1
            , variantState = ()
+           , checkStatus = SSafe
            } :: ActiveGame 'Standard 'White 'Safe
   in InProgressGame ag
 
@@ -71,11 +72,11 @@ gameFromFEN s = do
   if hasMoves
     then case c of
       White -> if checked
-               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'White 'Checked)
-               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'White 'Safe)
+               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () SChecked :: ActiveGame 'Standard 'White 'Checked)
+               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () SSafe :: ActiveGame 'Standard 'White 'Safe)
       Black -> if checked
-               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'Black 'Checked)
-               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'Black 'Safe)
+               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () SChecked :: ActiveGame 'Standard 'Black 'Checked)
+               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () SSafe :: ActiveGame 'Standard 'Black 'Safe)
     else Nothing
 
 -- | Create a game from FEN string (Crazyhouse variant).
@@ -159,13 +160,13 @@ crazyhouseGameFromFEN s = do
   case c of
       White -> if hasMoves @'White
                then if checked
-                    then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'White 'Checked)
-                    else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'White 'Safe)
+                    then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs SChecked :: ActiveGame 'Crazyhouse 'White 'Checked)
+                    else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs SSafe :: ActiveGame 'Crazyhouse 'White 'Safe)
                else Nothing
       Black -> if hasMoves @'Black
                then if checked
-                    then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'Black 'Checked)
-                    else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'Black 'Safe)
+                    then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs SChecked :: ActiveGame 'Crazyhouse 'Black 'Checked)
+                    else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs SSafe :: ActiveGame 'Crazyhouse 'Black 'Safe)
                else Nothing
 
 -- Type-level Opposite Color
@@ -277,6 +278,15 @@ toGameState ag = GS.GameState
 epRank :: Color -> Rank
 epRank White = Rank6
 epRank Black = Rank3
+
+-- | Convert ActiveGame to Engine GameState for Move Generation
+-- Applies optimization: if Checked, mask castling rights to avoid generating castling moves.
+toMoveGenGameState :: forall v c s. KnownColor c => ActiveGame v c s -> GS.GameState
+toMoveGenGameState ag =
+  let gs = toGameState ag
+  in case checkStatus ag of
+       SChecked -> gs { GS.castlingRights = 0 }
+       SSafe    -> gs
 
 toCastlingRights :: CastlingRights -> GS.CastlingRights
 toCastlingRights (CastlingRights cr) =
@@ -423,7 +433,7 @@ applyMove = executeMove
 instance ChessVariant 'Standard where
   generateMoves (ag :: ActiveGame 'Standard c s) =
     let baseBoard = internalBoard ag
-        gs = toGameState ag
+        gs = toMoveGenGameState ag
         baseMoves = MG.legalGenMoves baseBoard gs
     in map toCoreMove baseMoves
 
@@ -470,13 +480,13 @@ instance ChessVariant 'Standard where
     in case (isChecked, hasMoves) of
          (True, False) -> Checkmate (Winner c)
          (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () :: ActiveGame 'Standard (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () :: ActiveGame 'Standard (Opposite c) 'Safe)
+         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () SChecked :: ActiveGame 'Standard (Opposite c) 'Checked)
+         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () SSafe :: ActiveGame 'Standard (Opposite c) 'Safe)
 
 instance ChessVariant 'ThreeCheck where
   generateMoves (ag :: ActiveGame 'ThreeCheck c s) =
     let baseBoard = internalBoard ag
-        gs = toGameState ag
+        gs = toMoveGenGameState ag
         baseMoves = MG.legalGenMoves baseBoard gs
     in map toCoreMove baseMoves
 
@@ -533,13 +543,13 @@ instance ChessVariant 'ThreeCheck where
        else case (isChecked, hasMoves) of
          (True, False) -> Checkmate (Winner c)
          (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newVariantState :: ActiveGame 'ThreeCheck (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newVariantState :: ActiveGame 'ThreeCheck (Opposite c) 'Safe)
+         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newVariantState SChecked :: ActiveGame 'ThreeCheck (Opposite c) 'Checked)
+         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newVariantState SSafe :: ActiveGame 'ThreeCheck (Opposite c) 'Safe)
 
 instance ChessVariant 'Atomic where
   generateMoves (ag :: ActiveGame 'Atomic c s) =
     let baseBoard = internalBoard ag
-        gs = toGameState ag
+        gs = toMoveGenGameState ag
         c = colorVal @c
 
         pseudos = MG.pseudoLegalMoves baseBoard gs
@@ -648,13 +658,13 @@ instance ChessVariant 'Atomic where
        else case (isChecked, hasMoves) of
          (True, False) -> Checkmate (Winner c)
          (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame bFinal newCR newEP newHMC newFMN () :: ActiveGame 'Atomic (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame bFinal newCR newEP newHMC newFMN () :: ActiveGame 'Atomic (Opposite c) 'Safe)
+         (True, True) -> Continue (ActiveGame bFinal newCR newEP newHMC newFMN () SChecked :: ActiveGame 'Atomic (Opposite c) 'Checked)
+         (False, True) -> Continue (ActiveGame bFinal newCR newEP newHMC newFMN () SSafe :: ActiveGame 'Atomic (Opposite c) 'Safe)
 
 instance ChessVariant 'KingOfTheHill where
   generateMoves (ag :: ActiveGame 'KingOfTheHill c s) =
     let baseBoard = internalBoard ag
-        gs = toGameState ag
+        gs = toMoveGenGameState ag
         baseMoves = MG.legalGenMoves baseBoard gs
     in map toCoreMove baseMoves
 
@@ -710,13 +720,13 @@ instance ChessVariant 'KingOfTheHill where
        else case (isChecked, hasMoves) of
          (True, False) -> Checkmate (Winner c)
          (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () :: ActiveGame 'KingOfTheHill (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () :: ActiveGame 'KingOfTheHill (Opposite c) 'Safe)
+         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () SChecked :: ActiveGame 'KingOfTheHill (Opposite c) 'Checked)
+         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () SSafe :: ActiveGame 'KingOfTheHill (Opposite c) 'Safe)
 
 instance ChessVariant 'RacingKings where
   generateMoves (ag :: ActiveGame 'RacingKings c s) =
     let baseBoard = internalBoard ag
-        gs = toGameState ag
+        gs = toMoveGenGameState ag
         baseMoves = MG.legalGenMoves baseBoard gs
         coreMoves = map toCoreMove baseMoves
         c = colorVal @c
@@ -753,7 +763,7 @@ instance ChessVariant 'RacingKings where
         newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
 
         nextGameCandidate :: ActiveGame 'RacingKings (Opposite c) 'Safe
-        nextGameCandidate = ActiveGame internalB' newCR newEP newHMC newFMN ()
+        nextGameCandidate = ActiveGame internalB' newCR newEP newHMC newFMN () SSafe
 
         nextMoves = generateMoves nextGameCandidate
         realHasMoves = not (null nextMoves)
@@ -782,7 +792,7 @@ instance ChessVariant 'RacingKings where
 instance ChessVariant 'Crazyhouse where
   generateMoves (ag :: ActiveGame 'Crazyhouse c s) =
     let baseBoard = internalBoard ag
-        gs = toGameState ag
+        gs = toMoveGenGameState ag
         c = colorVal @c
 
         baseMoves = MG.legalGenMoves baseBoard gs
@@ -956,8 +966,8 @@ instance ChessVariant 'Crazyhouse where
     in case (isChecked, hasMoves) of
          (True, False) -> Checkmate (Winner c)
          (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newState :: ActiveGame 'Crazyhouse (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newState :: ActiveGame 'Crazyhouse (Opposite c) 'Safe)
+         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newState SChecked :: ActiveGame 'Crazyhouse (Opposite c) 'Checked)
+         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newState SSafe :: ActiveGame 'Crazyhouse (Opposite c) 'Safe)
 
 getAdjacentSquares :: Square -> [Square]
 getAdjacentSquares (Square f r) =

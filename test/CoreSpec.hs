@@ -11,7 +11,7 @@ import Chess.Core.Game
 import Chess.Core.Move
 import Chess.Core.Rules
 import Chess.Core.Board.Internal (movePiece)
-import Chess.Core.Game.Internal (ActiveGame(..), Game(..), CastlingRights(..), Pockets(..), CrazyhouseState(..), castlingWhiteKingSide, castlingWhiteQueenSide, castlingBlackKingSide, castlingBlackQueenSide)
+import Chess.Core.Game.Internal (ActiveGame(..), Game(..), CastlingRights(..), Pockets(..), CrazyhouseState(..), castlingWhiteKingSide, castlingWhiteQueenSide, castlingBlackKingSide, castlingBlackQueenSide, SCheckStatus(..))
 import Chess.Core.Move.Internal (Move(..))
 import qualified Data.Map as Map
 import Data.Maybe (fromJust)
@@ -122,6 +122,7 @@ spec = describe "Core Architecture" $ do
                , halfMoveClock = 0
                , fullMoveNumber = 1
                , variantState = ()
+               , checkStatus = SSafe
                }
       -- Move E2 to E4
       let move = StandardMove (Square FileE Rank2) (Square FileE Rank4)
@@ -145,6 +146,7 @@ spec = describe "Core Architecture" $ do
                , halfMoveClock = 0
                , fullMoveNumber = 1
                , variantState = ()
+               , checkStatus = SSafe
                }
       let moves = generateLegalMoves ag
       length moves `shouldBe` 20
@@ -172,6 +174,7 @@ spec = describe "Core Architecture" $ do
                , halfMoveClock = 0
                , fullMoveNumber = 1
                , variantState = ()
+               , checkStatus = SSafe
                }
 
       let moves = generateLegalMoves ag
@@ -196,6 +199,7 @@ spec = describe "Core Architecture" $ do
                , halfMoveClock = 0
                , fullMoveNumber = 1
                , variantState = ()
+               , checkStatus = SSafe
                }
 
       let moves = generateLegalMoves ag
@@ -221,6 +225,7 @@ spec = describe "Core Architecture" $ do
                , halfMoveClock = 0
                , fullMoveNumber = 1
                , variantState = ()
+               , checkStatus = SSafe
                }
 
       let move = StandardMove (Square FileE Rank4) (Square FileD Rank5)
@@ -250,6 +255,7 @@ spec = describe "Core Architecture" $ do
                , halfMoveClock = 0
                , fullMoveNumber = 1
                , variantState = ()
+               , checkStatus = SSafe
                }
       let move = StandardMove (Square FileE Rank3) (Square FileE Rank4)
       let res = applyMove move ag
@@ -274,6 +280,7 @@ spec = describe "Core Architecture" $ do
                , halfMoveClock = 0
                , fullMoveNumber = 1
                , variantState = ()
+               , checkStatus = SSafe
                }
 
         let moves = generateLegalMoves ag
@@ -296,6 +303,7 @@ spec = describe "Core Architecture" $ do
                , halfMoveClock = 0
                , fullMoveNumber = 1
                , variantState = ()
+               , checkStatus = SSafe
                }
        let move = StandardMove (Square FileE Rank7) (Square FileE Rank8)
        let res = applyMove move ag
@@ -321,6 +329,7 @@ spec = describe "Core Architecture" $ do
                 , halfMoveClock = 0
                 , fullMoveNumber = 1
                 , variantState = (0, 0)
+                , checkStatus = SSafe
                 }
 
        let m1 = StandardMove (Square FileA Rank1) (Square FileA Rank2) -- Checks A8
@@ -340,6 +349,7 @@ spec = describe "Core Architecture" $ do
                 , halfMoveClock = 0
                 , fullMoveNumber = 1
                 , variantState = (2, 0)
+                , checkStatus = SSafe
                 }
 
        let res2 = applyMove m1 agTwo -- A1-A2 again
