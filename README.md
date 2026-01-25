@@ -70,8 +70,8 @@ Comparison of variants supported by PyChess vs haskell-chess:
 | **Three-Check** | ✅ | ✅ | Win by 3 checks implemented. |
 | **Crazyhouse** | ✅ | ✅ | Drop Moves implemented. |
 | **Chess960** | ✅ | ❌ | Pending (Fischer Random). |
-| **Antichess** | ✅ | ✅ | (Giveaway/Suicide/Losers) Implemented. |
-| **Horde** | ✅ | ✅ | Implemented. |
+| **Antichess** | ✅ | ❌ | (Giveaway/Suicide/Losers) Pending. |
+| **Horde** | ✅ | ❌ | Pending. |
 
 ## Architecture
 

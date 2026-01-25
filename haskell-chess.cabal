@@ -91,8 +91,6 @@ library
                     , Chess.Core.Rules.RacingKings
                     , Chess.Core.Rules.Crazyhouse
                     , Chess.Core.Rules.FischerRandom
-                    , Chess.Core.Rules.Antichess
-                    , Chess.Core.Rules.Horde
                     , Chess.Core.Fen
                     , Chess.Engine.Evaluation
                     , Chess.Engine.Search
