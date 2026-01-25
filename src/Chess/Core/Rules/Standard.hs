@@ -97,6 +97,7 @@ instance ChessVariant 'Standard where
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
+                       Castling960Move _ _ -> error "Castling960Move invalid in Standard"
 
         newCR = updateCastlingRights (castlingRights ag) from to
 

@@ -111,7 +111,10 @@ parseCastling s = foldM addRight GS.noCastling s
     addRight acc 'Q' = Just (acc .|. BB_A1)
     addRight acc 'k' = Just (acc .|. BB_H8)
     addRight acc 'q' = Just (acc .|. BB_A8)
-    addRight _ _ = Nothing
+    addRight acc c
+      | c >= 'A' && c <= 'H' = Just (acc .|. bbFromSquare (Square (ord c - ord 'A')))
+      | c >= 'a' && c <= 'h' = Just (acc .|. bbFromSquare (Square (ord c - ord 'a' + 56)))
+      | otherwise = Nothing
 
 parseEp :: String -> Maybe (Maybe Square)
 parseEp "-" = Just Nothing

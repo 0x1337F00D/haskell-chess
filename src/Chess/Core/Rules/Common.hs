@@ -264,6 +264,33 @@ applyMoveBase m b =
           let promoted = T.Piece (toColor (colorVal @c)) (toPieceType p)
           in Base.putPiece b (toSquare t) promoted
 
+       Castling960Move k r ->
+          let
+              (Square kf kr) = k
+              (Square rf _) = r
+              isKingSide = fromEnum rf > fromEnum kf
+              rank = kr
+
+              -- Target Files
+              -- King Side: King -> G (FileG = 6), Rook -> F (FileF = 5)
+              -- Queen Side: King -> C (FileC = 2), Rook -> D (FileD = 3)
+              kTarget = if isKingSide then Square FileG rank else Square FileC rank
+              rTarget = if isKingSide then Square FileF rank else Square FileD rank
+
+              kPiece = Base.pieceAt b (toSquare k)
+              rPiece = Base.pieceAt b (toSquare r)
+
+              b1 = Base.removePieceAt b (toSquare k)
+              b2 = Base.removePieceAt b1 (toSquare r)
+
+              b3 = case kPiece of
+                     Just p -> Base.putPiece b2 (toSquare kTarget) p
+                     Nothing -> b2
+              b4 = case rPiece of
+                     Just p -> Base.putPiece b3 (toSquare rTarget) p
+                     Nothing -> b3
+          in b4
+
 -- Apply Move
 applyMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
 applyMove = executeMove

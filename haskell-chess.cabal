@@ -90,6 +90,7 @@ library
                     , Chess.Core.Rules.KingOfTheHill
                     , Chess.Core.Rules.RacingKings
                     , Chess.Core.Rules.Crazyhouse
+                    , Chess.Core.Rules.FischerRandom
                     , Chess.Core.Fen
                     , Chess.Engine.Evaluation
                     , Chess.Engine.Search
@@ -150,6 +151,7 @@ test-suite haskell-chess-test
     other-modules:    CoreSpec
                     , CorePerftSpec
                     , CoreFenSpec
+                    , FischerRandomSpec
                     , EngineSpec
                     , PyChessCongruencySpec
                     , PyChessData

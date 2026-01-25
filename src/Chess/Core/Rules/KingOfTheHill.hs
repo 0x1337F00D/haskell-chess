@@ -42,6 +42,7 @@ instance ChessVariant 'KingOfTheHill where
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
+                       Castling960Move _ _ -> error "Castling960Move invalid in KingOfTheHill"
 
         newCR = updateCastlingRights (castlingRights ag) from to
         movedPiece = Base.pieceAt internalB' (toSquare to)
