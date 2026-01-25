@@ -9,3 +9,7 @@
 ## 2026-01-26 – [Incremental Occupancy Updates]
 **Learning:** `putPiece` was calling `updateOccupancy`, which reconstructed all occupancy bitboards from scratch (12 bitwise ORs) for every piece placement. This occurred inside the `isLegal` check for every pseudo-legal move, creating significant overhead (~12 * 35 ops per node).
 **Action:** Replaced full reconstruction with incremental updates using `setBit`. Since we know which piece is added, we only update the relevant piece bitboard and the occupancy bitboards. Improved perft speed by ~3.3%. Avoid full state reconstruction in hot paths when incremental updates are possible.
+
+## 2026-01-27 – [Unsafe Vector Indexing]
+**Learning:** `Data.Vector.Unboxed.!` performs bounds checking. In hot paths like evaluation (PST lookup) and move generation (attack lookups), inputs are guaranteed to be valid `Square`s (0-63). The bounds checks added measurable overhead.
+**Action:** Replaced `!` with `unsafeIndex` in `Chess.Bitboard` (attack tables) and `Chess.Engine.Evaluation` (PST). Verified ~3% speedup on search benchmark. Use `unsafeIndex` when index validity is structurally guaranteed.

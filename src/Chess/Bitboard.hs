@@ -345,16 +345,16 @@ bbBlackPawnAttacks = U.fromList $ map (pawnAttacksFrom Black) squares
 
 -- | Lookup knight attacks for a square.
 knightAttacks :: Square -> Bitboard
-knightAttacks (Square i) = bbKnightAttacks U.! i
+knightAttacks (Square i) = bbKnightAttacks `U.unsafeIndex` i
 
 -- | Lookup king attacks for a square.
 kingAttacks :: Square -> Bitboard
-kingAttacks (Square i) = bbKingAttacks U.! i
+kingAttacks (Square i) = bbKingAttacks `U.unsafeIndex` i
 
 -- | Lookup pawn attacks for a color and square.
 pawnAttacks :: Color -> Square -> Bitboard
-pawnAttacks White (Square i) = bbWhitePawnAttacks U.! i
-pawnAttacks Black (Square i) = bbBlackPawnAttacks U.! i
+pawnAttacks White (Square i) = bbWhitePawnAttacks `U.unsafeIndex` i
+pawnAttacks Black (Square i) = bbBlackPawnAttacks `U.unsafeIndex` i
 
 -- Sliding Attack Generators --------------------------------------------------
 
@@ -398,14 +398,14 @@ generateRay (Square i) df dr = go (f+df) (r+dr) 0
 -- | Get attacks for a sliding piece in a specific direction.
 getRayAttacks :: Square -> Int -> Bitboard -> Bitboard
 getRayAttacks (Square sq) dirIdx occ =
-    let mask = bbRays U.! (sq * 8 + dirIdx)
+    let mask = bbRays `U.unsafeIndex` (sq * 8 + dirIdx)
         blockers = mask .&. occ
     in if blockers == 0
        then mask
        else let b = if dirIdx `elem` [0, 2, 4, 5] -- Positive directions (N, E, NE, NW)
                     then countTrailingZeros blockers -- lsb
                     else 63 - countLeadingZeros blockers -- msb
-                blockerMask = bbRays U.! (b * 8 + dirIdx)
+                blockerMask = bbRays `U.unsafeIndex` (b * 8 + dirIdx)
             in mask `xor` blockerMask
 
 -- | Generate bishop attacks (diagonal).

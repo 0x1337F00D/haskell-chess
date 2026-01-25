@@ -62,7 +62,7 @@ evalPSTO bb table = go bb 0
     go 0 acc = acc
     go b acc =
         let i = countTrailingZeros b
-            score = table U.! i
+            score = table `U.unsafeIndex` i
         in go (clearBit b i) (acc + score)
 
 -- | Flip a PSTO table for Black (mirror ranks).
