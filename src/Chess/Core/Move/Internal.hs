@@ -21,6 +21,7 @@ data Move (c :: Color) where
   StandardMove ::
     { smFrom :: Square
     , smTo   :: Square
+    , smPieceType :: PieceType
     } -> Move c
 
   -- Castling Move: Kingside or Queenside

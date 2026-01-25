@@ -125,7 +125,7 @@ spec = describe "Core Architecture" $ do
                , checkStatus = SSafe
                }
       -- Move E2 to E4
-      let move = StandardMove (Square FileE Rank2) (Square FileE Rank4)
+      let move = StandardMove (Square FileE Rank2) (Square FileE Rank4) Pawn
 
       let res = applyMove move ag
       case res of
@@ -151,7 +151,7 @@ spec = describe "Core Architecture" $ do
       let moves = generateLegalMoves ag
       length moves `shouldBe` 20
       -- Check E2-E4 is present
-      let e2e4 = StandardMove (Square FileE Rank2) (Square FileE Rank4)
+      let e2e4 = StandardMove (Square FileE Rank2) (Square FileE Rank4) Pawn
       moves `shouldContain` [e2e4]
 
     it "generateLegalMoves generates castling moves" $ do
@@ -228,7 +228,7 @@ spec = describe "Core Architecture" $ do
                , checkStatus = SSafe
                }
 
-      let move = StandardMove (Square FileE Rank4) (Square FileD Rank5)
+      let move = StandardMove (Square FileE Rank4) (Square FileD Rank5) Pawn
 
       let res = applyMove move ag
       case res of
@@ -257,7 +257,7 @@ spec = describe "Core Architecture" $ do
                , variantState = ()
                , checkStatus = SSafe
                }
-      let move = StandardMove (Square FileE Rank3) (Square FileE Rank4)
+      let move = StandardMove (Square FileE Rank3) (Square FileE Rank4) King
       let res = applyMove move ag
       case res of
         Checkmate (Winner White) -> return ()
@@ -284,11 +284,11 @@ spec = describe "Core Architecture" $ do
                }
 
         let moves = generateLegalMoves ag
-        let unsafeMove = StandardMove (Square FileA Rank1) (Square FileA Rank2)
+        let unsafeMove = StandardMove (Square FileA Rank1) (Square FileA Rank2) Rook
         moves `shouldNotContain` [unsafeMove]
 
         -- Safe move: Rook to B1
-        let safeMove = StandardMove (Square FileA Rank1) (Square FileB Rank1)
+        let safeMove = StandardMove (Square FileA Rank1) (Square FileB Rank1) Rook
         moves `shouldContain` [safeMove]
 
     it "RacingKings: Reaching Rank 8" $ do
@@ -305,7 +305,7 @@ spec = describe "Core Architecture" $ do
                , variantState = ()
                , checkStatus = SSafe
                }
-       let move = StandardMove (Square FileE Rank7) (Square FileE Rank8)
+       let move = StandardMove (Square FileE Rank7) (Square FileE Rank8) King
        let res = applyMove move ag
        case res of
          Continue _ -> return () -- Game continues for Black's turn
@@ -332,7 +332,7 @@ spec = describe "Core Architecture" $ do
                 , checkStatus = SSafe
                 }
 
-       let m1 = StandardMove (Square FileA Rank1) (Square FileA Rank2) -- Checks A8
+       let m1 = StandardMove (Square FileA Rank1) (Square FileA Rank2) Rook -- Checks A8
        let res1 = applyMove m1 ag
        case res1 of
          Continue ag2 -> do
