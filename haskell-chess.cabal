@@ -206,13 +206,6 @@ executable bench-search
         base ^>=4.17.2.0,
         haskell-chess,
         time
-executable reproduce-pawn-moves
-    import:           warnings
-    default-language: Haskell2010
-    main-is:          reproduce_pawn_moves.hs
-    hs-source-dirs:   scripts
-    build-depends:    base, haskell-chess, vector
-
 executable bench-core
     import:           warnings
     default-language: Haskell2010

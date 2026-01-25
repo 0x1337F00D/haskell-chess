@@ -1,9 +1,0 @@
-Build profile: -w ghc-9.4.7 -O1
-In order, the following will be built (use -v for more details):
- - haskell-chess-0.1.0.0 (exe:bench-haskell) (file scripts/BenchHaskell.hs changed)
-Preprocessing executable 'bench-haskell' for haskell-chess-0.1.0.0..
-Building executable 'bench-haskell' for haskell-chess-0.1.0.0..
-[1 of 1] Compiling Main             ( scripts/BenchHaskell.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/x/bench-haskell/build/bench-haskell/bench-haskell-tmp/Main.o ) [Source file changed]
-[2 of 2] Linking /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/x/bench-haskell/build/bench-haskell/bench-haskell [Objects changed]
-Haskell | Start      | Depth 5 | Nodes:    4865609 | Time:  1.046s | NPS:    4653093
-Haskell | KiwiPete   | Depth 4 | Nodes:    4085603 | Time:  0.927s | NPS:    4409571
