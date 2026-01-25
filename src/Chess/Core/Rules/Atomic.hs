@@ -137,5 +137,5 @@ instance ChessVariant 'Atomic where
        else case (isChecked, hasMoves) of
          (True, False) -> Checkmate (Winner c)
          (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame bFinal newCR newEP newHMC newFMN () :: ActiveGame 'Atomic (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame bFinal newCR newEP newHMC newFMN () :: ActiveGame 'Atomic (Opposite c) 'Safe)
+         (True, True) -> Continue (ActiveGame bFinal newCR newEP newHMC newFMN () SChecked :: ActiveGame 'Atomic (Opposite c) 'Checked)
+         (False, True) -> Continue (ActiveGame bFinal newCR newEP newHMC newFMN () SSafe    :: ActiveGame 'Atomic (Opposite c) 'Safe)

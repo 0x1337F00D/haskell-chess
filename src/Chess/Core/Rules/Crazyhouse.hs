@@ -109,13 +109,13 @@ crazyhouseGameFromFEN s = do
   case c of
       White -> if hasMoves @'White
                then if checked
-                    then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'White 'Checked)
-                    else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'White 'Safe)
+                    then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs SChecked :: ActiveGame 'Crazyhouse 'White 'Checked)
+                    else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs SSafe    :: ActiveGame 'Crazyhouse 'White 'Safe)
                else Nothing
       Black -> if hasMoves @'Black
                then if checked
-                    then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'Black 'Checked)
-                    else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs :: ActiveGame 'Crazyhouse 'Black 'Safe)
+                    then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs SChecked :: ActiveGame 'Crazyhouse 'Black 'Checked)
+                    else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs SSafe    :: ActiveGame 'Crazyhouse 'Black 'Safe)
                else Nothing
 
 instance ChessVariant 'Crazyhouse where
@@ -296,5 +296,5 @@ instance ChessVariant 'Crazyhouse where
     in case (isChecked, hasMoves) of
          (True, False) -> Checkmate (Winner c)
          (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newState :: ActiveGame 'Crazyhouse (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newState :: ActiveGame 'Crazyhouse (Opposite c) 'Safe)
+         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newState SChecked :: ActiveGame 'Crazyhouse (Opposite c) 'Checked)
+         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newState SSafe    :: ActiveGame 'Crazyhouse (Opposite c) 'Safe)

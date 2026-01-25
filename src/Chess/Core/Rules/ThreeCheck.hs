@@ -85,5 +85,5 @@ instance ChessVariant 'ThreeCheck where
        else case (isChecked, hasMoves) of
          (True, False) -> Checkmate (Winner c)
          (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newVariantState :: ActiveGame 'ThreeCheck (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newVariantState :: ActiveGame 'ThreeCheck (Opposite c) 'Safe)
+         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newVariantState SChecked :: ActiveGame 'ThreeCheck (Opposite c) 'Checked)
+         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newVariantState SSafe    :: ActiveGame 'ThreeCheck (Opposite c) 'Safe)

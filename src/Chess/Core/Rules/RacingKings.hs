@@ -65,7 +65,7 @@ instance ChessVariant 'RacingKings where
         newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
 
         nextGameCandidate :: ActiveGame 'RacingKings (Opposite c) 'Safe
-        nextGameCandidate = ActiveGame internalB' newCR newEP newHMC newFMN ()
+        nextGameCandidate = ActiveGame internalB' newCR newEP newHMC newFMN () SSafe
 
         nextMoves = generateMoves nextGameCandidate
         realHasMoves = not (null nextMoves)

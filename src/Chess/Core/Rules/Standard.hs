@@ -39,6 +39,7 @@ initialGame =
            , halfMoveClock = 0
            , fullMoveNumber = 1
            , variantState = ()
+           , checkStatus = SSafe
            } :: ActiveGame 'Standard 'White 'Safe
   in InProgressGame ag
 
@@ -72,18 +73,33 @@ gameFromFEN s = do
   if hasMoves
     then case c of
       White -> if checked
-               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'White 'Checked)
-               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'White 'Safe)
+               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () SChecked :: ActiveGame 'Standard 'White 'Checked)
+               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () SSafe    :: ActiveGame 'Standard 'White 'Safe)
       Black -> if checked
-               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'Black 'Checked)
-               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () :: ActiveGame 'Standard 'Black 'Safe)
+               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () SChecked :: ActiveGame 'Standard 'Black 'Checked)
+               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () SSafe    :: ActiveGame 'Standard 'Black 'Safe)
     else Nothing
 
 instance ChessVariant 'Standard where
   generateMoves (ag :: ActiveGame 'Standard c s) =
     let baseBoard = internalBoard ag
         gs = toGameState ag
-        baseMoves = MG.legalGenMoves baseBoard gs
+
+        -- Optimization: dispatch based on check status
+        baseMoves = case checkStatus ag of
+             SChecked ->
+                 -- If in check, castling is illegal. Construct pseudo-legal moves excluding castling.
+                 let pseudos = concat
+                        [ MG.pawnMoves baseBoard gs
+                        , MG.pieceMoves baseBoard gs T.Knight
+                        , MG.pieceMoves baseBoard gs T.Bishop
+                        , MG.pieceMoves baseBoard gs T.Rook
+                        , MG.pieceMoves baseBoard gs T.Queen
+                        , MG.pieceMoves baseBoard gs T.King
+                        ]
+                 in filter (MG.isLegal baseBoard gs) pseudos
+             SSafe -> MG.legalGenMoves baseBoard gs
+
     in map toCoreMove baseMoves
 
   executeMove (m :: Move c) (ag :: ActiveGame 'Standard c s) =
@@ -130,5 +146,5 @@ instance ChessVariant 'Standard where
     in case (isChecked, hasMoves) of
          (True, False) -> Checkmate (Winner c)
          (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () :: ActiveGame 'Standard (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () :: ActiveGame 'Standard (Opposite c) 'Safe)
+         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () SChecked :: ActiveGame 'Standard (Opposite c) 'Checked)
+         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () SSafe    :: ActiveGame 'Standard (Opposite c) 'Safe)
