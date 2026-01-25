@@ -79,17 +79,17 @@ fischerRandomGameFromFEN s = do
       -- Check for moves using 960 generator
       -- We need to construct a temp ActiveGame to call generateMoves
       hasMoves = case c of
-        White -> not (null (generateMoves (ActiveGame baseBoard cr ep hmc fmn frState :: ActiveGame 'FischerRandom 'White 'Safe)))
-        Black -> not (null (generateMoves (ActiveGame baseBoard cr ep hmc fmn frState :: ActiveGame 'FischerRandom 'Black 'Safe)))
+        White -> not (null (generateMoves (ActiveGame baseBoard cr ep hmc fmn frState SSafe :: ActiveGame 'FischerRandom 'White 'Safe)))
+        Black -> not (null (generateMoves (ActiveGame baseBoard cr ep hmc fmn frState SSafe :: ActiveGame 'FischerRandom 'Black 'Safe)))
 
   if hasMoves
     then case c of
       White -> if checked
-               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn frState :: ActiveGame 'FischerRandom 'White 'Checked)
-               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn frState :: ActiveGame 'FischerRandom 'White 'Safe)
+               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn frState SChecked :: ActiveGame 'FischerRandom 'White 'Checked)
+               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn frState SSafe    :: ActiveGame 'FischerRandom 'White 'Safe)
       Black -> if checked
-               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn frState :: ActiveGame 'FischerRandom 'Black 'Checked)
-               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn frState :: ActiveGame 'FischerRandom 'Black 'Safe)
+               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn frState SChecked :: ActiveGame 'FischerRandom 'Black 'Checked)
+               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn frState SSafe    :: ActiveGame 'FischerRandom 'Black 'Safe)
     else Nothing
 
 instance ChessVariant 'FischerRandom where
@@ -200,20 +200,20 @@ instance ChessVariant 'FischerRandom where
           , GS.fullmoveNumber = newFMN
           }
 
-        nextAg = ActiveGame internalB' newCR newEP newHMC newFMN frState :: ActiveGame 'FischerRandom (Opposite c) 'Safe
+        nextAg = ActiveGame internalB' newCR newEP newHMC newFMN frState SSafe :: ActiveGame 'FischerRandom (Opposite c) 'Safe
 
         isChecked = Val.isCheck baseBoard nextTurnGS
 
         legalMoves = if isChecked
-                     then generateMoves (ActiveGame internalB' newCR newEP newHMC newFMN frState :: ActiveGame 'FischerRandom (Opposite c) 'Checked)
+                     then generateMoves (ActiveGame internalB' newCR newEP newHMC newFMN frState SChecked :: ActiveGame 'FischerRandom (Opposite c) 'Checked)
                      else generateMoves nextAg
         hasMoves = not (null legalMoves)
 
     in case (isChecked, hasMoves) of
          (True, False) -> Checkmate (Winner c)
          (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN frState :: ActiveGame 'FischerRandom (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN frState :: ActiveGame 'FischerRandom (Opposite c) 'Safe)
+         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN frState SChecked :: ActiveGame 'FischerRandom (Opposite c) 'Checked)
+         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN frState SSafe    :: ActiveGame 'FischerRandom (Opposite c) 'Safe)
 
 -- Helper to validate 960 castling
 isCastlingValid :: Base.Board -> T.Color -> T.Square -> T.Square -> Bool -> Bool

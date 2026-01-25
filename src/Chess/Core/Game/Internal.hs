@@ -22,7 +22,7 @@ data Phase = Setup | Active | Finished
   deriving (Eq, Show)
 
 -- Variants
-data Variant = Standard | Atomic | KingOfTheHill | RacingKings | ThreeCheck | Crazyhouse | FischerRandom
+data Variant = Standard | Atomic | KingOfTheHill | RacingKings | ThreeCheck | Crazyhouse | FischerRandom | Antichess | Horde
   deriving (Eq, Show)
 
 -- FischerRandom State
