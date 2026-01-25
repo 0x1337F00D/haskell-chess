@@ -83,5 +83,5 @@ instance ChessVariant 'KingOfTheHill where
        else case (isChecked, hasMoves) of
          (True, False) -> Checkmate (Winner c)
          (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () :: ActiveGame 'KingOfTheHill (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () :: ActiveGame 'KingOfTheHill (Opposite c) 'Safe)
+         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () SChecked :: ActiveGame 'KingOfTheHill (Opposite c) 'Checked)
+         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () SSafe    :: ActiveGame 'KingOfTheHill (Opposite c) 'Safe)
