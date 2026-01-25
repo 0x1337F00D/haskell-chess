@@ -1,0 +1,224 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+
+module Chess.Core.Rules.Horde where
+
+import Chess.Core.Rules.Class
+import Chess.Core.Rules.Common
+import Chess.Core.Board.Internal
+import Chess.Core.Game.Internal
+import Chess.Core.Move.Internal
+
+import qualified Chess.Types as T
+import qualified Chess.Board.Base as Base
+import qualified Chess.Board.GameState as GS
+import qualified Chess.Board.MoveGen as MG
+import qualified Chess.Board.Validation as Val
+import qualified Chess.Bitboard as BB
+import Data.Bits (popCount, testBit, setBit, (.|.))
+import Data.Word (Word64)
+
+-- | Initial Game State for Horde
+hordeInitialGame :: Game 'Horde 'Active
+hordeInitialGame =
+  let
+      -- White Pawns: Ranks 1, 2, 3, 4 + B5, C5, F5, G5
+      wPawns =
+          foldl setBit (0 :: BB.Bitboard) (
+              [ i | i <- [0..31] ] ++ -- Ranks 1-4 (0-7, 8-15, 16-23, 24-31)
+              [ 33, 34, 37, 38 ]      -- B5, C5, F5, G5 (Rank 5 is 32-39)
+          )
+
+      -- Black Pieces: Standard Setup
+      bPawns = 0x00FF000000000000 -- Rank 7 (Indices 48-55)
+      bKnights = (1 `setBit` 57) .|. (1 `setBit` 62) -- B8, G8
+      bBishops = (1 `setBit` 58) .|. (1 `setBit` 61) -- C8, F8
+      bRooks   = (1 `setBit` 56) .|. (1 `setBit` 63) -- A8, H8
+      bQueens  = (1 `setBit` 59)                     -- D8
+      bKings   = (1 `setBit` 60)                     -- E8
+
+      wOcc = wPawns
+      bOcc = bPawns .|. bKnights .|. bBishops .|. bRooks .|. bQueens .|. bKings
+
+      baseBoard = Base.Board
+          { Base.whitePawns   = wPawns
+          , Base.blackPawns   = bPawns
+          , Base.whiteKnights = 0
+          , Base.blackKnights = bKnights
+          , Base.whiteBishops = 0
+          , Base.blackBishops = bBishops
+          , Base.whiteRooks   = 0
+          , Base.blackRooks   = bRooks
+          , Base.whiteQueens  = 0
+          , Base.blackQueens  = bQueens
+          , Base.whiteKings   = 0
+          , Base.blackKings   = bKings
+          , Base.occupiedWhite = wOcc
+          , Base.occupiedBlack = bOcc
+          , Base.occupiedTotal = wOcc .|. bOcc
+          }
+
+      -- Castling Rights: Black only (King Side + Queen Side)
+      -- White has no King, so no castling rights.
+      -- Bit 2: Black King Side, Bit 3: Black Queen Side
+      cr = CastlingRights (castlingBlackKingSide .|. castlingBlackQueenSide)
+
+      ag = ActiveGame
+           { internalBoard = baseBoard
+           , castlingRights = cr
+           , enPassantTarget = Nothing
+           , halfMoveClock = 0
+           , fullMoveNumber = 1
+           , variantState = ()
+           , checkStatus = SSafe
+           } :: ActiveGame 'Horde 'White 'Safe
+
+  in InProgressGame ag
+
+instance ChessVariant 'Horde where
+  generateMoves (ag :: ActiveGame 'Horde c s) =
+    let baseBoard = internalBoard ag
+        gs = toGameState ag
+        c = colorVal @c
+
+        baseMoves = MG.legalGenMoves baseBoard gs
+
+        -- Custom White Pawn Moves (Rank 1 double push)
+        whiteExtraMoves = if c == White
+            then
+               let
+                   pawns = Base.whitePawns baseBoard
+                   occ = Base.occupiedTotal baseBoard
+
+                   -- Pawns on Rank 1 (indices 0-7)
+                   -- Can move to Rank 3 (index + 16) if Rank 2 (index + 8) and Rank 3 are empty.
+
+                   genRank1Double fromIdx =
+                       let idx1 = fromIdx + 8
+                           idx2 = fromIdx + 16
+                       in if fromIdx < 8
+                             && testBit pawns fromIdx
+                             && not (testBit occ idx1)
+                             && not (testBit occ idx2)
+                          then [MG.GenMove (T.Move (T.Square fromIdx) (T.Square idx2) Nothing) T.Pawn Nothing]
+                          else []
+
+               in concatMap genRank1Double [0..7]
+            else []
+
+        allMoves = if c == White
+                   then baseMoves ++ whiteExtraMoves
+                   else baseMoves -- Black uses standard generation
+
+    in map toCoreMove allMoves
+
+  executeMove (m :: Move c) (ag :: ActiveGame 'Horde c s) =
+    let
+        c = colorVal @c
+        oppC = colorVal @(Opposite c)
+        internalB = internalBoard ag
+        internalB' = applyMoveBase m internalB
+        (from, to) = case m of
+                       StandardMove f t -> (f, t)
+                       PromotionMove f t _ -> (f, t)
+                       CastlingMove f t -> (f, t)
+                       EnPassantMove f t -> (f, t)
+                       DropMove _ t -> (t, t)
+                       Castling960Move _ _ -> error "Castling960Move invalid in Horde"
+
+        newCR = updateCastlingRights (castlingRights ag) from to
+
+        movedPiece = Base.pieceAt internalB' (toSquare to)
+        isPawn = case movedPiece of
+                   Just p -> T.pieceType p == T.Pawn
+                   _ -> False
+
+        newEP = case m of
+                  StandardMove f t ->
+                      if isPawn
+                      then
+                          if isDoublePush f t
+                          then Just (getFile f)
+                          -- Horde Special: Rank 1 Double Push
+                          else if c == White && (fromEnum (getRank f) == 0) && (fromEnum (getRank t) == 2)
+                               then Just (getFile f)
+                               else Nothing
+                      else Nothing
+                  _ -> Nothing
+
+        isCapture = case m of
+                      StandardMove _ t -> Base.pieceAt internalB (toSquare t) /= Nothing
+                      PromotionMove _ t _ -> Base.pieceAt internalB (toSquare t) /= Nothing
+                      EnPassantMove _ _ -> True
+                      _ -> False
+
+        newHMC = if isPawn || isCapture then 0 else halfMoveClock ag + 1
+        newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
+
+        baseBoard = internalB'
+        nextTurnGS = GS.GameState
+          { GS.turn = toColor oppC
+          , GS.castlingRights = toCastlingRights newCR
+          , GS.epSquare = case newEP of
+                            Nothing -> Nothing
+                            Just f -> Just (toSquare (Square f (epRank oppC)))
+          , GS.halfmoveClock = newHMC
+          , GS.fullmoveNumber = newFMN
+          }
+
+        -- Win Conditions
+
+        -- 1. White Wins if Black is Checkmated
+        blackInCheck = if oppC == Black
+                       then Val.isCheck baseBoard nextTurnGS
+                       else False -- White has no King
+
+        hasMoves = Val.hasLegalMoves baseBoard nextTurnGS
+        -- For White (Horde), Val.hasLegalMoves works (generates standard moves).
+        -- But wait, if it's White's turn, we need to include the extra Rank 1 moves in the "has moves" check.
+        -- However, here we are checking `nextTurnGS`, which is for `oppC`.
+        -- If `c == White`, then `oppC == Black`. Black uses standard moves. So `Val.hasLegalMoves` is correct.
+        -- If `c == Black`, then `oppC == White`. `Val.hasLegalMoves` uses `MG.legalGenMoves`.
+        -- It misses the Rank 1 double push.
+        -- So if White has ONLY Rank 1 double push available, `Val.hasLegalMoves` might return False (Stalemate),
+        -- but actually White can move.
+        -- We need to fix `hasMoves` check for White.
+
+        hasMovesHorde =
+            if oppC == White
+            then
+                 let standardHasMoves = Val.hasLegalMoves baseBoard nextTurnGS
+                     -- Check if any Rank 1 double push is possible
+                     wPawns = Base.whitePawns baseBoard
+                     occ = Base.occupiedTotal baseBoard
+                     canPushRank1 i =
+                         testBit wPawns i &&
+                         not (testBit occ (i+8)) &&
+                         not (testBit occ (i+16))
+                     extraHasMoves = any canPushRank1 [0..7]
+                 in standardHasMoves || extraHasMoves
+            else Val.hasLegalMoves baseBoard nextTurnGS -- Black
+
+        -- 2. Black Wins if White has no pieces (Pawns + Promoted)
+        whitePiecesCount = popCount (Base.occupiedBy baseBoard T.White)
+        blackWins = whitePiecesCount == 0
+
+    in if blackWins
+       then Checkmate (Winner Black)
+       else case (blackInCheck, hasMovesHorde) of
+         (True, False) -> Checkmate (Winner White) -- Black Checkmated
+         (False, False) -> Stalemate
+         (True, True) -> Continue (ActiveGame baseBoard newCR newEP newHMC newFMN () SChecked :: ActiveGame 'Horde (Opposite c) 'Checked)
+         (False, True) -> Continue (ActiveGame baseBoard newCR newEP newHMC newFMN () SSafe    :: ActiveGame 'Horde (Opposite c) 'Safe)
+
+getRank :: Square -> Rank
+getRank (Square _ r) = r
