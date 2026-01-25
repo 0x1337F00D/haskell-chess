@@ -72,7 +72,7 @@ instance ChessVariant 'Atomic where
 
         bBasic = applyMoveBase m internalB
         (from, to) = case m of
-                       StandardMove f t -> (f, t)
+                       StandardMove f t _ -> (f, t)
                        PromotionMove f t _ -> (f, t)
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
@@ -80,7 +80,7 @@ instance ChessVariant 'Atomic where
                        Castling960Move _ _ -> error "Castling960Move invalid in Atomic"
 
         isCapture = case m of
-                      StandardMove _ t -> Base.pieceAt internalB (toSquare t) /= Nothing
+                      StandardMove _ t _ -> Base.pieceAt internalB (toSquare t) /= Nothing
                       PromotionMove _ t _ -> Base.pieceAt internalB (toSquare t) /= Nothing
                       EnPassantMove _ _ -> True
                       _ -> False
@@ -106,13 +106,8 @@ instance ChessVariant 'Atomic where
           else (bBasic, False)
 
         newCR = updateCastlingRights (castlingRights ag) from to
-        movedPiece = Base.pieceAt bBasic (toSquare to)
-        isPawn = case movedPiece of
-                   Just p -> T.pieceType p == T.Pawn
-                   _ -> False
-
         newEP = case m of
-                  StandardMove f t -> if isPawn && isDoublePush f t then Just (getFile f) else Nothing
+                  StandardMove f t Pawn -> if isDoublePush f t then Just (getFile f) else Nothing
                   _ -> Nothing
 
         newHMC = halfMoveClock ag + 1

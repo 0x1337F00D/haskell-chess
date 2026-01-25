@@ -175,7 +175,7 @@ instance ChessVariant 'Crazyhouse where
           King   -> p
 
         (from, to) = case m of
-                       StandardMove f t -> (f, t)
+                       StandardMove f t _ -> (f, t)
                        PromotionMove f t _ -> (f, t)
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
@@ -190,7 +190,7 @@ instance ChessVariant 'Crazyhouse where
               in (pockets, promoted)
            _ ->
               let capture = case m of
-                              StandardMove _ t -> Base.pieceAt internalB (toSquare t)
+                              StandardMove _ t _ -> Base.pieceAt internalB (toSquare t)
                               PromotionMove _ t _ -> Base.pieceAt internalB (toSquare t)
                               EnPassantMove _ _ -> Just (T.Piece (toColor oppC) T.Pawn)
                               _ -> Nothing
@@ -232,16 +232,19 @@ instance ChessVariant 'Crazyhouse where
                   DropMove _ _ -> castlingRights ag
                   _ -> updateCastlingRights (castlingRights ag) from to
 
-        movedPiece = Base.pieceAt internalB' (toSquare to)
-        isPawn = case movedPiece of
-                   Just p -> T.pieceType p == T.Pawn
-                   _ -> False
         newEP = case m of
-                  StandardMove f t -> if isPawn && isDoublePush f t then Just (getFile f) else Nothing
+                  StandardMove f t Pawn -> if isDoublePush f t then Just (getFile f) else Nothing
                   _ -> Nothing
 
+        isPawn = case m of
+                   StandardMove _ _ Pawn -> True
+                   PromotionMove _ _ _ -> False -- Promoted is not Pawn
+                   EnPassantMove _ _ -> True
+                   DropMove Pawn _ -> True
+                   _ -> False
+
         isCapture = case m of
-                      StandardMove _ t -> Base.pieceAt internalB (toSquare t) /= Nothing
+                      StandardMove _ t _ -> Base.pieceAt internalB (toSquare t) /= Nothing
                       PromotionMove _ t _ -> Base.pieceAt internalB (toSquare t) /= Nothing
                       EnPassantMove _ _ -> True
                       _ -> False

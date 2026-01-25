@@ -160,7 +160,7 @@ toCoreMove (MG.GenMove (T.Move f t promo) pt captured) =
           then CastlingMove fromSq toSq
           else if pt == T.Pawn && captured == Nothing && T.squareFile f /= T.squareFile t
                then EnPassantMove fromSq toSq
-               else StandardMove fromSq toSq
+               else StandardMove fromSq toSq (fromPieceType pt)
 toCoreMove (MG.GenMove (T.DropMove _ _) _ _) = error "DropMove in GenMove"
 toCoreMove (MG.GenMove T.NullMove _ _) = error "NullMove in GenMove"
 
@@ -228,13 +228,10 @@ updateCastlingRights (CastlingRights cr) from to =
 applyMoveBase :: forall c. KnownColor c => Move c -> Base.Board -> Base.Board
 applyMoveBase m b =
     case m of
-       StandardMove f t ->
-          let p = Base.pieceAt b (toSquare f)
-          in case p of
-             Nothing -> b
-             Just piece ->
-                 let b1 = Base.removePieceAt b (toSquare f)
-                 in Base.putPiece b1 (toSquare t) piece
+       StandardMove f t pt ->
+          let piece = T.Piece (toColor (colorVal @c)) (toPieceType pt)
+              b1 = Base.removePieceAt b (toSquare f)
+          in Base.putPiece b1 (toSquare t) piece
 
        PromotionMove f t pt ->
           let b1 = Base.removePieceAt b (toSquare f)
@@ -242,22 +239,16 @@ applyMoveBase m b =
           in Base.putPiece b1 (toSquare t) promoted
 
        CastlingMove f t ->
-          let p = Base.pieceAt b (toSquare f)
-              b1 = case p of
-                     Just piece -> Base.putPiece (Base.removePieceAt b (toSquare f)) (toSquare t) piece
-                     Nothing -> b
+          let piece = T.Piece (toColor (colorVal @c)) T.King
+              b1 = Base.putPiece (Base.removePieceAt b (toSquare f)) (toSquare t) piece
               (rf, rt) = getCastlingRookMove f t
-              rook = Base.pieceAt b (toSquare rf)
-              b2 = case rook of
-                     Just r -> Base.putPiece (Base.removePieceAt b1 (toSquare rf)) (toSquare rt) r
-                     Nothing -> b1
+              rook = T.Piece (toColor (colorVal @c)) T.Rook
+              b2 = Base.putPiece (Base.removePieceAt b1 (toSquare rf)) (toSquare rt) rook
           in b2
 
        EnPassantMove f t ->
-          let p = Base.pieceAt b (toSquare f)
-              b1 = case p of
-                     Just piece -> Base.putPiece (Base.removePieceAt b (toSquare f)) (toSquare t) piece
-                     Nothing -> b
+          let piece = T.Piece (toColor (colorVal @c)) T.Pawn
+              b1 = Base.putPiece (Base.removePieceAt b (toSquare f)) (toSquare t) piece
               capSq = getEpCapturedSquare f t
           in Base.removePieceAt b1 (toSquare capSq)
        DropMove p t ->
@@ -277,18 +268,14 @@ applyMoveBase m b =
               kTarget = if isKingSide then Square FileG rank else Square FileC rank
               rTarget = if isKingSide then Square FileF rank else Square FileD rank
 
-              kPiece = Base.pieceAt b (toSquare k)
-              rPiece = Base.pieceAt b (toSquare r)
+              kPiece = T.Piece (toColor (colorVal @c)) T.King
+              rPiece = T.Piece (toColor (colorVal @c)) T.Rook
 
               b1 = Base.removePieceAt b (toSquare k)
               b2 = Base.removePieceAt b1 (toSquare r)
 
-              b3 = case kPiece of
-                     Just p -> Base.putPiece b2 (toSquare kTarget) p
-                     Nothing -> b2
-              b4 = case rPiece of
-                     Just p -> Base.putPiece b3 (toSquare rTarget) p
-                     Nothing -> b3
+              b3 = Base.putPiece b2 (toSquare kTarget) kPiece
+              b4 = Base.putPiece b3 (toSquare rTarget) rPiece
           in b4
 
 -- Apply Move

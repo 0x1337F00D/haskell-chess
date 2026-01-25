@@ -17,7 +17,7 @@ import Chess.Core.Board.Internal (squareToString)
 import Chess.Core.Move.Internal
 
 moveFrom :: Move c -> Square
-moveFrom (StandardMove f _) = f
+moveFrom (StandardMove f _ _) = f
 moveFrom (CastlingMove f _) = f
 moveFrom (EnPassantMove f _) = f
 moveFrom (PromotionMove f _ _) = f
@@ -25,7 +25,7 @@ moveFrom (DropMove _ _) = error "moveFrom: DropMove has no origin"
 moveFrom (Castling960Move f _) = f
 
 moveTo :: Move c -> Square
-moveTo (StandardMove _ t) = t
+moveTo (StandardMove _ t _) = t
 moveTo (CastlingMove _ t) = t
 moveTo (EnPassantMove _ t) = t
 moveTo (PromotionMove _ t _) = t
@@ -33,7 +33,7 @@ moveTo (DropMove _ t) = t
 moveTo (Castling960Move _ r) = r -- Return Rook source as 'to' square for UCI convention in 960
 
 toUCI :: Move c -> String
-toUCI (StandardMove f t) = squareToString f ++ squareToString t
+toUCI (StandardMove f t _) = squareToString f ++ squareToString t
 toUCI (CastlingMove f t) = squareToString f ++ squareToString t -- e1g1
 toUCI (EnPassantMove f t) = squareToString f ++ squareToString t
 toUCI (PromotionMove f t p) = squareToString f ++ squareToString t ++ pieceTypeChar p

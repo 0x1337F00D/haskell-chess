@@ -37,7 +37,7 @@ instance ChessVariant 'KingOfTheHill where
         internalB = internalBoard ag
         internalB' = applyMoveBase m internalB
         (from, to) = case m of
-                       StandardMove f t -> (f, t)
+                       StandardMove f t _ -> (f, t)
                        PromotionMove f t _ -> (f, t)
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
@@ -45,17 +45,14 @@ instance ChessVariant 'KingOfTheHill where
                        Castling960Move _ _ -> error "Castling960Move invalid in KingOfTheHill"
 
         newCR = updateCastlingRights (castlingRights ag) from to
-        movedPiece = Base.pieceAt internalB' (toSquare to)
-        isPawn = case movedPiece of
-                   Just p -> T.pieceType p == T.Pawn
-                   _ -> False
-
-        isKing = case movedPiece of
-                   Just p -> T.pieceType p == T.King
+        isKing = case m of
+                   StandardMove _ _ King -> True
+                   CastlingMove _ _ -> True
+                   Castling960Move _ _ -> True
                    _ -> False
 
         newEP = case m of
-                  StandardMove f t -> if isPawn && isDoublePush f t then Just (getFile f) else Nothing
+                  StandardMove f t Pawn -> if isDoublePush f t then Just (getFile f) else Nothing
                   _ -> Nothing
 
         newHMC = halfMoveClock ag + 1
