@@ -22,8 +22,14 @@ data Phase = Setup | Active | Finished
   deriving (Eq, Show)
 
 -- Variants
-data Variant = Standard | Atomic | KingOfTheHill | RacingKings | ThreeCheck | Crazyhouse
+data Variant = Standard | Atomic | KingOfTheHill | RacingKings | ThreeCheck | Crazyhouse | FischerRandom
   deriving (Eq, Show)
+
+-- FischerRandom State
+data FischerRandomState = FischerRandomState
+  { whiteRookFiles :: Bitboard
+  , blackRookFiles :: Bitboard
+  } deriving (Eq, Show)
 
 -- Crazyhouse State
 data Pockets = Pockets
@@ -47,6 +53,7 @@ data CrazyhouseState = CrazyhouseState
 type family VariantState (v :: Variant) where
   VariantState 'ThreeCheck = (Int, Int) -- (White Checks, Black Checks)
   VariantState 'Crazyhouse = CrazyhouseState
+  VariantState 'FischerRandom = FischerRandomState
   VariantState _ = ()
 
 -- Check Status (Section 7)

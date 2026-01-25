@@ -77,6 +77,7 @@ instance ChessVariant 'Atomic where
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
+                       Castling960Move _ _ -> error "Castling960Move invalid in Atomic"
 
         isCapture = case m of
                       StandardMove _ t -> Base.pieceAt internalB (toSquare t) /= Nothing

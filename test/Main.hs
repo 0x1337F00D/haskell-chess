@@ -21,6 +21,7 @@ import qualified TimeSpec
 import qualified CoreSpec
 import qualified CorePerftSpec
 import qualified CoreFenSpec
+import qualified FischerRandomSpec
 import qualified EngineSpec
 import qualified TablebaseSpec
 import qualified PyChessCongruencySpec
@@ -33,6 +34,7 @@ main = hspec $ do
   CoreSpec.spec
   CorePerftSpec.spec
   CoreFenSpec.spec
+  FischerRandomSpec.spec
   ChessSpec.spec
   TypesSpec.spec
   BitboardSpec.spec

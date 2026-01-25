@@ -180,6 +180,7 @@ instance ChessVariant 'Crazyhouse where
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
+                       Castling960Move _ _ -> error "Castling960Move invalid in Crazyhouse"
 
         ((wPocket', bPocket'), promoted') = case m of
            DropMove p _ ->

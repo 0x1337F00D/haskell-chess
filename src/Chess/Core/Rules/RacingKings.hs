@@ -51,6 +51,7 @@ instance ChessVariant 'RacingKings where
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
+                       Castling960Move _ _ -> error "Castling960Move invalid in RacingKings"
 
         newCR = updateCastlingRights (castlingRights ag) from to
         movedPiece = Base.pieceAt internalB' (toSquare to)

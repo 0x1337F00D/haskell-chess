@@ -50,6 +50,12 @@ data Move (c :: Color) where
     , dmTo    :: Square
     } -> Move c
 
+  -- Fischer Random Castling Move
+  Castling960Move ::
+    { cm960From :: Square
+    , cm960RookFrom :: Square
+    } -> Move c
+
 deriving instance Show (Move c)
 deriving instance Eq (Move c)
 
