@@ -5,9 +5,12 @@ module Chess.Board
   , initialBoard
     -- * Game Logic
   , applyMove
+  , applyGenMove
   , legalMoves
+  , legalGenMoves
   , pseudoLegalMoves
   , captureMoves
+  , captureGenMoves
   , isCheck
   , isCheckmate
   , isStalemate
@@ -22,6 +25,7 @@ module Chess.Board
   , fromUci
     -- * Re-exports
   , module Chess.Types
+  , MoveGen.GenMove(..)
   ) where
 
 import Data.Maybe (isJust)
@@ -52,11 +56,11 @@ initialBoard =
 
 -- | Apply a move to the board, updating pieces and game state (counters, rights, etc).
 applyMove :: Board -> Move -> Board
-applyMove (Board b gs hist) m@(Move from to _) =
+applyMove board@(Board b gs _) m@(Move from to _) =
     let c = GS.turn gs
         fromI = unSquare from
     in if not (testBit (Base.occupiedBy b c) fromI)
-       then Board b gs hist -- Invalid move (empty or wrong color)
+       then board -- Invalid move (empty or wrong color)
        else
         let
             -- Resolve pieces efficiently (avoiding pieceAt lookups)
@@ -65,59 +69,76 @@ applyMove (Board b gs hist) m@(Move from to _) =
             capturedPt = if testBit (Base.occupiedTotal b) toI
                          then Just (Base.findPieceType b (Base.oppositeColor c) to)
                          else Nothing
-
-            -- 1. Update pieces (using fast path)
-            b' = MoveGen.applyMoveBoardFast b gs m pt capturedPt
-
-            -- 2. Analyze move for state updates using resolved pieces
-            isPawn = pt == Pawn
-            isEp = isPawn && capturedPt == Nothing && squareFile from /= squareFile to
-            isCap = isJust capturedPt || isEp
-
-            -- Halfmove clock: Reset on pawn move or capture
-            halfmove' = if isPawn || isCap then 0 else GS.halfmoveClock gs + 1
-
-            -- Fullmove number: Increment after Black's move
-            fullmove' = if c == Black then GS.fullmoveNumber gs + 1 else GS.fullmoveNumber gs
-
-            -- Castling rights updates
-            -- If moving King, lose castling rights for that color
-            gs1 = case pt of
-                    King -> GS.removeColorCastlingRights gs c
-                    Rook -> GS.removeCastlingRight gs from
-                    _ -> gs
-
-            -- If capturing Rook, lose castling rights for that rook's square
-            gs2 = case capturedPt of
-                    Just Rook -> GS.removeCastlingRight gs1 to
-                    _ -> gs1
-
-            -- En Passant square
-            -- Set if pawn double push
-            ep' = if isPawn && abs (squareRank from - squareRank to) == 2
-                  then Just (midSquare from to)
-                  else Nothing
-
-            nextTurn = Base.oppositeColor c
-
-            -- 0. Update history
-            posRep = Val.PositionRep b c (GS.castlingRights gs) (GS.epSquare gs)
-            hist' = posRep : hist
-
-            -- Optimization: Clear history if halfmove clock resets (pawn move or capture)
-            histFinal = if halfmove' == 0 then [] else hist'
-
-        in Board b' (gs2 { GS.turn = nextTurn
-                         , GS.epSquare = ep'
-                         , GS.halfmoveClock = halfmove'
-                         , GS.fullmoveNumber = fullmove'
-                         }) histFinal
+        in applyMoveHelper board m pt capturedPt
 applyMove b NullMove = b
 applyMove b _ = b
+
+-- | Apply a move using GenMove info (skipping piece lookup).
+applyGenMove :: Board -> MoveGen.GenMove -> Board
+applyGenMove board (MoveGen.GenMove m pt capturedPt) = applyMoveHelper board m pt capturedPt
+
+-- | Helper to apply move logic given resolved pieces.
+{-# INLINE applyMoveHelper #-}
+applyMoveHelper :: Board -> Move -> PieceType -> Maybe PieceType -> Board
+applyMoveHelper (Board b gs hist) m@(Move from to _) pt capturedPt =
+    let
+        -- 1. Update pieces (using fast path)
+        b' = MoveGen.applyMoveBoardFast b gs m pt capturedPt
+
+        c = GS.turn gs
+
+        -- 2. Analyze move for state updates using resolved pieces
+        isPawn = pt == Pawn
+        isEp = isPawn && capturedPt == Nothing && squareFile from /= squareFile to
+        isCap = isJust capturedPt || isEp
+
+        -- Halfmove clock: Reset on pawn move or capture
+        halfmove' = if isPawn || isCap then 0 else GS.halfmoveClock gs + 1
+
+        -- Fullmove number: Increment after Black's move
+        fullmove' = if c == Black then GS.fullmoveNumber gs + 1 else GS.fullmoveNumber gs
+
+        -- Castling rights updates
+        -- If moving King, lose castling rights for that color
+        gs1 = case pt of
+                King -> GS.removeColorCastlingRights gs c
+                Rook -> GS.removeCastlingRight gs from
+                _ -> gs
+
+        -- If capturing Rook, lose castling rights for that rook's square
+        gs2 = case capturedPt of
+                Just Rook -> GS.removeCastlingRight gs1 to
+                _ -> gs1
+
+        -- En Passant square
+        -- Set if pawn double push
+        ep' = if isPawn && abs (squareRank from - squareRank to) == 2
+              then Just (midSquare from to)
+              else Nothing
+
+        nextTurn = Base.oppositeColor c
+
+        -- 0. Update history
+        posRep = Val.PositionRep b c (GS.castlingRights gs) (GS.epSquare gs)
+        hist' = posRep : hist
+
+        -- Optimization: Clear history if halfmove clock resets (pawn move or capture)
+        histFinal = if halfmove' == 0 then [] else hist'
+
+    in Board b' (gs2 { GS.turn = nextTurn
+                     , GS.epSquare = ep'
+                     , GS.halfmoveClock = halfmove'
+                     , GS.fullmoveNumber = fullmove'
+                     }) histFinal
+applyMoveHelper b _ _ _ = b
 
 -- | Generate all legal moves for the current position.
 legalMoves :: Board -> [Move]
 legalMoves (Board b gs _) = MoveGen.legalMoves b gs
+
+-- | Generate all legal moves preserving piece info.
+legalGenMoves :: Board -> [MoveGen.GenMove]
+legalGenMoves (Board b gs _) = MoveGen.legalGenMoves b gs
 
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> [Move]
@@ -126,6 +147,10 @@ pseudoLegalMoves (Board b gs _) = map (\(MoveGen.GenMove m _ _) -> m) $ MoveGen.
 -- | Generate all legal capture moves.
 captureMoves :: Board -> [Move]
 captureMoves (Board b gs _) = MoveGen.legalCaptures b gs
+
+-- | Generate all legal capture moves preserving piece info.
+captureGenMoves :: Board -> [MoveGen.GenMove]
+captureGenMoves (Board b gs _) = MoveGen.legalGenCaptures b gs
 
 -- | Check if the side to move is in check.
 isCheck :: Board -> Bool
