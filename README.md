@@ -107,3 +107,20 @@ cabal test
 A GitHub Actions workflow runs this command automatically for each push and pull request.
 
 > **Note**: The full perft suite (`PerftSpec`) is currently disabled by default to avoid high memory usage in CI environments. To run it, uncomment the relevant line in `test/Main.hs`.
+
+## PyChess Congruency
+
+To verify that the Haskell implementation produces move generation results congruent with PyChess, use the provided scripts:
+
+1. Setup PyChess environment:
+   ```bash
+   bash scripts/setup_pychess.sh
+   ```
+2. Generate fresh congruency data:
+   ```bash
+   python3 scripts/gen_pychess_data.py
+   ```
+3. Run the congruency tests:
+   ```bash
+   cabal test --test-option='--match=PyChess Congruency'
+   ```
