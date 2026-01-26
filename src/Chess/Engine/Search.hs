@@ -26,12 +26,12 @@ alphaBetaRoot board depth =
     in case moves of
         [] -> (nullMove, 0) -- Should check game over before calling search
         (gm@(GenMove m _ _):gms) ->
-            let (bestM, bestScore) = foldl' searchMove (m, -infinity) (gm:gms)
-            in (bestM, bestScore)
+            let score = -alphaBeta (applyGenMove board gm) (depth - 1) (-infinity) infinity
+            in foldl' searchMove (m, score) gms
   where
-    searchMove (bestM, bestScore) gm@(GenMove m _ _) =
-        let score = -alphaBeta (applyGenMove board gm) (depth - 1) (-infinity) infinity
-        in if score > bestScore then (m, score) else (bestM, bestScore)
+    searchMove (bestM, alpha) gm@(GenMove m _ _) =
+        let score = -alphaBeta (applyGenMove board gm) (depth - 1) (-infinity) (-alpha)
+        in if score > alpha then (m, score) else (bestM, alpha)
 
 -- | Alpha-Beta search.
 alphaBeta :: Board -> Int -> Int -> Int -> Int
