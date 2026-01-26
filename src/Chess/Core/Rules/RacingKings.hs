@@ -41,50 +41,47 @@ instance ChessVariant 'RacingKings where
 
     in filter noGiveCheck coreMoves
 
+  applyMove = genericApplyMove
+
   executeMove (m :: Move c) (ag :: ActiveGame 'RacingKings c s) =
-    let c = colorVal @c
-        internalB = internalBoard ag
-        internalB' = applyMoveBase m internalB
-        (from, to) = case m of
-                       StandardMove f t _ -> (f, t)
-                       PromotionMove f t _ -> (f, t)
-                       CastlingMove f t -> (f, t)
-                       EnPassantMove f t -> (f, t)
-                       DropMove _ t -> (t, t)
-                       Castling960Move _ _ -> error "Castling960Move invalid in RacingKings"
+    case applyMove m ag of
+      Transition nextAg ->
+        let
+           c = colorVal @c
+           internalB' = internalBoard nextAg
 
-        newCR = updateCastlingRights (castlingRights ag) from to
+           -- Racing Kings doesn't really have check?
+           -- "noGiveCheck" in generateMoves ensures no check is GIVEN.
+           -- So nextAg is always Safe?
+           -- genericExecuteMove calculates check status.
+           -- If I use genericExecuteMove, it will run isCheck.
+           -- In Racing Kings, isCheck is probably always False if moves are filtered correctly.
+           -- BUT the win condition logic is complex.
+           -- I should replicate the logic here.
 
-        newEP = case m of
-                  StandardMove f t pt -> if pt == Pawn && isDoublePush f t then Just (getFile f) else Nothing
-                  _ -> Nothing
+           -- We need to know if nextAg has moves (Stalemate check).
+           -- But we also need to check win conditions.
 
-        newHMC = halfMoveClock ag + 1
-        newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
+           nextAgSafe = setStatus SSafe nextAg -- Assuming no checks.
+           nextMoves = generateMoves nextAgSafe
+           realHasMoves = not (null nextMoves)
 
-        nextGameCandidate :: ActiveGame 'RacingKings (Opposite c) 'Safe
-        nextGameCandidate = ActiveGame internalB' newCR newEP newHMC newFMN () SSafe
+           wKingSq = MG.kingSquare internalB' T.White
+           bKingSq = MG.kingSquare internalB' T.Black
+           wInGoal = case wKingSq of Just sq -> T.squareRank sq == 7; _ -> False
+           bInGoal = case bKingSq of Just sq -> T.squareRank sq == 7; _ -> False
 
-        nextMoves = generateMoves nextGameCandidate
-        realHasMoves = not (null nextMoves)
-
-        wKingSq = MG.kingSquare internalB' T.White
-        bKingSq = MG.kingSquare internalB' T.Black
-        wInGoal = case wKingSq of Just sq -> T.squareRank sq == 7; _ -> False
-        bInGoal = case bKingSq of Just sq -> T.squareRank sq == 7; _ -> False
-
-        result =
-             if c == White
-             then if wInGoal
-                  then if realHasMoves
-                       then Continue nextGameCandidate
-                       else Checkmate (Winner White)
-                  else
-                       if realHasMoves then Continue nextGameCandidate else Stalemate
-             else
-                  if bInGoal && wInGoal then Checkmate Draw else
-                  if wInGoal then Checkmate (Winner White) else
-                  if bInGoal then Checkmate (Winner Black) else
-                  if realHasMoves then Continue nextGameCandidate else Stalemate
-
-    in result
+           result =
+                if c == White
+                then if wInGoal
+                     then if realHasMoves
+                          then Continue nextAgSafe
+                          else Checkmate (Winner White)
+                     else
+                          if realHasMoves then Continue nextAgSafe else Stalemate
+                else
+                     if bInGoal && wInGoal then Checkmate Draw else
+                     if wInGoal then Checkmate (Winner White) else
+                     if bInGoal then Checkmate (Winner Black) else
+                     if realHasMoves then Continue nextAgSafe else Stalemate
+        in result

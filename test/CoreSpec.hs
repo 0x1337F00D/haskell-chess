@@ -12,7 +12,7 @@ import Chess.Core.Move
 import Chess.Core.Rules
 import Chess.Core.Board.Internal (movePiece)
 import Chess.Core.Game.Internal (ActiveGame(..), Game(..), CastlingRights(..), Pockets(..), CrazyhouseState(..), castlingWhiteKingSide, castlingWhiteQueenSide, castlingBlackKingSide, castlingBlackQueenSide, SCheckStatus(..))
-import Chess.Core.Move.Internal (Move(..))
+import Chess.Core.Move.Internal (Move(..), GameTransition(..))
 import qualified Data.Map as Map
 import Data.Maybe (fromJust)
 import qualified Chess.Core.Board.Internal as CBI
@@ -129,13 +129,12 @@ spec = describe "Core Architecture" $ do
 
       let res = applyMove move ag
       case res of
-        Continue nextGame -> do
+        Transition nextGame -> do
           -- We can verify the board in nextGame
           let b' = unsafeViewBoard (internalBoard nextGame)
           case getPieceAt (Square FileE Rank4) b' of
              Just (SomePiece WPawn) -> return ()
              _ -> expectationFailure "Expected White Pawn at E4 in next game state"
-        _ -> expectationFailure "Expected Continue"
 
     it "generateLegalMoves generates 20 moves for initial board" $ do
       let ag :: ActiveGame 'Standard 'White 'Safe
@@ -232,7 +231,7 @@ spec = describe "Core Architecture" $ do
 
       let res = applyMove move ag
       case res of
-        Continue nextGame -> do
+        Transition nextGame -> do
            let b' = unsafeViewBoard (internalBoard nextGame)
            -- D5 empty (Exploded center)
            getPieceAt (Square FileD Rank5) b' `shouldBe` Nothing
@@ -242,7 +241,6 @@ spec = describe "Core Architecture" $ do
            case getPieceAt (Square FileC Rank4) b' of
              Just (SomePiece WPawn) -> return ()
              _ -> expectationFailure "Expected White Pawn at C4 to survive"
-        _ -> expectationFailure "Expected Continue"
 
     it "KingOfTheHill: King to center wins" $ do
       -- Setup White King on E3. Move to E4 (Center).
@@ -258,7 +256,7 @@ spec = describe "Core Architecture" $ do
                , checkStatus = SSafe
                }
       let move = StandardMove (Square FileE Rank3) (Square FileE Rank4) King
-      let res = applyMove move ag
+      let res = executeMove move ag
       case res of
         Checkmate (Winner White) -> return ()
         _ -> expectationFailure "Expected White Win (King to Center)"
@@ -306,7 +304,7 @@ spec = describe "Core Architecture" $ do
                , checkStatus = SSafe
                }
        let move = StandardMove (Square FileE Rank7) (Square FileE Rank8) King
-       let res = applyMove move ag
+       let res = executeMove move ag
        case res of
          Continue _ -> return () -- Game continues for Black's turn
          _ -> expectationFailure "Expected Continue (wait for Black)"
@@ -335,10 +333,9 @@ spec = describe "Core Architecture" $ do
        let m1 = StandardMove (Square FileA Rank1) (Square FileA Rank2) Rook -- Checks A8
        let res1 = applyMove m1 ag
        case res1 of
-         Continue ag2 -> do
+         Transition ag2 -> do
             let (wChecks, _) = variantState ag2
             wChecks `shouldBe` 1
-         _ -> expectationFailure "Expected Continue after first check"
 
        -- Case 2: 2 checks -> 3rd check (Win)
        let agTwo :: ActiveGame 'ThreeCheck 'White 'Safe
@@ -352,7 +349,7 @@ spec = describe "Core Architecture" $ do
                 , checkStatus = SSafe
                 }
 
-       let res2 = applyMove m1 agTwo -- A1-A2 again
+       let res2 = executeMove m1 agTwo -- A1-A2 again
        case res2 of
           Checkmate (Winner White) -> return ()
           _ -> expectationFailure "Expected White Win by 3rd Check"

@@ -147,7 +147,7 @@ instance ChessVariant 'FischerRandom where
 
     in nonCastlingMoves ++ castling960Moves
 
-  executeMove (m :: Move c) (ag :: ActiveGame 'FischerRandom c s) =
+  applyMove (m :: Move c) (ag :: ActiveGame 'FischerRandom c s) =
     let
         c = colorVal @c
         internalB = internalBoard ag
@@ -177,34 +177,13 @@ instance ChessVariant 'FischerRandom where
         newHMC = halfMoveClock ag + 1
         newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
 
-        baseBoard = internalB'
-
         frState = variantState ag
 
-        nextTurnGS = GS.GameState
-          { GS.turn = toColor (colorVal @(Opposite c))
-          , GS.castlingRights = toCastlingRights newCR
-          , GS.epSquare = case newEP of
-                            Nothing -> Nothing
-                            Just f -> Just (toSquare (Square f (epRank (colorVal @(Opposite c)))))
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          }
+        nextAg = ActiveGame internalB' newCR newEP newHMC newFMN frState SUnchecked
 
-        nextAg = ActiveGame internalB' newCR newEP newHMC newFMN frState SSafe :: ActiveGame 'FischerRandom (Opposite c) 'Safe
+    in Transition nextAg
 
-        isChecked = Val.isCheck baseBoard nextTurnGS
-
-        legalMoves = if isChecked
-                     then generateMoves (ActiveGame internalB' newCR newEP newHMC newFMN frState SChecked :: ActiveGame 'FischerRandom (Opposite c) 'Checked)
-                     else generateMoves nextAg
-        hasMoves = not (null legalMoves)
-
-    in case (isChecked, hasMoves) of
-         (True, False) -> Checkmate (Winner c)
-         (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN frState SChecked :: ActiveGame 'FischerRandom (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN frState SSafe    :: ActiveGame 'FischerRandom (Opposite c) 'Safe)
+  executeMove = genericExecuteMove
 
 -- Helper to validate 960 castling
 isCastlingValid :: Base.Board -> T.Color -> T.Square -> T.Square -> Bool -> Bool

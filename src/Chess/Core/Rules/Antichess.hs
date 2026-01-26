@@ -88,74 +88,31 @@ instance ChessVariant 'Antichess where
 
     in map toCoreMove validMoves
 
+  applyMove = genericApplyMove
+
   executeMove (m :: Move c) (ag :: ActiveGame 'Antichess c s) =
-    let
-        c = colorVal @c
-        oppC = colorVal @(Opposite c)
-        internalB = internalBoard ag
-        internalB' = applyMoveBase m internalB
-        (from, to) = case m of
-                       StandardMove f t _ -> (f, t)
-                       PromotionMove f t _ -> (f, t)
-                       CastlingMove f t -> (f, t)
-                       EnPassantMove f t -> (f, t)
-                       DropMove _ t -> (t, t)
-                       Castling960Move _ _ -> error "Castling960Move invalid in Antichess"
+    case applyMove m ag of
+      Transition nextAg ->
+        let
+            c = colorVal @c
+            oppC = colorVal @(Opposite c)
+            baseBoard = internalBoard nextAg
 
-        newCR = updateCastlingRights (castlingRights ag) from to
+            -- 1. I win if I have no pieces left
+            myPiecesBB = Base.occupiedBy baseBoard (toColor c)
+            iWin = popCount myPiecesBB == 0
 
-        isPawn = case m of
-                   StandardMove _ _ pt -> pt == Pawn
-                   EnPassantMove _ _ -> True
-                   PromotionMove _ _ _ -> True
-                   DropMove pt _ -> pt == Pawn
-                   _ -> False
+            -- 2. Opponent wins if they are stalemated (no legal moves)
+            -- We can't use Val.hasLegalMoves because it assumes Standard rules (checks).
+            -- We need to replicate Antichess move generation logic for opponent.
 
-        newEP = case m of
-                  StandardMove f t _ -> if isPawn && isDoublePush f t then Just (getFile f) else Nothing
-                  _ -> Nothing
+            oppPseudos = MG.pseudoLegalMoves baseBoard (toGameState nextAg)
+            oppHasMoves = not (null oppPseudos)
 
-        -- Antichess uses halfmove clock? Yes, for 50-move rule (Draw).
-        isCapture = case m of
-                      StandardMove _ t _ -> Base.pieceAt internalB (toSquare t) /= Nothing
-                      PromotionMove _ t _ -> Base.pieceAt internalB (toSquare t) /= Nothing
-                      EnPassantMove _ _ -> True
-                      _ -> False
+            opponentStalemated = not oppHasMoves
 
-        newHMC = if isPawn || isCapture then 0 else halfMoveClock ag + 1
-        newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
-
-        baseBoard = internalB'
-        nextTurnGS = GS.GameState
-          { GS.turn = toColor oppC
-          , GS.castlingRights = toCastlingRights newCR
-          , GS.epSquare = case newEP of
-                            Nothing -> Nothing
-                            Just f -> Just (toSquare (Square f (epRank oppC)))
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          }
-
-        -- Win Conditions
-
-        -- 1. I win if I have no pieces left
-        myPiecesBB = Base.occupiedBy baseBoard (toColor c)
-        iWin = popCount myPiecesBB == 0
-
-        -- 2. Opponent wins if they are stalemated (no legal moves)
-        -- To check if opponent has legal moves, we must run generateMoves for them.
-        -- We can't use Val.hasLegalMoves because it assumes Standard rules (checks).
-        -- We need to replicate Antichess move generation logic for opponent.
-
-        oppPseudos = MG.pseudoLegalMoves baseBoard nextTurnGS
-        -- If opponent has ANY pseudo-legal move, they are not stalemated.
-        -- (Since in Antichess all pseudo-legal moves are legal).
-        oppHasMoves = not (null oppPseudos)
-
-        opponentStalemated = not oppHasMoves
-
-    in if iWin
-       then Checkmate (Winner c)
-       else if opponentStalemated
-            then Checkmate (Winner oppC)
-            else Continue (ActiveGame baseBoard newCR newEP newHMC newFMN () SSafe :: ActiveGame 'Antichess (Opposite c) 'Safe)
+        in if iWin
+           then Checkmate (Winner c)
+           else if opponentStalemated
+                then Checkmate (Winner oppC)
+                else Continue (setStatus SSafe nextAg)

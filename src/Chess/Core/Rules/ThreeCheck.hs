@@ -31,7 +31,7 @@ instance ChessVariant 'ThreeCheck where
         baseMoves = MG.legalGenMoves baseBoard gs
     in map toCoreMove baseMoves
 
-  executeMove (m :: Move c) (ag :: ActiveGame 'ThreeCheck c s) =
+  applyMove (m :: Move c) (ag :: ActiveGame 'ThreeCheck c s) =
     let
         c = colorVal @c
         oppC = colorVal @(Opposite c)
@@ -66,7 +66,6 @@ instance ChessVariant 'ThreeCheck where
           }
 
         isChecked = Val.isCheck baseBoard nextTurnGS
-        hasMoves = Val.hasLegalMoves baseBoard nextTurnGS
 
         (wChecks, bChecks) = variantState ag
         (wChecks', bChecks') = if isChecked
@@ -74,12 +73,28 @@ instance ChessVariant 'ThreeCheck where
                                else (wChecks, bChecks)
 
         newVariantState = (wChecks', bChecks')
-        winByCheck = (if c == White then wChecks' else bChecks') >= 3
 
-    in if winByCheck
-       then Checkmate (Winner c)
-       else case (isChecked, hasMoves) of
-         (True, False) -> Checkmate (Winner c)
-         (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newVariantState SChecked :: ActiveGame 'ThreeCheck (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newVariantState SSafe    :: ActiveGame 'ThreeCheck (Opposite c) 'Safe)
+    in if isChecked
+       then Transition (ActiveGame internalB' newCR newEP newHMC newFMN newVariantState SChecked)
+       else Transition (ActiveGame internalB' newCR newEP newHMC newFMN newVariantState SSafe)
+
+  executeMove (m :: Move c) (ag :: ActiveGame 'ThreeCheck c s) =
+    case applyMove m ag of
+      Transition nextAg ->
+         let c = colorVal @c
+             (wChecks, bChecks) = variantState nextAg
+             winByCheck = (if c == White then wChecks else bChecks) >= 3
+         in if winByCheck
+            then Checkmate (Winner c)
+            else
+               let checked = case checkStatus nextAg of SChecked -> True; _ -> False
+                   (hasMoves, nextAgChecked) = if checked
+                      then (not (null (generateMoves (setStatus SChecked nextAg))), Right (setStatus SChecked nextAg))
+                      else (not (null (generateMoves (setStatus SSafe nextAg))), Left (setStatus SSafe nextAg))
+               in if checked
+                  then if hasMoves
+                       then case nextAgChecked of Right finalAg -> Continue finalAg; Left _ -> error "Impossible"
+                       else Checkmate (Winner (colorVal @c))
+                  else if hasMoves
+                       then case nextAgChecked of Left finalAg -> Continue finalAg; Right _ -> error "Impossible"
+                       else Stalemate
