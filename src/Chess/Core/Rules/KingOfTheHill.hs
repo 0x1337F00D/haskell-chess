@@ -31,54 +31,32 @@ instance ChessVariant 'KingOfTheHill where
         baseMoves = MG.legalGenMoves baseBoard gs
     in map toCoreMove baseMoves
 
+  applyMove = genericApplyMove
+
   executeMove (m :: Move c) (ag :: ActiveGame 'KingOfTheHill c s) =
-    let
-        c = colorVal @c
-        internalB = internalBoard ag
-        internalB' = applyMoveBase m internalB
-        (from, to) = case m of
-                       StandardMove f t _ -> (f, t)
-                       PromotionMove f t _ -> (f, t)
-                       CastlingMove f t -> (f, t)
-                       EnPassantMove f t -> (f, t)
-                       DropMove _ t -> (t, t)
+    case applyMove m ag of
+      Transition nextAg ->
+         let
+            c = colorVal @c
+
+            -- Extract destination for win check
+            to = case m of
+                       StandardMove _ t _ -> t
+                       PromotionMove _ t _ -> t
+                       CastlingMove _ t -> t
+                       EnPassantMove _ t -> t
+                       DropMove _ t -> t
                        Castling960Move _ _ -> error "Castling960Move invalid in KingOfTheHill"
 
-        newCR = updateCastlingRights (castlingRights ag) from to
-        newEP = case m of
-                  StandardMove f t pt -> if pt == Pawn && isDoublePush f t then Just (getFile f) else Nothing
-                  _ -> Nothing
+            isKing = case m of
+                       StandardMove _ _ pt -> pt == King
+                       CastlingMove _ _ -> True
+                       _ -> False
 
-        newHMC = halfMoveClock ag + 1
-        newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
+            centerSquares = [ Square FileE Rank4, Square FileD Rank4
+                            , Square FileE Rank5, Square FileD Rank5 ]
+            kingInCenter = isKing && to `elem` centerSquares
 
-        baseBoard = internalB'
-        nextTurnGS = GS.GameState
-          { GS.turn = toColor (colorVal @(Opposite c))
-          , GS.castlingRights = toCastlingRights newCR
-          , GS.epSquare = case newEP of
-                            Nothing -> Nothing
-                            Just f -> Just (toSquare (Square f (epRank (colorVal @(Opposite c)))))
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          }
-
-        isChecked = Val.isCheck baseBoard nextTurnGS
-        hasMoves = Val.hasLegalMoves baseBoard nextTurnGS
-
-        isKing = case m of
-                   StandardMove _ _ pt -> pt == King
-                   CastlingMove _ _ -> True
-                   _ -> False
-
-        kingInCenter = isKing && to `elem` centerSquares
-        centerSquares = [ Square FileE Rank4, Square FileD Rank4
-                        , Square FileE Rank5, Square FileD Rank5 ]
-
-    in if kingInCenter
-       then Checkmate (Winner c)
-       else case (isChecked, hasMoves) of
-         (True, False) -> Checkmate (Winner c)
-         (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () SChecked :: ActiveGame 'KingOfTheHill (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () SSafe    :: ActiveGame 'KingOfTheHill (Opposite c) 'Safe)
+         in if kingInCenter
+            then Checkmate (Winner c)
+            else genericExecuteMove m ag

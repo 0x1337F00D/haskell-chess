@@ -289,8 +289,88 @@ applyMoveBase m b =
           in b4
 
 -- Apply Move
-applyMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
-applyMove = executeMove
+-- Apply Move Helpers
+
+setStatus :: SCheckStatus new -> ActiveGame v c old -> ActiveGame v c new
+setStatus s ag = ActiveGame
+  { internalBoard = internalBoard ag
+  , castlingRights = castlingRights ag
+  , enPassantTarget = enPassantTarget ag
+  , halfMoveClock = halfMoveClock ag
+  , fullMoveNumber = fullMoveNumber ag
+  , variantState = variantState ag
+  , checkStatus = s
+  }
+
+genericApplyMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> GameTransition v (Opposite c)
+genericApplyMove m ag =
+    let
+        c = colorVal @c
+        internalB = internalBoard ag
+        internalB' = applyMoveBase m internalB
+        (from, to) = case m of
+                       StandardMove f t _ -> (f, t)
+                       PromotionMove f t _ -> (f, t)
+                       CastlingMove f t -> (f, t)
+                       EnPassantMove f t -> (f, t)
+                       DropMove _ t -> (t, t)
+                       Castling960Move _ _ -> error "Castling960Move not supported in genericApplyMove"
+
+        newCR = updateCastlingRights (castlingRights ag) from to
+
+        isPawn = case m of
+                   StandardMove _ _ pt -> pt == Pawn
+                   EnPassantMove _ _ -> True
+                   PromotionMove _ _ _ -> True
+                   DropMove pt _ -> pt == Pawn
+                   _ -> False
+
+        newEP = case m of
+                  StandardMove f t _ -> if isPawn && isDoublePush f t then Just (getFile f) else Nothing
+                  _ -> Nothing
+
+        isCapture = case m of
+                      StandardMove _ t _ -> Base.pieceAt internalB (toSquare t) /= Nothing
+                      PromotionMove _ t _ -> Base.pieceAt internalB (toSquare t) /= Nothing
+                      EnPassantMove _ _ -> True
+                      _ -> False
+
+        newHMC = if isPawn || isCapture then 0 else halfMoveClock ag + 1
+        newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
+
+        nextAg = ActiveGame
+          { internalBoard = internalB'
+          , castlingRights = newCR
+          , enPassantTarget = newEP
+          , halfMoveClock = newHMC
+          , fullMoveNumber = newFMN
+          , variantState = variantState ag
+          , checkStatus = SUnchecked
+          }
+    in Transition nextAg
+
+genericExecuteMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
+genericExecuteMove m ag =
+  case applyMove m ag of
+    Transition nextAg ->
+      let
+         checked = Val.isCheck (internalBoard nextAg) (toGameState nextAg)
+
+         (hasMoves, nextAgChecked) = if checked
+            then
+               let agChecked = setStatus SChecked nextAg
+               in (not (null (generateMoves agChecked)), Right agChecked)
+            else
+               let agSafe = setStatus SSafe nextAg
+               in (not (null (generateMoves agSafe)), Left agSafe)
+
+      in if checked
+         then if hasMoves
+              then case nextAgChecked of Right finalAg -> Continue finalAg; Left _ -> error "Impossible"
+              else Checkmate (Winner (colorVal @c))
+         else if hasMoves
+              then case nextAgChecked of Left finalAg -> Continue finalAg; Right _ -> error "Impossible"
+              else Stalemate
 
 getAdjacentSquares :: Square -> [Square]
 getAdjacentSquares (Square f r) =

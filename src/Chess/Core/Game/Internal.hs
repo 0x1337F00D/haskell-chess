@@ -57,12 +57,13 @@ type family VariantState (v :: Variant) where
   VariantState _ = ()
 
 -- Check Status (Section 7)
-data CheckStatus = Safe | Checked
+data CheckStatus = Safe | Checked | Unchecked
   deriving (Eq, Show)
 
 data SCheckStatus (s :: CheckStatus) where
   SSafe    :: SCheckStatus 'Safe
   SChecked :: SCheckStatus 'Checked
+  SUnchecked :: SCheckStatus 'Unchecked
 
 deriving instance Show (SCheckStatus s)
 deriving instance Eq (SCheckStatus s)

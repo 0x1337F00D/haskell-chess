@@ -62,6 +62,10 @@ deriving instance Eq (Move c)
 
 -- 6. Check, Mate, and the Existential Step
 
+-- Transition (Active Game wrapper)
+data GameTransition (v :: Variant) (c :: Color) where
+  Transition :: ActiveGame v c s -> GameTransition v c
+
 -- The Next State result wrapper
 -- Indexed by the color of the *next* turn (the side that just received the move).
 data MoveResult (v :: Variant) (c :: Color) where

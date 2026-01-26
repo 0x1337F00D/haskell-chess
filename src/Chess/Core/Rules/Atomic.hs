@@ -65,9 +65,8 @@ instance ChessVariant 'Atomic where
 
     in map toCoreMove validMoves
 
-  executeMove (m :: Move c) (ag :: ActiveGame 'Atomic c s) =
+  applyMove (m :: Move c) (ag :: ActiveGame 'Atomic c s) =
     let c = colorVal @c
-        oppC = colorVal @(Opposite c)
         internalB = internalBoard ag
 
         bBasic = applyMoveBase m internalB
@@ -85,25 +84,21 @@ instance ChessVariant 'Atomic where
                       EnPassantMove _ _ -> True
                       _ -> False
 
-        (bFinal, enemyKingExploded) = if isCapture
+        bFinal = if isCapture
           then
             let center = to
                 b1 = Base.removePieceAt bBasic (toSquare center)
                 surrounds = getAdjacentSquares center
-                enemyKingSq = MG.kingSquare bBasic (toColor oppC)
-                explode sq (board, kingDead) =
-                  if Just (toSquare sq) == enemyKingSq
-                  then (board, True)
-                  else
+                explode sq board =
                     case Base.pieceAt board (toSquare sq) of
                        Just p ->
                          if T.pieceType p == T.Pawn
-                         then (board, kingDead)
-                         else (Base.removePieceAt board (toSquare sq), kingDead)
-                       Nothing -> (board, kingDead)
-                (b2, kDead) = foldr explode (b1, False) surrounds
-            in (b2, kDead)
-          else (bBasic, False)
+                         then board
+                         else Base.removePieceAt board (toSquare sq)
+                       Nothing -> board
+                b2 = foldr explode b1 surrounds
+            in b2
+          else bBasic
 
         newCR = updateCastlingRights (castlingRights ag) from to
 
@@ -114,24 +109,33 @@ instance ChessVariant 'Atomic where
         newHMC = halfMoveClock ag + 1
         newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
 
-        nextTurnGS = GS.GameState
-          { GS.turn = toColor oppC
-          , GS.castlingRights = toCastlingRights newCR
-          , GS.epSquare = case newEP of
-                            Nothing -> Nothing
-                            Just f -> Just (toSquare (Square f (epRank oppC)))
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          }
+        nextAg = ActiveGame bFinal newCR newEP newHMC newFMN () SUnchecked
 
-        baseBoard = bFinal
-        isChecked = Val.isCheck baseBoard nextTurnGS
-        hasMoves = Val.hasLegalMoves baseBoard nextTurnGS
+    in Transition nextAg
 
-    in if enemyKingExploded
-       then Checkmate (Winner c)
-       else case (isChecked, hasMoves) of
-         (True, False) -> Checkmate (Winner c)
-         (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame bFinal newCR newEP newHMC newFMN () SChecked :: ActiveGame 'Atomic (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame bFinal newCR newEP newHMC newFMN () SSafe    :: ActiveGame 'Atomic (Opposite c) 'Safe)
+  executeMove (m :: Move c) (ag :: ActiveGame 'Atomic c s) =
+    case applyMove m ag of
+      Transition nextAg ->
+         let
+            oppC = colorVal @(Opposite c)
+            baseBoard = internalBoard nextAg
+            enemyKingSq = MG.kingSquare baseBoard (toColor oppC)
+            enemyKingExploded = enemyKingSq == Nothing
+         in if enemyKingExploded
+            then Checkmate (Winner (colorVal @c))
+            else
+                let checked = Val.isCheck baseBoard (toGameState nextAg)
+                    (hasMoves, nextAgChecked) = if checked
+                        then
+                           let agChecked = setStatus SChecked nextAg
+                           in (not (null (generateMoves agChecked)), Right agChecked)
+                        else
+                           let agSafe = setStatus SSafe nextAg
+                           in (not (null (generateMoves agSafe)), Left agSafe)
+                in if checked
+                   then if hasMoves
+                        then case nextAgChecked of Right finalAg -> Continue finalAg; Left _ -> error "Impossible"
+                        else Checkmate (Winner (colorVal @c))
+                   else if hasMoves
+                        then case nextAgChecked of Left finalAg -> Continue finalAg; Right _ -> error "Impossible"
+                        else Stalemate

@@ -98,48 +98,9 @@ instance ChessVariant 'Standard where
                         , MG.pieceMoves baseBoard gs T.King
                         ]
                  in filter (MG.isLegal baseBoard gs) pseudos
-             SSafe -> MG.legalGenMoves baseBoard gs
+             _ -> MG.legalGenMoves baseBoard gs
 
     in map toCoreMove baseMoves
 
-  executeMove (m :: Move c) (ag :: ActiveGame 'Standard c s) =
-    let
-        c = colorVal @c
-        internalB = internalBoard ag
-        internalB' = applyMoveBase m internalB
-        (from, to) = case m of
-                       StandardMove f t _ -> (f, t)
-                       PromotionMove f t _ -> (f, t)
-                       CastlingMove f t -> (f, t)
-                       EnPassantMove f t -> (f, t)
-                       DropMove _ t -> (t, t)
-                       Castling960Move _ _ -> error "Castling960Move invalid in Standard"
-
-        newCR = updateCastlingRights (castlingRights ag) from to
-
-        newEP = case m of
-                  StandardMove f t pt -> if pt == Pawn && isDoublePush f t then Just (getFile f) else Nothing
-                  _ -> Nothing
-
-        newHMC = halfMoveClock ag + 1
-        newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
-
-        baseBoard = internalB'
-        nextTurnGS = GS.GameState
-          { GS.turn = toColor (colorVal @(Opposite c))
-          , GS.castlingRights = toCastlingRights newCR
-          , GS.epSquare = case newEP of
-                            Nothing -> Nothing
-                            Just f -> Just (toSquare (Square f (epRank (colorVal @(Opposite c)))))
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          }
-
-        isChecked = Val.isCheck baseBoard nextTurnGS
-        hasMoves = Val.hasLegalMoves baseBoard nextTurnGS
-
-    in case (isChecked, hasMoves) of
-         (True, False) -> Checkmate (Winner c)
-         (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () SChecked :: ActiveGame 'Standard (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () SSafe    :: ActiveGame 'Standard (Opposite c) 'Safe)
+  applyMove = genericApplyMove
+  executeMove = genericExecuteMove

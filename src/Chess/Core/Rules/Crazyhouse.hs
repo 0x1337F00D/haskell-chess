@@ -156,7 +156,7 @@ instance ChessVariant 'Crazyhouse where
 
     in standardMoves ++ validDropMoves
 
-  executeMove (m :: Move c) (ag :: ActiveGame 'Crazyhouse c s) =
+  applyMove (m :: Move c) (ag :: ActiveGame 'Crazyhouse c s) =
     let
         c = colorVal @c
         oppC = colorVal @(Opposite c)
@@ -252,51 +252,10 @@ instance ChessVariant 'Crazyhouse where
         newHMC = if resetClock then 0 else halfMoveClock ag + 1
         newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
 
-        baseBoard = internalB'
-        nextTurnGS = GS.GameState
-          { GS.turn = toColor oppC
-          , GS.castlingRights = toCastlingRights newCR
-          , GS.epSquare = case newEP of
-                            Nothing -> Nothing
-                            Just f -> Just (toSquare (Square f (epRank oppC)))
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          }
-
         newState = CrazyhouseState wPocket' bPocket' promoted'
 
-        genDrops :: forall col. KnownColor col => PieceType -> Int -> [Move col]
-        genDrops pt count =
-          if count <= 0 then []
-          else
-             let validSquares = if pt == Pawn
-                                then filter (\(Square _ r) -> r /= Rank1 && r /= Rank8) emptySquares
-                                else emptySquares
-             in map (DropMove pt) validSquares
+        nextAg = ActiveGame internalB' newCR newEP newHMC newFMN newState SUnchecked
 
-        dropMoves :: [Move (Opposite c)]
-        dropMoves = concat
-           [ genDrops @(Opposite c) Pawn (pocketPawns (if oppC == White then wPocket' else bPocket'))
-           , genDrops @(Opposite c) Knight (pocketKnights (if oppC == White then wPocket' else bPocket'))
-           , genDrops @(Opposite c) Bishop (pocketBishops (if oppC == White then wPocket' else bPocket'))
-           , genDrops @(Opposite c) Rook (pocketRooks (if oppC == White then wPocket' else bPocket'))
-           , genDrops @(Opposite c) Queen (pocketQueens (if oppC == White then wPocket' else bPocket'))
-           ]
+    in Transition nextAg
 
-        emptySquares = [ Square f r | f <- [FileA .. FileH], r <- [Rank1 .. Rank8], Base.pieceAt internalB' (toSquare (Square f r)) == Nothing ]
-
-        isSafeDrop :: Move (Opposite c) -> Bool
-        isSafeDrop m =
-           let nextBase = applyMoveBase @(Opposite c) m internalB'
-           in not (Val.isCheck nextBase nextTurnGS)
-
-        canDrop = not (null (filter isSafeDrop dropMoves))
-
-        isChecked = Val.isCheck baseBoard nextTurnGS
-        hasMoves = Val.hasLegalMoves baseBoard nextTurnGS || canDrop
-
-    in case (isChecked, hasMoves) of
-         (True, False) -> Checkmate (Winner c)
-         (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newState SChecked :: ActiveGame 'Crazyhouse (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newState SSafe    :: ActiveGame 'Crazyhouse (Opposite c) 'Safe)
+  executeMove = genericExecuteMove
