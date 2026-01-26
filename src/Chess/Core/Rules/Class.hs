@@ -18,3 +18,4 @@ type family Opposite (c :: Color) :: Color where
 class ChessVariant (v :: Variant) where
   generateMoves :: KnownColor c => ActiveGame v c s -> [Move c]
   executeMove :: (KnownColor c, KnownColor (Opposite c)) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
+  applyMove :: (KnownColor c, KnownColor (Opposite c)) => Move c -> ActiveGame v c s -> GameTransition v (Opposite c)

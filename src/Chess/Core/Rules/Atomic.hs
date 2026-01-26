@@ -23,6 +23,7 @@ import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
+import Data.Bits (popCount)
 
 instance ChessVariant 'Atomic where
   generateMoves (ag :: ActiveGame 'Atomic c s) =
@@ -65,7 +66,7 @@ instance ChessVariant 'Atomic where
 
     in map toCoreMove validMoves
 
-  executeMove (m :: Move c) (ag :: ActiveGame 'Atomic c s) =
+  applyMove (m :: Move c) (ag :: ActiveGame 'Atomic c s) =
     let c = colorVal @c
         oppC = colorVal @(Opposite c)
         internalB = internalBoard ag
@@ -85,7 +86,7 @@ instance ChessVariant 'Atomic where
                       EnPassantMove _ _ -> True
                       _ -> False
 
-        (bFinal, enemyKingExploded) = if isCapture
+        (bFinal, _) = if isCapture
           then
             let center = to
                 b1 = Base.removePieceAt bBasic (toSquare center)
@@ -93,7 +94,7 @@ instance ChessVariant 'Atomic where
                 enemyKingSq = MG.kingSquare bBasic (toColor oppC)
                 explode sq (board, kingDead) =
                   if Just (toSquare sq) == enemyKingSq
-                  then (board, True)
+                  then (Base.removePieceAt board (toSquare sq), True)
                   else
                     case Base.pieceAt board (toSquare sq) of
                        Just p ->
@@ -130,12 +131,28 @@ instance ChessVariant 'Atomic where
 
         baseBoard = bFinal
         isChecked = Val.isCheck baseBoard nextTurnGS
-        hasMoves = Val.hasLegalMoves baseBoard nextTurnGS
 
-    in if enemyKingExploded
-       then Checkmate (Winner c)
-       else case (isChecked, hasMoves) of
-         (True, False) -> Checkmate (Winner c)
-         (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame bFinal newCR newEP newHMC newFMN () SChecked :: ActiveGame 'Atomic (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame bFinal newCR newEP newHMC newFMN () SSafe    :: ActiveGame 'Atomic (Opposite c) 'Safe)
+    in if isChecked
+       then Transition (ActiveGame bFinal newCR newEP newHMC newFMN () SChecked :: ActiveGame 'Atomic (Opposite c) 'Checked)
+       else Transition (ActiveGame bFinal newCR newEP newHMC newFMN () SSafe    :: ActiveGame 'Atomic (Opposite c) 'Safe)
+
+  executeMove (m :: Move c) ag =
+    case applyMove m ag of
+      Transition nextGame ->
+        let
+            baseBoard = internalBoard nextGame
+            oppC = colorVal @(Opposite c)
+            oppKings = if oppC == White then Base.whiteKings baseBoard else Base.blackKings baseBoard
+            enemyKingExploded = popCount oppKings == 0
+
+            c = colorVal @c
+            gs = toGameState nextGame
+            isChecked = case checkStatus nextGame of SChecked -> True; SSafe -> False
+            hasMoves = Val.hasLegalMoves baseBoard gs
+        in if enemyKingExploded
+           then Checkmate (Winner c)
+           else case (isChecked, hasMoves) of
+             (True, False) -> Checkmate (Winner c)
+             (False, False) -> Stalemate
+             (True, True) -> Continue nextGame
+             (False, True) -> Continue nextGame

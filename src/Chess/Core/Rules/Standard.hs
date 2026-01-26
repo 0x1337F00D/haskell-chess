@@ -102,7 +102,7 @@ instance ChessVariant 'Standard where
 
     in map toCoreMove baseMoves
 
-  executeMove (m :: Move c) (ag :: ActiveGame 'Standard c s) =
+  applyMove (m :: Move c) (ag :: ActiveGame 'Standard c s) =
     let
         c = colorVal @c
         internalB = internalBoard ag
@@ -141,10 +141,22 @@ instance ChessVariant 'Standard where
           }
 
         isChecked = Val.isCheck baseBoard nextTurnGS
-        hasMoves = Val.hasLegalMoves baseBoard nextTurnGS
 
-    in case (isChecked, hasMoves) of
-         (True, False) -> Checkmate (Winner c)
-         (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () SChecked :: ActiveGame 'Standard (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () SSafe    :: ActiveGame 'Standard (Opposite c) 'Safe)
+    in if isChecked
+       then Transition (ActiveGame internalB' newCR newEP newHMC newFMN () SChecked :: ActiveGame 'Standard (Opposite c) 'Checked)
+       else Transition (ActiveGame internalB' newCR newEP newHMC newFMN () SSafe    :: ActiveGame 'Standard (Opposite c) 'Safe)
+
+  executeMove (m :: Move c) ag =
+    case applyMove m ag of
+      Transition nextGame ->
+         let
+             baseBoard = internalBoard nextGame
+             gs = toGameState nextGame
+             isChecked = case checkStatus nextGame of SChecked -> True; SSafe -> False
+             hasMoves = Val.hasLegalMoves baseBoard gs
+             c = colorVal @c
+         in case (isChecked, hasMoves) of
+              (True, False) -> Checkmate (Winner c)
+              (False, False) -> Stalemate
+              (True, True) -> Continue nextGame
+              (False, True) -> Continue nextGame

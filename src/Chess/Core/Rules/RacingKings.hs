@@ -41,7 +41,7 @@ instance ChessVariant 'RacingKings where
 
     in filter noGiveCheck coreMoves
 
-  executeMove (m :: Move c) (ag :: ActiveGame 'RacingKings c s) =
+  applyMove (m :: Move c) (ag :: ActiveGame 'RacingKings c s) =
     let c = colorVal @c
         internalB = internalBoard ag
         internalB' = applyMoveBase m internalB
@@ -67,26 +67,38 @@ instance ChessVariant 'RacingKings where
         nextGameCandidate :: ActiveGame 'RacingKings (Opposite c) 'Safe
         nextGameCandidate = ActiveGame internalB' newCR newEP newHMC newFMN () SSafe
 
-        nextMoves = generateMoves nextGameCandidate
-        realHasMoves = not (null nextMoves)
+    in Transition nextGameCandidate
 
-        wKingSq = MG.kingSquare internalB' T.White
-        bKingSq = MG.kingSquare internalB' T.Black
-        wInGoal = case wKingSq of Just sq -> T.squareRank sq == 7; _ -> False
-        bInGoal = case bKingSq of Just sq -> T.squareRank sq == 7; _ -> False
+  executeMove (m :: Move c) ag =
+    case applyMove m ag of
+      Transition nextGame ->
+        let
+            c = colorVal @c
 
-        result =
-             if c == White
+            -- We need to cast back to 'Safe or trust generateMoves handles generic s
+            -- Since applyMove returns 'Safe, nextGame is 'Safe.
+            -- But pattern match gives `s` (existential).
+            -- We can assume it's Safe for RacingKings or `generateMoves` signature handles `s`.
+            -- `generateMoves` signature: `ActiveGame v c s -> [Move c]`. It handles any s.
+
+            nextMoves = generateMoves nextGame
+            realHasMoves = not (null nextMoves)
+
+            internalB' = internalBoard nextGame
+            wKingSq = MG.kingSquare internalB' T.White
+            bKingSq = MG.kingSquare internalB' T.Black
+            wInGoal = case wKingSq of Just sq -> T.squareRank sq == 7; _ -> False
+            bInGoal = case bKingSq of Just sq -> T.squareRank sq == 7; _ -> False
+
+        in if c == White
              then if wInGoal
                   then if realHasMoves
-                       then Continue nextGameCandidate
+                       then Continue nextGame
                        else Checkmate (Winner White)
                   else
-                       if realHasMoves then Continue nextGameCandidate else Stalemate
+                       if realHasMoves then Continue nextGame else Stalemate
              else
                   if bInGoal && wInGoal then Checkmate Draw else
                   if wInGoal then Checkmate (Winner White) else
                   if bInGoal then Checkmate (Winner Black) else
-                  if realHasMoves then Continue nextGameCandidate else Stalemate
-
-    in result
+                  if realHasMoves then Continue nextGame else Stalemate

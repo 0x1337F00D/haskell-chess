@@ -292,9 +292,6 @@ applyMoveBase m b =
           in b4
 
 -- Apply Move
-applyMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
-applyMove = executeMove
-
 getAdjacentSquares :: Square -> [Square]
 getAdjacentSquares (Square f r) =
   let fIdx = fromEnum f

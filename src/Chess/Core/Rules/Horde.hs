@@ -121,7 +121,7 @@ instance ChessVariant 'Horde where
 
     in map toCoreMove allMoves
 
-  executeMove (m :: Move c) (ag :: ActiveGame 'Horde c s) =
+  applyMove (m :: Move c) (ag :: ActiveGame 'Horde c s) =
     let
         c = colorVal @c
         oppC = colorVal @(Opposite c)
@@ -175,50 +175,53 @@ instance ChessVariant 'Horde where
           , GS.fullmoveNumber = newFMN
           }
 
-        -- Win Conditions
-
-        -- 1. White Wins if Black is Checkmated
         blackInCheck = if oppC == Black
                        then Val.isCheck baseBoard nextTurnGS
                        else False -- White has no King
 
-        hasMoves = Val.hasLegalMoves baseBoard nextTurnGS
-        -- For White (Horde), Val.hasLegalMoves works (generates standard moves).
-        -- But wait, if it's White's turn, we need to include the extra Rank 1 moves in the "has moves" check.
-        -- However, here we are checking `nextTurnGS`, which is for `oppC`.
-        -- If `c == White`, then `oppC == Black`. Black uses standard moves. So `Val.hasLegalMoves` is correct.
-        -- If `c == Black`, then `oppC == White`. `Val.hasLegalMoves` uses `MG.legalGenMoves`.
-        -- It misses the Rank 1 double push.
-        -- So if White has ONLY Rank 1 double push available, `Val.hasLegalMoves` might return False (Stalemate),
-        -- but actually White can move.
-        -- We need to fix `hasMoves` check for White.
+    in if blackInCheck
+       then Transition (ActiveGame baseBoard newCR newEP newHMC newFMN () SChecked :: ActiveGame 'Horde (Opposite c) 'Checked)
+       else Transition (ActiveGame baseBoard newCR newEP newHMC newFMN () SSafe    :: ActiveGame 'Horde (Opposite c) 'Safe)
 
-        hasMovesHorde =
-            if oppC == White
-            then
-                 let standardHasMoves = Val.hasLegalMoves baseBoard nextTurnGS
-                     -- Check if any Rank 1 double push is possible
-                     wPawns = Base.whitePawns baseBoard
-                     occ = Base.occupiedTotal baseBoard
-                     canPushRank1 i =
-                         testBit wPawns i &&
-                         not (testBit occ (i+8)) &&
-                         not (testBit occ (i+16))
-                     extraHasMoves = any canPushRank1 [0..7]
-                 in standardHasMoves || extraHasMoves
-            else Val.hasLegalMoves baseBoard nextTurnGS -- Black
+  executeMove (m :: Move c) ag =
+    case applyMove m ag of
+      Transition nextGame ->
+        let
+            baseBoard = internalBoard nextGame
+            gs = toGameState nextGame
+            c = colorVal @c
+            oppC = colorVal @(Opposite c)
 
-        -- 2. Black Wins if White has no pieces (Pawns + Promoted)
-        whitePiecesCount = popCount (Base.occupiedBy baseBoard T.White)
-        blackWins = whitePiecesCount == 0
+            -- Win Conditions
 
-    in if blackWins
-       then Checkmate (Winner Black)
-       else case (blackInCheck, hasMovesHorde) of
-         (True, False) -> Checkmate (Winner White) -- Black Checkmated
-         (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame baseBoard newCR newEP newHMC newFMN () SChecked :: ActiveGame 'Horde (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame baseBoard newCR newEP newHMC newFMN () SSafe    :: ActiveGame 'Horde (Opposite c) 'Safe)
+            -- 2. Black Wins if White has no pieces (Pawns + Promoted)
+            whitePiecesCount = popCount (Base.occupiedBy baseBoard T.White)
+            blackWins = whitePiecesCount == 0
+
+            blackInCheck = case checkStatus nextGame of SChecked -> True; SSafe -> False
+
+            hasMovesHorde =
+                if oppC == White
+                then
+                     let standardHasMoves = Val.hasLegalMoves baseBoard gs
+                         -- Check if any Rank 1 double push is possible
+                         wPawns = Base.whitePawns baseBoard
+                         occ = Base.occupiedTotal baseBoard
+                         canPushRank1 i =
+                             testBit wPawns i &&
+                             not (testBit occ (i+8)) &&
+                             not (testBit occ (i+16))
+                         extraHasMoves = any canPushRank1 [0..7]
+                     in standardHasMoves || extraHasMoves
+                else Val.hasLegalMoves baseBoard gs -- Black
+
+        in if blackWins
+           then Checkmate (Winner Black)
+           else case (blackInCheck, hasMovesHorde) of
+             (True, False) -> Checkmate (Winner White) -- Black Checkmated
+             (False, False) -> Stalemate
+             (True, True) -> Continue nextGame
+             (False, True) -> Continue nextGame
 
 getRank :: Square -> Rank
 getRank (Square _ r) = r

@@ -31,7 +31,7 @@ instance ChessVariant 'KingOfTheHill where
         baseMoves = MG.legalGenMoves baseBoard gs
     in map toCoreMove baseMoves
 
-  executeMove (m :: Move c) (ag :: ActiveGame 'KingOfTheHill c s) =
+  applyMove (m :: Move c) (ag :: ActiveGame 'KingOfTheHill c s) =
     let
         c = colorVal @c
         internalB = internalBoard ag
@@ -48,10 +48,6 @@ instance ChessVariant 'KingOfTheHill where
         movedPiece = Base.pieceAt internalB' (toSquare to)
         isPawn = case movedPiece of
                    Just p -> T.pieceType p == T.Pawn
-                   _ -> False
-
-        isKing = case movedPiece of
-                   Just p -> T.pieceType p == T.King
                    _ -> False
 
         newEP = case m of
@@ -73,16 +69,46 @@ instance ChessVariant 'KingOfTheHill where
           }
 
         isChecked = Val.isCheck baseBoard nextTurnGS
-        hasMoves = Val.hasLegalMoves baseBoard nextTurnGS
 
-        kingInCenter = isKing && to `elem` centerSquares
-        centerSquares = [ Square FileE Rank4, Square FileD Rank4
-                        , Square FileE Rank5, Square FileD Rank5 ]
+    in if isChecked
+       then Transition (ActiveGame internalB' newCR newEP newHMC newFMN () SChecked :: ActiveGame 'KingOfTheHill (Opposite c) 'Checked)
+       else Transition (ActiveGame internalB' newCR newEP newHMC newFMN () SSafe    :: ActiveGame 'KingOfTheHill (Opposite c) 'Safe)
 
-    in if kingInCenter
-       then Checkmate (Winner c)
-       else case (isChecked, hasMoves) of
-         (True, False) -> Checkmate (Winner c)
-         (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () SChecked :: ActiveGame 'KingOfTheHill (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN () SSafe    :: ActiveGame 'KingOfTheHill (Opposite c) 'Safe)
+  executeMove (m :: Move c) ag =
+    case applyMove m ag of
+      Transition nextGame ->
+        let
+            baseBoard = internalBoard nextGame
+            gs = toGameState nextGame
+            c = colorVal @c
+
+            (from, to) = case m of
+                           StandardMove f t -> (f, t)
+                           PromotionMove f t _ -> (f, t)
+                           CastlingMove f t -> (f, t)
+                           EnPassantMove f t -> (f, t)
+                           DropMove _ t -> (t, t)
+                           Castling960Move _ _ -> error "Castling960Move invalid in KingOfTheHill"
+
+            -- We need movedPiece type for kingInCenter check
+            -- But nextGame has already moved pieces.
+            -- Wait, to check if *moved* piece was King, we can look at `to` square in `baseBoard`.
+            movedPiece = Base.pieceAt baseBoard (toSquare to)
+            isKing = case movedPiece of
+                       Just p -> T.pieceType p == T.King
+                       _ -> False
+
+            kingInCenter = isKing && to `elem` centerSquares
+            centerSquares = [ Square FileE Rank4, Square FileD Rank4
+                            , Square FileE Rank5, Square FileD Rank5 ]
+
+            isChecked = case checkStatus nextGame of SChecked -> True; SSafe -> False
+            hasMoves = Val.hasLegalMoves baseBoard gs
+
+        in if kingInCenter
+           then Checkmate (Winner c)
+           else case (isChecked, hasMoves) of
+             (True, False) -> Checkmate (Winner c)
+             (False, False) -> Stalemate
+             (True, True) -> Continue nextGame
+             (False, True) -> Continue nextGame

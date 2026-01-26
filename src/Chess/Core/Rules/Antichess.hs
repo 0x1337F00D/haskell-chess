@@ -88,7 +88,7 @@ instance ChessVariant 'Antichess where
 
     in map toCoreMove validMoves
 
-  executeMove (m :: Move c) (ag :: ActiveGame 'Antichess c s) =
+  applyMove (m :: Move c) (ag :: ActiveGame 'Antichess c s) =
     let
         c = colorVal @c
         oppC = colorVal @(Opposite c)
@@ -124,36 +124,30 @@ instance ChessVariant 'Antichess where
         newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
 
         baseBoard = internalB'
-        nextTurnGS = GS.GameState
-          { GS.turn = toColor oppC
-          , GS.castlingRights = toCastlingRights newCR
-          , GS.epSquare = case newEP of
-                            Nothing -> Nothing
-                            Just f -> Just (toSquare (Square f (epRank oppC)))
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          }
+    in Transition (ActiveGame baseBoard newCR newEP newHMC newFMN () SSafe :: ActiveGame 'Antichess (Opposite c) 'Safe)
 
-        -- Win Conditions
+  executeMove (m :: Move c) ag =
+    case applyMove m ag of
+      Transition nextGame ->
+        let
+             baseBoard = internalBoard nextGame
+             c = colorVal @c
+             oppC = colorVal @(Opposite c)
 
-        -- 1. I win if I have no pieces left
-        myPiecesBB = Base.occupiedBy baseBoard (toColor c)
-        iWin = popCount myPiecesBB == 0
+             -- Win Conditions
 
-        -- 2. Opponent wins if they are stalemated (no legal moves)
-        -- To check if opponent has legal moves, we must run generateMoves for them.
-        -- We can't use Val.hasLegalMoves because it assumes Standard rules (checks).
-        -- We need to replicate Antichess move generation logic for opponent.
+             -- 1. I win if I have no pieces left
+             myPiecesBB = Base.occupiedBy baseBoard (toColor c)
+             iWin = popCount myPiecesBB == 0
 
-        oppPseudos = MG.pseudoLegalMoves baseBoard nextTurnGS
-        -- If opponent has ANY pseudo-legal move, they are not stalemated.
-        -- (Since in Antichess all pseudo-legal moves are legal).
-        oppHasMoves = not (null oppPseudos)
+             -- 2. Opponent wins if they are stalemated (no legal moves)
+             nextTurnGS = toGameState nextGame
+             oppPseudos = MG.pseudoLegalMoves baseBoard nextTurnGS
+             oppHasMoves = not (null oppPseudos)
+             opponentStalemated = not oppHasMoves
 
-        opponentStalemated = not oppHasMoves
-
-    in if iWin
-       then Checkmate (Winner c)
-       else if opponentStalemated
-            then Checkmate (Winner oppC)
-            else Continue (ActiveGame baseBoard newCR newEP newHMC newFMN () SSafe :: ActiveGame 'Antichess (Opposite c) 'Safe)
+        in if iWin
+           then Checkmate (Winner c)
+           else if opponentStalemated
+                then Checkmate (Winner oppC)
+                else Continue nextGame

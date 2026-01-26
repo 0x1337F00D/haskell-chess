@@ -31,7 +31,7 @@ instance ChessVariant 'ThreeCheck where
         baseMoves = MG.legalGenMoves baseBoard gs
     in map toCoreMove baseMoves
 
-  executeMove (m :: Move c) (ag :: ActiveGame 'ThreeCheck c s) =
+  applyMove (m :: Move c) (ag :: ActiveGame 'ThreeCheck c s) =
     let
         c = colorVal @c
         oppC = colorVal @(Opposite c)
@@ -70,7 +70,6 @@ instance ChessVariant 'ThreeCheck where
           }
 
         isChecked = Val.isCheck baseBoard nextTurnGS
-        hasMoves = Val.hasLegalMoves baseBoard nextTurnGS
 
         (wChecks, bChecks) = variantState ag
         (wChecks', bChecks') = if isChecked
@@ -78,12 +77,29 @@ instance ChessVariant 'ThreeCheck where
                                else (wChecks, bChecks)
 
         newVariantState = (wChecks', bChecks')
-        winByCheck = (if c == White then wChecks' else bChecks') >= 3
 
-    in if winByCheck
-       then Checkmate (Winner c)
-       else case (isChecked, hasMoves) of
-         (True, False) -> Checkmate (Winner c)
-         (False, False) -> Stalemate
-         (True, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newVariantState SChecked :: ActiveGame 'ThreeCheck (Opposite c) 'Checked)
-         (False, True) -> Continue (ActiveGame internalB' newCR newEP newHMC newFMN newVariantState SSafe    :: ActiveGame 'ThreeCheck (Opposite c) 'Safe)
+    in if isChecked
+       then Transition (ActiveGame internalB' newCR newEP newHMC newFMN newVariantState SChecked :: ActiveGame 'ThreeCheck (Opposite c) 'Checked)
+       else Transition (ActiveGame internalB' newCR newEP newHMC newFMN newVariantState SSafe    :: ActiveGame 'ThreeCheck (Opposite c) 'Safe)
+
+  executeMove (m :: Move c) ag =
+    case applyMove m ag of
+      Transition nextGame ->
+        let
+            baseBoard = internalBoard nextGame
+            gs = toGameState nextGame
+            c = colorVal @c
+
+            (wChecks', bChecks') = variantState nextGame
+            winByCheck = (if c == White then wChecks' else bChecks') >= 3
+
+            isChecked = case checkStatus nextGame of SChecked -> True; SSafe -> False
+            hasMoves = Val.hasLegalMoves baseBoard gs
+
+        in if winByCheck
+           then Checkmate (Winner c)
+           else case (isChecked, hasMoves) of
+             (True, False) -> Checkmate (Winner c)
+             (False, False) -> Stalemate
+             (True, True) -> Continue nextGame
+             (False, True) -> Continue nextGame

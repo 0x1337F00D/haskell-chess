@@ -113,7 +113,7 @@ spec = describe "Core Architecture" $ do
       isCheck b White `shouldBe` True
       isCheck b Black `shouldBe` False
 
-    it "applyMove performs a move and switches turn" $ do
+    it "executeMove performs a move and switches turn" $ do
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard initialBoard
@@ -127,7 +127,7 @@ spec = describe "Core Architecture" $ do
       -- Move E2 to E4
       let move = StandardMove (Square FileE Rank2) (Square FileE Rank4)
 
-      let res = applyMove move ag
+      let res = executeMove move ag
       case res of
         Continue nextGame -> do
           -- We can verify the board in nextGame
@@ -230,7 +230,7 @@ spec = describe "Core Architecture" $ do
 
       let move = StandardMove (Square FileE Rank4) (Square FileD Rank5)
 
-      let res = applyMove move ag
+      let res = executeMove move ag
       case res of
         Continue nextGame -> do
            let b' = unsafeViewBoard (internalBoard nextGame)
@@ -258,7 +258,7 @@ spec = describe "Core Architecture" $ do
                , checkStatus = SSafe
                }
       let move = StandardMove (Square FileE Rank3) (Square FileE Rank4)
-      let res = applyMove move ag
+      let res = executeMove move ag
       case res of
         Checkmate (Winner White) -> return ()
         _ -> expectationFailure "Expected White Win (King to Center)"
@@ -306,7 +306,7 @@ spec = describe "Core Architecture" $ do
                , checkStatus = SSafe
                }
        let move = StandardMove (Square FileE Rank7) (Square FileE Rank8)
-       let res = applyMove move ag
+       let res = executeMove move ag
        case res of
          Continue _ -> return () -- Game continues for Black's turn
          _ -> expectationFailure "Expected Continue (wait for Black)"
@@ -333,7 +333,7 @@ spec = describe "Core Architecture" $ do
                 }
 
        let m1 = StandardMove (Square FileA Rank1) (Square FileA Rank2) -- Checks A8
-       let res1 = applyMove m1 ag
+       let res1 = executeMove m1 ag
        case res1 of
          Continue ag2 -> do
             let (wChecks, _) = variantState ag2
@@ -352,7 +352,7 @@ spec = describe "Core Architecture" $ do
                 , checkStatus = SSafe
                 }
 
-       let res2 = applyMove m1 agTwo -- A1-A2 again
+       let res2 = executeMove m1 agTwo -- A1-A2 again
        case res2 of
           Checkmate (Winner White) -> return ()
           _ -> expectationFailure "Expected White Win by 3rd Check"
