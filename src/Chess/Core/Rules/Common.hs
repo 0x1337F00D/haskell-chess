@@ -160,7 +160,7 @@ toCoreMove (MG.GenMove (T.Move f t promo) pt captured) =
           then CastlingMove fromSq toSq
           else if pt == T.Pawn && captured == Nothing && T.squareFile f /= T.squareFile t
                then EnPassantMove fromSq toSq
-               else StandardMove fromSq toSq
+               else StandardMove fromSq toSq (fromPieceType pt)
 toCoreMove (MG.GenMove (T.DropMove _ _) _ _) = error "DropMove in GenMove"
 toCoreMove (MG.GenMove T.NullMove _ _) = error "NullMove in GenMove"
 
@@ -228,13 +228,10 @@ updateCastlingRights (CastlingRights cr) from to =
 applyMoveBase :: forall c. KnownColor c => Move c -> Base.Board -> Base.Board
 applyMoveBase m b =
     case m of
-       StandardMove f t ->
-          let p = Base.pieceAt b (toSquare f)
-          in case p of
-             Nothing -> b
-             Just piece ->
-                 let b1 = Base.removePieceAt b (toSquare f)
-                 in Base.putPiece b1 (toSquare t) piece
+       StandardMove f t pt ->
+          let piece = T.Piece (toColor (colorVal @c)) (toPieceType pt)
+              b1 = Base.removePieceAt b (toSquare f)
+          in Base.putPiece b1 (toSquare t) piece
 
        PromotionMove f t pt ->
           let b1 = Base.removePieceAt b (toSquare f)

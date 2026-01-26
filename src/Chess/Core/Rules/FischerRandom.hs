@@ -153,7 +153,7 @@ instance ChessVariant 'FischerRandom where
         internalB = internalBoard ag
         internalB' = applyMoveBase m internalB
         (from, to) = case m of
-                       StandardMove f t -> (f, t)
+                       StandardMove f t _ -> (f, t)
                        PromotionMove f t _ -> (f, t)
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
@@ -170,17 +170,8 @@ instance ChessVariant 'FischerRandom where
                   _ ->
                      updateCastlingRights960 (castlingRights ag) (variantState ag) internalB from to c
 
-        movedPiece = Base.pieceAt internalB' (toSquare to)
-
-        isPawn = case m of
-                   StandardMove _ _ ->
-                       case Base.pieceAt internalB' (toSquare to) of
-                           Just p -> T.pieceType p == T.Pawn
-                           _ -> False
-                   _ -> False
-
         newEP = case m of
-                  StandardMove f t -> if isPawn && isDoublePush f t then Just (getFile f) else Nothing
+                  StandardMove f t pt -> if pt == Pawn && isDoublePush f t then Just (getFile f) else Nothing
                   _ -> Nothing
 
         newHMC = halfMoveClock ag + 1
