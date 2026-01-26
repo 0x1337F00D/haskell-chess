@@ -1,12 +1,10 @@
 module Chess.Engine.Search (search) where
 
-import Data.List (sortBy, foldl')
-import Data.Ord (comparing, Down(..))
+import Data.List (foldl')
 import Data.Maybe (isJust)
 
 import Chess.Types
-import Chess.Board (Board(..), legalMoves, captureMoves, applyMove, isCheck, uci)
-import qualified Chess.Board.Base as Base
+import Chess.Board (Board(..), legalGenMoves, captureGenMoves, applyGenMove, isCheck, uci, GenMove(..))
 import Chess.Engine.Evaluation (evaluate)
 
 -- | Search for the best move.
@@ -24,16 +22,16 @@ search board maxDepth = do
 -- | Alpha-Beta at root.
 alphaBetaRoot :: Board -> Int -> (Move, Int)
 alphaBetaRoot board depth =
-    let moves = orderMoves board (legalMoves board)
+    let moves = orderGenMoves (legalGenMoves board)
     in case moves of
         [] -> (nullMove, 0) -- Should check game over before calling search
-        (m:ms) ->
-            let (bestM, bestScore) = foldl' searchMove (m, -infinity) (m:ms)
+        (gm@(GenMove m _ _):gms) ->
+            let (bestM, bestScore) = foldl' searchMove (m, -infinity) (gm:gms)
             in (bestM, bestScore)
   where
-    searchMove (bestM, bestScore) move =
-        let score = -alphaBeta (applyMove board move) (depth - 1) (-infinity) infinity
-        in if score > bestScore then (move, score) else (bestM, bestScore)
+    searchMove (bestM, bestScore) gm@(GenMove m _ _) =
+        let score = -alphaBeta (applyGenMove board gm) (depth - 1) (-infinity) infinity
+        in if score > bestScore then (m, score) else (bestM, bestScore)
 
 -- | Alpha-Beta search.
 alphaBeta :: Board -> Int -> Int -> Int -> Int
@@ -42,14 +40,14 @@ alphaBeta board depth alpha beta
     | null moves = if isCheck board then -mateValue + (100 - depth) else 0 -- Mate or Stalemate
     | otherwise = go moves alpha
   where
-    moves = orderMoves board (legalMoves board)
+    moves = orderGenMoves (legalGenMoves board)
 
     go [] a = a
-    go (m:ms) a =
-        let score = -alphaBeta (applyMove board m) (depth - 1) (-beta) (-a)
+    go (gm:gms) a =
+        let score = -alphaBeta (applyGenMove board gm) (depth - 1) (-beta) (-a)
         in if score >= beta
            then beta -- Cutoff
-           else go ms (max a score)
+           else go gms (max a score)
 
 -- | Quiescence Search (only captures).
 quiescence :: Board -> Int -> Int -> Int
@@ -59,16 +57,16 @@ quiescence board alpha beta =
     in if standPat >= beta
        then beta
        else
-           let moves = captureMoves board
-               sortedMoves = orderMoves board moves
+           let moves = captureGenMoves board
+               sortedMoves = orderGenMoves moves
            in go sortedMoves a
   where
     go [] a = a
-    go (m:ms) a =
-        let score = -quiescence (applyMove board m) (-beta) (-a)
+    go (gm:gms) a =
+        let score = -quiescence (applyGenMove board gm) (-beta) (-a)
         in if score >= beta
            then beta
-           else go ms (max a score)
+           else go gms (max a score)
 
 -- | Infinity constant.
 infinity :: Int
@@ -79,26 +77,22 @@ mateValue :: Int
 mateValue = 20000
 
 -- | Move ordering: Captures first, then promotion.
-orderMoves :: Board -> [Move] -> [Move]
-orderMoves board moves = capProms ++ caps ++ proms ++ quiets
+orderGenMoves :: [GenMove] -> [GenMove]
+orderGenMoves moves = capProms ++ caps ++ proms ++ quiets
   where
     (capProms, caps, proms, quiets) = foldr partitionMoves ([], [], [], []) moves
 
-    partitionMoves m (cp, c, p, q)
-        | isCapture board m =
+    partitionMoves gm@(GenMove m _ _) (cp, c, p, q)
+        | isCapture gm =
             if isPromotion m
-            then (m:cp, c, p, q)
-            else (cp, m:c, p, q)
-        | isPromotion m = (cp, c, m:p, q)
-        | otherwise     = (cp, c, p, m:q)
+            then (gm:cp, c, p, q)
+            else (cp, gm:c, p, q)
+        | isPromotion m = (cp, c, gm:p, q)
+        | otherwise     = (cp, c, p, gm:q)
 
     isPromotion m = isJust (promotion m)
 
--- | Check if a move is a capture.
--- Note: This misses En Passant captures as checking for them strictly requires GameState access
--- which is inside Chess.Board. But for move ordering/QSearch this is an okay approximation for now.
-isCapture :: Board -> Move -> Bool
-isCapture (Chess.Board.Board b _ _) (Move _ to _) =
-    isJust (Base.pieceAt b to)
-isCapture _ (DropMove _ _) = False
-isCapture _ NullMove = False
+    -- Efficient check for capture using GenMove data
+    isCapture (GenMove (Move f t _) pt cap) =
+        isJust cap || (pt == Pawn && squareFile f /= squareFile t)
+    isCapture _ = False

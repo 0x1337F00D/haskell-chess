@@ -46,6 +46,10 @@ pseudoLegalCaptures b gs = concat
 legalCaptures :: Board -> GameState -> [Move]
 legalCaptures b gs = map (\(GenMove m _ _) -> m) $ filter (isLegal b gs) (pseudoLegalCaptures b gs)
 
+-- | Generate all legal capture moves returning GenMove.
+legalGenCaptures :: Board -> GameState -> [GenMove]
+legalGenCaptures b gs = filter (isLegal b gs) (pseudoLegalCaptures b gs)
+
 -- | Check if a move is legal (does not leave own king in check).
 -- Note: This function assumes the move is pseudo-legal.
 isLegal :: Board -> GameState -> GenMove -> Bool

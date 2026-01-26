@@ -13,3 +13,7 @@
 ## 2026-01-27 – [Unsafe Vector Indexing]
 **Learning:** `Data.Vector.Unboxed.!` performs bounds checking. In hot paths like evaluation (PST lookup) and move generation (attack lookups), inputs are guaranteed to be valid `Square`s (0-63). The bounds checks added measurable overhead.
 **Action:** Replaced `!` with `unsafeIndex` in `Chess.Bitboard` (attack tables) and `Chess.Engine.Evaluation` (PST). Verified ~3% speedup on search benchmark. Use `unsafeIndex` when index validity is structurally guaranteed.
+
+## 2026-01-28 – [GenMove Propagation]
+**Learning:** `Search` was calling `legalMoves` (returning `[Move]`) which stripped `PieceType` and capture info. `orderMoves` then re-calculated `isCapture` using `pieceAt` (slow). `applyMove` then re-calculated `findPieceType` (slow).
+**Action:** Propagated `GenMove` (which contains `PieceType` and `Maybe CapturedPieceType`) all the way from Move Generation to Search and Move Application. Avoid re-resolving piece info in hot paths. Improved search speed by ~7.5%.
