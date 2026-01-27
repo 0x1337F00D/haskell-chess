@@ -23,8 +23,8 @@ data GameState = GameState
   { turn           :: !Color
   , castlingRights :: !CastlingRights
   , epSquare       :: !(Maybe Square)
-  , halfmoveClock  :: !Int
-  , fullmoveNumber :: !Int
+  , halfmoveClock  :: !HalfmoveClock
+  , fullmoveNumber :: !FullmoveNumber
   , zobristHash    :: !Word64
   } deriving (Eq, Show)
 

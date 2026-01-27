@@ -13,8 +13,9 @@ import Chess.Core.Game
 import Chess.Core.Rules
 import Chess.Core.Perft
 import Chess.Core.Game.Internal (Game(..))
+import Chess.Types (Depth)
 
-runPerft :: forall v. ChessVariant v => Int -> Game v 'Active -> Int
+runPerft :: forall v. ChessVariant v => Depth -> Game v 'Active -> Int
 runPerft d (InProgressGame (ag :: ActiveGame v c s)) =
   case sColor @c of
     SWhite -> perft d ag

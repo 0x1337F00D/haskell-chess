@@ -11,6 +11,7 @@ module Chess.Core.Game.Internal where
 
 import Chess.Core.Board.Internal
 import qualified Chess.Board.Base as Base
+import Chess.Types (HalfmoveClock, FullmoveNumber)
 import Data.Word (Word8)
 import Data.Bits ((.|.), (.&.), complement, testBit, setBit, clearBit)
 import Chess.Bitboard (Bitboard)
@@ -100,8 +101,8 @@ data ActiveGame (v :: Variant) (turn :: Color) (status :: CheckStatus) = ActiveG
   { internalBoard :: Base.Board
   , castlingRights :: CastlingRights
   , enPassantTarget :: Maybe File -- File of the pawn that moved two squares, if any
-  , halfMoveClock :: Int
-  , fullMoveNumber :: Int
+  , halfMoveClock :: HalfmoveClock
+  , fullMoveNumber :: FullmoveNumber
   , variantState :: VariantState v
   , checkStatus :: SCheckStatus status
   }
