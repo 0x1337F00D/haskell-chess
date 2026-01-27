@@ -5,6 +5,7 @@ import Data.Maybe (fromJust)
 import Chess.Board (initialBoard, parseFen, uci)
 import Chess.Engine.Evaluation (evaluate)
 import Chess.Engine.Search (search)
+import Chess.Engine.TT (newTT)
 
 spec :: Spec
 spec = describe "Engine" $ do
@@ -19,5 +20,6 @@ spec = describe "Engine" $ do
       -- Black to move: Qh4#
       let fenStr = "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2"
           board = fromJust $ parseFen fenStr
-      move <- search board 2
+      tt <- newTT 16
+      move <- search board tt 2
       uci move `shouldBe` "d8h4"

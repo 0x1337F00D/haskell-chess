@@ -1,6 +1,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 module Chess.Board.GameState where
 
+import Data.Word (Word64)
 import Data.Bits
 import Chess.Types
 import Chess.Bitboard
@@ -24,9 +25,11 @@ data GameState = GameState
   , epSquare       :: !(Maybe Square)
   , halfmoveClock  :: !Int
   , fullmoveNumber :: !Int
+  , zobristHash    :: !Word64
   } deriving (Eq, Show)
 
 -- | Initial game state for standard chess.
+-- Note: zobristHash is set to 0 here and should be updated when combined with a board.
 initialGameState :: GameState
 initialGameState = GameState
   { turn = White
@@ -34,6 +37,7 @@ initialGameState = GameState
   , epSquare = Nothing
   , halfmoveClock = 0
   , fullmoveNumber = 1
+  , zobristHash = 0
   }
 
 -- | Check if the given side has kingside castling rights.

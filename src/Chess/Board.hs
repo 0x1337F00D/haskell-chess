@@ -28,8 +28,8 @@ module Chess.Board
   , MoveGen.GenMove(..)
   ) where
 
-import Data.Maybe (isJust)
-import Data.Bits (testBit)
+import Data.Maybe (isJust, fromMaybe)
+import Data.Bits (testBit, xor)
 
 import Chess.Types
 import qualified Chess.Board.Base as Base
@@ -39,6 +39,7 @@ import qualified Chess.Board.Validation as Val
 import qualified Chess.Board.Fen as Fen
 import qualified Chess.Board.San as San
 import qualified Chess.Board.Uci as Uci
+import qualified Chess.Board.Zobrist as Zobrist
 
 -- | The primary board type combining piece placement and game state.
 data Board = Board
@@ -80,17 +81,56 @@ applyGenMove board (MoveGen.GenMove m pt capturedPt) = applyMoveHelper board m p
 -- | Helper to apply move logic given resolved pieces.
 {-# INLINE applyMoveHelper #-}
 applyMoveHelper :: Board -> Move -> PieceType -> Maybe PieceType -> Board
-applyMoveHelper (Board b gs hist) m@(Move from to _) pt capturedPt =
+applyMoveHelper (Board b gs hist) m@(Move from to promo) pt capturedPt =
     let
         -- 1. Update pieces (using fast path)
         b' = MoveGen.applyMoveBoardFast b gs m pt capturedPt
 
         c = GS.turn gs
+        oppC = Base.oppositeColor c
 
         -- 2. Analyze move for state updates using resolved pieces
         isPawn = pt == Pawn
         isEp = isPawn && capturedPt == Nothing && squareFile from /= squareFile to
         isCap = isJust capturedPt || isEp
+
+        -- Zobrist Updates ----------------------------------------------------
+        h0 = GS.zobristHash gs
+             `xor` Zobrist.zobristEp (GS.epSquare gs)           -- Remove old EP
+             `xor` Zobrist.zobristCastling (GS.castlingRights gs) -- Remove old CR
+             `xor` Zobrist.zobristBlackMove                     -- Toggle turn
+
+        -- Remove moving piece from 'from'
+        h1 = h0 `xor` Zobrist.zobristPiece c pt from
+
+        -- Add moving piece to 'to' (or promoted piece)
+        h2 = case promo of
+               Nothing -> h1 `xor` Zobrist.zobristPiece c pt to
+               Just p  -> h1 `xor` Zobrist.zobristPiece c p to
+
+        -- Handle Captures
+        h3 = case capturedPt of
+               Just cp -> h2 `xor` Zobrist.zobristPiece oppC cp to
+               Nothing ->
+                   if isEp
+                   then -- En Passant capture: remove pawn from correct square
+                        let capSq = if c == White
+                                    then Square (unSquare to - 8)
+                                    else Square (unSquare to + 8)
+                        in h2 `xor` Zobrist.zobristPiece oppC Pawn capSq
+                   else h2
+
+        -- Handle Castling (Rook moves)
+        h4 = if pt == King && abs (unSquare from - unSquare to) == 2
+             then -- Castling
+                let (rookFrom, rookTo) = if to == Square (unSquare from + 2) -- Kingside
+                                         then (Square (unSquare from + 3), Square (unSquare from + 1))
+                                         else (Square (unSquare from - 4), Square (unSquare from - 1))
+                in h3 `xor` Zobrist.zobristPiece c Rook rookFrom
+                      `xor` Zobrist.zobristPiece c Rook rookTo
+             else h3
+
+        -- --------------------------------------------------------------------
 
         -- Halfmove clock: Reset on pawn move or capture
         halfmove' = if isPawn || isCap then 0 else GS.halfmoveClock gs + 1
@@ -116,7 +156,11 @@ applyMoveHelper (Board b gs hist) m@(Move from to _) pt capturedPt =
               then Just (midSquare from to)
               else Nothing
 
-        nextTurn = Base.oppositeColor c
+        -- Finalize Hash
+        hFinal = h4 `xor` Zobrist.zobristCastling (GS.castlingRights gs2)
+                    `xor` Zobrist.zobristEp ep'
+
+        nextTurn = oppC
 
         -- 0. Update history
         posRep = Val.PositionRep b c (GS.castlingRights gs) (GS.epSquare gs)
@@ -129,6 +173,7 @@ applyMoveHelper (Board b gs hist) m@(Move from to _) pt capturedPt =
                      , GS.epSquare = ep'
                      , GS.halfmoveClock = halfmove'
                      , GS.fullmoveNumber = fullmove'
+                     , GS.zobristHash = hFinal
                      }) histFinal
 applyMoveHelper b _ _ _ = b
 
