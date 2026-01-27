@@ -3,16 +3,24 @@ module Chess.Engine.Uci (run) where
 import System.IO (hFlush, stdout, isEOF)
 import Data.Maybe (fromMaybe)
 import Control.Monad (unless)
-import Control.Monad.State (StateT, evalStateT, get, put, liftIO)
+import Control.Monad.State (StateT, evalStateT, get, put, liftIO, gets, modify)
 
 import Chess.Board (Board, initialBoard, parseFen, fromUci, uci, applyMove)
 import Chess.Engine.Search (search)
+import Chess.Engine.TT (TT, newTT)
 
-type UciM a = StateT Board IO a
+data EngineState = EngineState
+    { esBoard :: !Board
+    , esTT    :: !TT
+    }
+
+type UciM a = StateT EngineState IO a
 
 -- | Run the UCI loop.
 run :: IO ()
-run = evalStateT loop initialBoard
+run = do
+    tt <- newTT 20 -- 2^20 entries
+    evalStateT loop (EngineState initialBoard tt)
 
 loop :: UciM ()
 loop = do
@@ -34,11 +42,11 @@ loop = do
             ("quit":_) -> return ()
             ("position":rest) -> do
                 let newBoard = parsePosition rest
-                put newBoard
+                modify (\s -> s { esBoard = newBoard })
                 loop
             ("go":_) -> do
-                board <- get
-                best <- liftIO $ search board 5
+                st <- get
+                best <- liftIO $ search (esBoard st) (esTT st) 5
                 liftIO $ putStrLn $ "bestmove " ++ uci best
                 liftIO $ hFlush stdout
                 loop

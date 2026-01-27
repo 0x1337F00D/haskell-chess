@@ -63,6 +63,7 @@ instance ChessVariant 'ThreeCheck where
                             Just f -> Just (toSquare (Square f (epRank oppC)))
           , GS.halfmoveClock = newHMC
           , GS.fullmoveNumber = newFMN
+          , GS.zobristHash = 0
           }
 
         isChecked = Val.isCheck baseBoard nextTurnGS

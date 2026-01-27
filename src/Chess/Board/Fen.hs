@@ -12,6 +12,7 @@ import Chess.Board.Base (Board)
 import qualified Chess.Board.Base as Board
 import Chess.Board.GameState (GameState(..), CastlingRights)
 import qualified Chess.Board.GameState as GS
+import qualified Chess.Board.Zobrist as Zobrist
 
 -- | Parse a FEN string into a Board and GameState.
 -- | Parse a FEN string into a Board, GameState, and remaining parts.
@@ -38,13 +39,17 @@ parseFenRest s = do
   halfmove <- readMaybe halfmoveStr
   fullmove <- readMaybe fullmoveStr
 
-  let gs = GameState
+  let gsProto = GameState
         { turn = turnVal
         , castlingRights = castling
         , epSquare = ep
         , halfmoveClock = halfmove
         , fullmoveNumber = fullmove
+        , zobristHash = 0
         }
+      hash = Zobrist.computeHash board gsProto
+      gs = gsProto { zobristHash = hash }
+
   return (board, gs, extra')
 
 -- | Parse a FEN string into a Board and GameState.

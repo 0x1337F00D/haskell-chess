@@ -3,6 +3,7 @@ module Main where
 import Data.Time.Clock (getCurrentTime, diffUTCTime)
 import Chess.Board (parseFen, Board(..))
 import Chess.Engine.Search (search)
+import Chess.Engine.TT (newTT)
 
 -- KiwiPete position
 fen :: String
@@ -12,7 +13,8 @@ main :: IO ()
 main = do
     putStrLn "Starting Benchmark (KiwiPete Depth 2)..."
     let Just b = parseFen fen
+    tt <- newTT 20
     start <- getCurrentTime
-    _ <- search b 2
+    _ <- search b tt 2
     end <- getCurrentTime
     putStrLn $ "Time: " ++ show (diffUTCTime end start)

@@ -125,6 +125,7 @@ toGameState ag = GS.GameState
                     Just f -> Just (toSquare (Square f (epRank (colorVal @c))))
   , GS.halfmoveClock = halfMoveClock ag
   , GS.fullmoveNumber = fullMoveNumber ag
+  , GS.zobristHash = 0
   }
 
 epRank :: Color -> Rank

@@ -69,6 +69,7 @@ library
                     , Chess.Board.Validation
                     , Chess.Board.Uci
                     , Chess.Board.San
+                    , Chess.Board.Zobrist
                     , Chess.Board
                     , Chess
                     , Chess.Pgn
@@ -97,6 +98,7 @@ library
                     , Chess.Core.Fen
                     , Chess.Engine.Evaluation
                     , Chess.Engine.Search
+                    , Chess.Engine.TT
                     , Chess.Engine.Uci
 
     -- Modules included in this library but not exported.
