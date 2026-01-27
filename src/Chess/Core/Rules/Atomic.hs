@@ -23,6 +23,8 @@ import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
+import qualified Chess.Bitboard as BB
+import Data.Bits ((.&.), complement, (.|.))
 
 instance ChessVariant 'Atomic where
   generateMoves (ag :: ActiveGame 'Atomic c s) =
@@ -89,17 +91,45 @@ instance ChessVariant 'Atomic where
         bFinal = if isCapture
           then
             let center = to
-                b1 = Base.removePieceAt bBasic (toSquare center)
-                surrounds = getAdjacentSquares center
-                explode sq board =
-                    case Base.pieceAt board (toSquare sq) of
-                       Just p ->
-                         if T.pieceType p == T.Pawn
-                         then board
-                         else Base.removePieceAt board (toSquare sq)
-                       Nothing -> board
-                b2 = foldr explode b1 surrounds
-            in b2
+                centerSq = toSquare center
+                explosionMask = BB.kingAttacks centerSq
+                maskNonPawns = complement explosionMask
+                maskCenter = complement (BB.bbFromSquare centerSq)
+
+                -- Pawns: Only remove the capturing pawn (at center). Surrounding pawns are immune.
+                wPawns = Base.whitePawns bBasic .&. maskCenter
+                bPawns = Base.blackPawns bBasic .&. maskCenter
+
+                -- Non-Pawns: Remove capturing piece (center) AND exploded pieces (surroundings).
+                maskAll = maskNonPawns .&. maskCenter
+
+                wKnights = Base.whiteKnights bBasic .&. maskAll
+                wBishops = Base.whiteBishops bBasic .&. maskAll
+                wRooks   = Base.whiteRooks   bBasic .&. maskAll
+                wQueens  = Base.whiteQueens  bBasic .&. maskAll
+                wKings   = Base.whiteKings   bBasic .&. maskAll
+
+                bKnights = Base.blackKnights bBasic .&. maskAll
+                bBishops = Base.blackBishops bBasic .&. maskAll
+                bRooks   = Base.blackRooks   bBasic .&. maskAll
+                bQueens  = Base.blackQueens  bBasic .&. maskAll
+                bKings   = Base.blackKings   bBasic .&. maskAll
+
+                b2 = bBasic
+                   { Base.whitePawns   = wPawns
+                   , Base.blackPawns   = bPawns
+                   , Base.whiteKnights = wKnights
+                   , Base.blackKnights = bKnights
+                   , Base.whiteBishops = wBishops
+                   , Base.blackBishops = bBishops
+                   , Base.whiteRooks   = wRooks
+                   , Base.blackRooks   = bRooks
+                   , Base.whiteQueens  = wQueens
+                   , Base.blackQueens  = bQueens
+                   , Base.whiteKings   = wKings
+                   , Base.blackKings   = bKings
+                   }
+            in Base.updateOccupancy b2
           else bBasic
 
         newCR = updateCastlingRights (castlingRights ag) from to
