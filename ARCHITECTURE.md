@@ -4,6 +4,26 @@ This document outlines a conceptual architecture for a Haskell chess engine desi
 
 The design relies heavily on **Generalized Algebraic Data Types (GADTs)**, **DataKinds**, **Type Families**, and the **Opaque Data Pattern** to ensure that the compiler rejects logically invalid chess states.
 
+## 0. Current Architecture in this Repo (Reality Check)
+
+The repository already has **two complementary layers**:
+
+1. **Performance-Oriented Engine Layer (`Chess.Board.*`)**
+   * Bitboard-based representation with fast move generation, validation, and Zobrist hashing.
+   * This layer powers the engine, search, evaluation, and most format parsers (FEN/PGN/UCI).
+   * It uses `Chess.Types.Square` (0–63) and prioritizes speed.
+
+2. **Type-Safe Core Layer (`Chess.Core.*`)**
+   * Uses `DataKinds`, `GADTs`, and strongly-typed `File`, `Rank`, and `Square`.
+   * Encodes invariants like **exactly one king per side**, pawn rank restrictions, and turn safety.
+   * Variant logic is modeled via type classes, and moves are represented as typed proofs.
+
+The **bridge** between the layers lives in `Chess.Core.Rules.Common`, which converts between typed core structures and the bitboard engine representation. This keeps the engine fast while letting us expand type safety in the core.
+
+**Recent improvement (implemented now):**
+* The engine `GameState` now uses `HalfmoveClock` and `FullmoveNumber` newtypes to prevent accidental mixing of counters (a low-friction example of leveraging Haskell’s type system without hurting performance).
+* The search stack and transposition table now share a typed `Depth` newtype, eliminating accidental mixing with evaluation scores while preserving zero-cost compilation.
+
 ## 1. Foundation: The Finite Space
 *Goal: Eliminate array bounds errors and invalid coordinate arithmetic.*
 
@@ -155,3 +175,24 @@ Search engines require performance and may need to tentatively make "pseudo-lega
 | **Type-Indexed Turn** | Impossible to move out of turn. | Game loop must handle existential types or continuation passing style. |
 
 This architecture ensures that the vast majority of chess engine bugs—illegal moves, invalid states, and rule violations—are transformed into compilation errors. The runtime is reserved solely for chess logic (is this position mate?), not validity checks (is this index -1?).
+
+## 11. Concrete Next Steps to Leverage More Haskell Power
+
+The following improvements are practical extensions of the current codebase:
+
+1. **Strengthen Opaque Boundaries in the Engine Layer**
+   * Hide direct `Square` construction outside trusted modules.
+   * Provide safe constructors (`square`) and explicit `unsafe` helpers for hot paths.
+2. **Promote Typed Coordinates into the Engine**
+   * Gradually replace raw `Int` file/rank arithmetic with finite `File`/`Rank` types.
+   * Use `Bounded`/`Enum` instances for safe iteration over board coordinates.
+3. **Move Proofs as First-Class Values**
+   * Expand the typed `Move` GADT to cover more variants (Crazyhouse drops, Fischer Random castling).
+   * Expose an opaque `Move` API in the engine layer so only legal moves can be applied externally.
+4. **Type-Level Game State Guarantees**
+   * Ensure FEN parsing produces a typed `Game 'Setup` or `Game 'Active` depending on validation.
+   * Encode “in check / safe” as a type index in more public APIs (not just internal).
+5. **Use Newtypes for Domain Counters and Indices**
+   * Continue adding lightweight newtypes (like `HalfmoveClock` and `FullmoveNumber`) to prevent category mistakes without runtime cost.
+
+These changes are incremental and compatible with the existing split architecture: the bitboard engine stays fast, while correctness and maintainability improve as more invariants become type-checked.

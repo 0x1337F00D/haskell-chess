@@ -78,6 +78,30 @@ square n
   | 0 <= n && n < 64 = Just (Square n)
   | otherwise = Nothing
 
+-- | Halfmove clock for the fifty-move rule (counts half-moves).
+newtype HalfmoveClock = HalfmoveClock { unHalfmoveClock :: Int }
+  deriving stock (Eq, Ord)
+  deriving newtype (Enum, Num, Real, Integral)
+
+instance Show HalfmoveClock where
+  show = show . unHalfmoveClock
+
+-- | Fullmove number (increments after Black's move).
+newtype FullmoveNumber = FullmoveNumber { unFullmoveNumber :: Int }
+  deriving stock (Eq, Ord)
+  deriving newtype (Enum, Num, Real, Integral)
+
+instance Show FullmoveNumber where
+  show = show . unFullmoveNumber
+
+-- | Search depth measured in plies.
+newtype Depth = Depth { unDepth :: Int }
+  deriving stock (Eq, Ord)
+  deriving newtype (Enum, Num, Real, Integral)
+
+instance Show Depth where
+  show = show . unDepth
+
 -- | Pattern synonyms for individual squares in A1..H8 order.
 pattern A1, B1, C1, D1, E1, F1, G1, H1 :: Square
 pattern A1 = Square 0

@@ -6,7 +6,7 @@ import Data.Bits
 import qualified Data.Vector.Unboxed.Mutable as UM
 import Control.Monad (when)
 
-import Chess.Types (Move(..), Square(..), PieceType(..))
+import Chess.Types (Move(..), Square(..), PieceType(..), Depth(..))
 
 -- | Transposition Table Entry Flags
 data TTFlag = TTExact | TTLower | TTUpper
@@ -81,11 +81,11 @@ unpackMove w =
 
 -- | Pack Data into 64 bits.
 -- Move (16) | Score (16) | Depth (8) | Flag (2) | Age (8) | Unused (14)
-packData :: Move -> Int -> Int -> TTFlag -> Int -> Word64
+packData :: Move -> Int -> Depth -> TTFlag -> Int -> Word64
 packData m score depth flag age =
     let mW = fromIntegral (packMove m) :: Word64
         sW = fromIntegral (score + 32768) :: Word64 -- Bias to make positive
-        dW = fromIntegral depth :: Word64
+        dW = fromIntegral (unDepth depth) :: Word64
         fW = fromIntegral (fromEnum flag) :: Word64
         aW = fromIntegral age :: Word64
     in mW .|.
@@ -94,17 +94,17 @@ packData m score depth flag age =
        (fW `shiftL` 40) .|.
        (aW `shiftL` 42)
 
-unpackData :: Word64 -> (Move, Int, Int, TTFlag, Int)
+unpackData :: Word64 -> (Move, Int, Depth, TTFlag, Int)
 unpackData w =
     let m = unpackMove (fromIntegral (w .&. 0xFFFF))
         s = fromIntegral ((w `shiftR` 16) .&. 0xFFFF) - 32768
-        d = fromIntegral ((w `shiftR` 32) .&. 0xFF)
+        d = Depth (fromIntegral ((w `shiftR` 32) .&. 0xFF))
         f = toEnum (fromIntegral ((w `shiftR` 40) .&. 0x3))
         a = fromIntegral ((w `shiftR` 42) .&. 0xFF)
     in (m, s, d, f, a)
 
 -- | Probe the TT.
-probeTT :: TT -> Word64 -> IO (Maybe (Move, Int, Int, TTFlag))
+probeTT :: TT -> Word64 -> IO (Maybe (Move, Int, Depth, TTFlag))
 probeTT (TT v mask) key = do
     let idx = (fromIntegral key .&. mask) * 2
     entryKey <- UM.unsafeRead v idx
@@ -119,7 +119,7 @@ probeTT (TT v mask) key = do
 -- Replacement strategy: Depth-preferred or Always replace?
 -- Simple: Always replace (or Depth-preferred).
 -- We'll use depth-preferred + age (not implemented yet, assuming same age).
-storeTT :: TT -> Word64 -> Int -> Int -> TTFlag -> Move -> IO ()
+storeTT :: TT -> Word64 -> Depth -> Int -> TTFlag -> Move -> IO ()
 storeTT (TT v mask) key depth score flag move = do
     let idx = (fromIntegral key .&. mask) * 2
     -- Read old entry to decide replacement

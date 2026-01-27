@@ -36,8 +36,8 @@ parseFenRest s = do
   turnVal <- parseTurn turnStr
   castling <- parseCastling castlingStr
   ep <- parseEp epStr
-  halfmove <- readMaybe halfmoveStr
-  fullmove <- readMaybe fullmoveStr
+  halfmove <- HalfmoveClock <$> readMaybe halfmoveStr
+  fullmove <- FullmoveNumber <$> readMaybe fullmoveStr
 
   let gsProto = GameState
         { turn = turnVal

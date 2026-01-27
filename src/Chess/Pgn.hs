@@ -339,14 +339,14 @@ getStartColor ts = case lookup "FEN" ts of
         Just b -> GS.turn (Board.state b)
         Nothing -> Board.White
 
-getStartMoveNum :: [(String, String)] -> Int
+getStartMoveNum :: [(String, String)] -> Board.FullmoveNumber
 getStartMoveNum ts = case lookup "FEN" ts of
     Nothing -> 1
     Just fen -> case Board.parseFen fen of
         Just b -> GS.fullmoveNumber (Board.state b)
         Nothing -> 1
 
-formatMoves :: Board.Color -> Int -> Bool -> [PgnNode] -> String
+formatMoves :: Board.Color -> Board.FullmoveNumber -> Bool -> [PgnNode] -> String
 formatMoves _ _ _ [] = ""
 formatMoves c mn isFirst (n:ns) =
     let

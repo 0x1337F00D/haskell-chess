@@ -14,6 +14,7 @@ import Chess.Core.Rules
 import Chess.Core.Rules.Class (Opposite)
 import Chess.Core.Perft
 import Chess.Core.Board.Internal (KnownColor(..), SColor(..), sColor)
+import Chess.Types (Depth)
 import Data.Time.Clock
 import Text.Printf
 import Control.Exception (evaluate)
@@ -26,7 +27,7 @@ withOpposite f = case sColor @c of
 
 -- | Run perft for a specific game state
 runPerft :: (ChessVariant v, KnownColor c, KnownColor (Opposite c))
-         => String -> Int -> ActiveGame v c s -> IO ()
+         => String -> Depth -> ActiveGame v c s -> IO ()
 runPerft name depth ag = do
     start <- getCurrentTime
     let nodes = perft depth ag
@@ -36,9 +37,9 @@ runPerft name depth ag = do
     let seconds = realToFrac duration :: Double
     let nps = if seconds > 0 then fromIntegral nodes / seconds else 0
 
-    printf "Core | %-10s | Depth %d | Nodes: %10d | Time: %6.3fs | NPS: %10.0f\n" name depth nodes seconds nps
+    printf "Core | %-10s | Depth %d | Nodes: %10d | Time: %6.3fs | NPS: %10.0f\n" name (fromIntegral depth :: Int) nodes seconds nps
 
-benchGame :: String -> Int -> Game 'Standard 'Active -> IO ()
+benchGame :: String -> Depth -> Game 'Standard 'Active -> IO ()
 benchGame name depth (InProgressGame (ag :: ActiveGame 'Standard c s)) =
     withOpposite @c (runPerft name depth ag)
 

@@ -18,7 +18,7 @@ mateValue = 20000
 
 
 -- | Search for the best move.
-search :: Board -> TT -> Int -> IO Move
+search :: Board -> TT -> Depth -> IO Move
 search board tt maxDepth = do
     let loop depth bestM
           | depth > maxDepth = return bestM
@@ -34,7 +34,7 @@ search board tt maxDepth = do
     loop 1 nullMove
 
 -- | Root Search
-alphaBetaRoot :: Board -> TT -> Int -> IO (Move, Int)
+alphaBetaRoot :: Board -> TT -> Depth -> IO (Move, Int)
 alphaBetaRoot board tt depth = do
     let moves = legalGenMoves board
     -- Probe TT for root move ordering (optional but good)
@@ -65,7 +65,7 @@ alphaBetaRoot board tt depth = do
     getMove (GenMove m _ _) = m
 
 -- | Alpha-Beta Search
-alphaBeta :: Board -> TT -> Int -> Int -> Int -> Bool -> IO Int
+alphaBeta :: Board -> TT -> Depth -> Int -> Int -> Bool -> IO Int
 alphaBeta board tt depth alpha beta canNull = do
     let hash = GS.zobristHash (state board)
 
@@ -112,7 +112,7 @@ alphaBeta board tt depth alpha beta canNull = do
                     let moves = legalGenMoves board
 
                     if null moves
-                    then return $ if inCheck then -mateValue + (100 - depth) else 0 -- Mate or Stalemate
+                    then return $ if inCheck then -mateValue + (100 - unDepth depth) else 0 -- Mate or Stalemate
                     else do
                         let sortedMoves = orderGenMoves moves ttMove
 
