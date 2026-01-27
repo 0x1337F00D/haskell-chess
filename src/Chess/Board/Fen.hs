@@ -1,7 +1,7 @@
 module Chess.Board.Fen where
 
 import Control.Monad (foldM, guard)
-import Data.Char (isDigit, ord)
+import Data.Char (isDigit, ord, chr, toLower)
 import Data.List (intercalate)
 import Data.Bits ((.|.), testBit)
 import Text.Read (readMaybe)
@@ -141,12 +141,18 @@ showCastling :: CastlingRights -> String
 showCastling cr
   | cr == GS.noCastling = "-"
   | otherwise =
-      let k = if testBit cr (unSquare H1) then "K" else ""
-          q = if testBit cr (unSquare A1) then "Q" else ""
-          bk = if testBit cr (unSquare H8) then "k" else ""
-          bq = if testBit cr (unSquare A8) then "q" else ""
-          res = k ++ q ++ bk ++ bq
+      let whiteStr =
+            (if testBit cr (unSquare H1) then "K" else "") ++
+            (if testBit cr (unSquare A1) then "Q" else "") ++
+            [ fileChar f | f <- [1..6], testBit cr (unSquare (Square f)) ]
+          blackStr =
+            (if testBit cr (unSquare H8) then "k" else "") ++
+            (if testBit cr (unSquare A8) then "q" else "") ++
+            [ toLower (fileChar f) | f <- [1..6], testBit cr (unSquare (Square (56+f))) ]
+          res = whiteStr ++ blackStr
       in if null res then "-" else res
+  where
+    fileChar f = chr (ord 'A' + f)
 
 showEp :: Maybe Square -> String
 showEp Nothing = "-"

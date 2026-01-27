@@ -64,6 +64,13 @@ spec = do
       GS.canCastleKingside gs Black `shouldBe` False
       GS.canCastleQueenside gs Black `shouldBe` True
 
+    it "preserves non-standard castling rights (CFcf)" $ do
+      let fenStr = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w CFcf - 0 1"
+      let parsed = Fen.parseFen fenStr
+      parsed `shouldNotBe` Nothing
+      let (Just (b, gs)) = parsed
+      Fen.fen b gs `shouldBe` fenStr
+
     it "roundtrips all FENs from perftsuite.epd" $ do
         content <- readFile "test/gamefiles/perftsuite.epd"
         let fens = map parseEpdFen (lines content)
