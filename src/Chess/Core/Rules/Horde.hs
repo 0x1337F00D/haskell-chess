@@ -127,8 +127,10 @@ instance ChessVariant 'Horde where
         internalB = internalBoard ag
         internalB' = applyMoveBase m internalB
         (from, to) = case m of
-                       StandardMove f t _ -> (f, t)
+                       QuietMove f t _ -> (f, t)
+                       CaptureMove f t _ _ -> (f, t)
                        PromotionMove f t _ -> (f, t)
+                       PromotionCaptureMove f t _ _ -> (f, t)
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
@@ -137,14 +139,16 @@ instance ChessVariant 'Horde where
         newCR = updateCastlingRights (castlingRights ag) from to
 
         isPawn = case m of
-                   StandardMove _ _ pt -> pt == Pawn
+                   QuietMove _ _ pt -> pt == Pawn
+                   CaptureMove _ _ pt _ -> pt == Pawn
                    EnPassantMove _ _ -> True
                    PromotionMove _ _ _ -> True
+                   PromotionCaptureMove _ _ _ _ -> True
                    DropMove pt _ -> pt == Pawn
                    _ -> False
 
         newEP = case m of
-                  StandardMove f t _ ->
+                  QuietMove f t _ ->
                       if isPawn
                       then
                           if isDoublePush f t
@@ -157,8 +161,8 @@ instance ChessVariant 'Horde where
                   _ -> Nothing
 
         isCapture = case m of
-                      StandardMove _ t _ -> Base.pieceAt internalB (toSquare t) /= Nothing
-                      PromotionMove _ t _ -> Base.pieceAt internalB (toSquare t) /= Nothing
+                      CaptureMove {} -> True
+                      PromotionCaptureMove {} -> True
                       EnPassantMove _ _ -> True
                       _ -> False
 

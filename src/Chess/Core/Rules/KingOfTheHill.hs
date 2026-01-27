@@ -41,15 +41,18 @@ instance ChessVariant 'KingOfTheHill where
 
             -- Extract destination for win check
             to = case m of
-                       StandardMove _ t _ -> t
+                       QuietMove _ t _ -> t
+                       CaptureMove _ t _ _ -> t
                        PromotionMove _ t _ -> t
+                       PromotionCaptureMove _ t _ _ -> t
                        CastlingMove _ t -> t
                        EnPassantMove _ t -> t
                        DropMove _ t -> t
                        Castling960Move _ _ -> error "Castling960Move invalid in KingOfTheHill"
 
             isKing = case m of
-                       StandardMove _ _ pt -> pt == King
+                       QuietMove _ _ pt -> pt == King
+                       CaptureMove _ _ pt _ -> pt == King
                        CastlingMove _ _ -> True
                        _ -> False
 
