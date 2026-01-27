@@ -15,6 +15,6 @@ main = do
     let Just b = parseFen fen
     tt <- newTT 20
     start <- getCurrentTime
-    _ <- search b tt 2
+    _ <- search b tt 6
     end <- getCurrentTime
     putStrLn $ "Time: " ++ show (diffUTCTime end start)
