@@ -175,8 +175,10 @@ instance ChessVariant 'Crazyhouse where
           King   -> p
 
         (from, to) = case m of
-                       StandardMove f t _ -> (f, t)
+                       QuietMove f t _ -> (f, t)
+                       CaptureMove f t _ _ -> (f, t)
                        PromotionMove f t _ -> (f, t)
+                       PromotionCaptureMove f t _ _ -> (f, t)
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
@@ -190,14 +192,16 @@ instance ChessVariant 'Crazyhouse where
               in (pockets, promoted)
            _ ->
               let capture = case m of
-                              StandardMove _ t _ -> Base.pieceAt internalB (toSquare t)
-                              PromotionMove _ t _ -> Base.pieceAt internalB (toSquare t)
+                              CaptureMove _ _ _ cap -> Just (T.Piece (toColor oppC) (toPieceType cap))
+                              PromotionCaptureMove _ _ _ cap -> Just (T.Piece (toColor oppC) (toPieceType cap))
                               EnPassantMove _ _ -> Just (T.Piece (toColor oppC) T.Pawn)
                               _ -> Nothing
 
                   capturedSquare = case m of
                                      EnPassantMove f t -> Just (getEpCapturedSquare f t)
-                                     _ -> if capture /= Nothing then Just to else Nothing
+                                     CaptureMove _ t _ _ -> Just t
+                                     PromotionCaptureMove _ t _ _ -> Just t
+                                     _ -> Nothing
 
                   pockets' = case capture of
                      Just (T.Piece _ pt) ->
@@ -224,6 +228,7 @@ instance ChessVariant 'Crazyhouse where
 
                   p3 = case m of
                           PromotionMove _ _ _ -> setBit p2 (T.unSquare (toSquare to))
+                          PromotionCaptureMove _ _ _ _ -> setBit p2 (T.unSquare (toSquare to))
                           _ -> p2
 
               in (pockets', p3)
@@ -233,18 +238,20 @@ instance ChessVariant 'Crazyhouse where
                   _ -> updateCastlingRights (castlingRights ag) from to
 
         isPawn = case m of
-                   StandardMove _ _ pt -> pt == Pawn
+                   QuietMove _ _ pt -> pt == Pawn
+                   CaptureMove _ _ pt _ -> pt == Pawn
                    EnPassantMove _ _ -> True
                    PromotionMove _ _ _ -> True
+                   PromotionCaptureMove _ _ _ _ -> True
                    DropMove pt _ -> pt == Pawn
                    _ -> False
         newEP = case m of
-                  StandardMove f t _ -> if isPawn && isDoublePush f t then Just (getFile f) else Nothing
+                  QuietMove f t _ -> if isPawn && isDoublePush f t then Just (getFile f) else Nothing
                   _ -> Nothing
 
         isCapture = case m of
-                      StandardMove _ t _ -> Base.pieceAt internalB (toSquare t) /= Nothing
-                      PromotionMove _ t _ -> Base.pieceAt internalB (toSquare t) /= Nothing
+                      CaptureMove {} -> True
+                      PromotionCaptureMove {} -> True
                       EnPassantMove _ _ -> True
                       _ -> False
 

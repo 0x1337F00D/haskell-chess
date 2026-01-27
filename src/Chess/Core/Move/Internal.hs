@@ -17,19 +17,28 @@ import Chess.Core.Game.Internal
 -- Internally, it utilizes a GADT.
 
 data Move (c :: Color) where
-  -- Standard Move: Normal move or capture
-  StandardMove ::
-    { smFrom :: Square
-    , smTo   :: Square
-    , smPieceType :: PieceType
+  -- | A move to a target square guaranteed to be empty.
+  QuietMove ::
+    { qmFrom :: Square
+    , qmTo   :: Square
+    , qmMoving :: PieceType
+    } -> Move c
+
+  -- | A move to a target square guaranteed to be occupied by an enemy.
+  -- Carries the proof of the victim's identity.
+  CaptureMove ::
+    { cmFrom :: Square
+    , cmTo   :: Square
+    , cmMoving :: PieceType
+    , cmCaptured :: PieceType -- ^ The explicit witness of the captured piece.
     } -> Move c
 
   -- Castling Move: Kingside or Queenside
   -- We use the target file of the King (FileG or FileC) or the Rook's file?
   -- Typically Castling is encoded by King's movement.
   CastlingMove ::
-    { cmFrom :: Square
-    , cmTo   :: Square
+    { castlingFrom :: Square
+    , castlingTo   :: Square
     } -> Move c
 
   -- En Passant Move
@@ -38,11 +47,19 @@ data Move (c :: Color) where
     , epTo   :: Square
     } -> Move c
 
-  -- Promotion Move
+  -- Promotion Move (Quiet)
   PromotionMove ::
     { pmFrom :: Square
     , pmTo   :: Square
     , pmPromotion :: PieceType -- Promotion choice (Queen, Rook, Bishop, Knight)
+    } -> Move c
+
+  -- Promotion with Capture
+  PromotionCaptureMove ::
+    { pcmFrom :: Square
+    , pcmTo   :: Square
+    , pcmPromotion :: PieceType
+    , pcmCaptured :: PieceType
     } -> Move c
 
   -- Drop Move

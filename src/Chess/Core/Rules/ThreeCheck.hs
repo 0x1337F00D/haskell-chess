@@ -38,8 +38,10 @@ instance ChessVariant 'ThreeCheck where
         internalB = internalBoard ag
         internalB' = applyMoveBase m internalB
         (from, to) = case m of
-                       StandardMove f t _ -> (f, t)
+                       QuietMove f t _ -> (f, t)
+                       CaptureMove f t _ _ -> (f, t)
                        PromotionMove f t _ -> (f, t)
+                       PromotionCaptureMove f t _ _ -> (f, t)
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
@@ -48,7 +50,7 @@ instance ChessVariant 'ThreeCheck where
         newCR = updateCastlingRights (castlingRights ag) from to
 
         newEP = case m of
-                  StandardMove f t pt -> if pt == Pawn && isDoublePush f t then Just (getFile f) else Nothing
+                  QuietMove f t pt -> if pt == Pawn && isDoublePush f t then Just (getFile f) else Nothing
                   _ -> Nothing
 
         newHMC = halfMoveClock ag + 1

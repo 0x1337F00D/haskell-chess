@@ -160,13 +160,17 @@ toCoreMove (MG.GenMove (T.Move f t promo) pt captured) =
       toSq = fromSquare t
   in case promo of
        Just ppt ->
-          PromotionMove fromSq toSq (fromPieceType pt)
+          case captured of
+            Nothing -> PromotionMove fromSq toSq (fromPieceType ppt)
+            Just cap -> PromotionCaptureMove fromSq toSq (fromPieceType ppt) (fromPieceType cap)
        Nothing ->
           if pt == T.King && abs (T.unSquare f - T.unSquare t) == 2
           then CastlingMove fromSq toSq
           else if pt == T.Pawn && captured == Nothing && T.squareFile f /= T.squareFile t
                then EnPassantMove fromSq toSq
-               else StandardMove fromSq toSq (fromPieceType pt)
+               else case captured of
+                      Nothing -> QuietMove fromSq toSq (fromPieceType pt)
+                      Just cap -> CaptureMove fromSq toSq (fromPieceType pt) (fromPieceType cap)
 toCoreMove (MG.GenMove (T.DropMove _ _) _ _) = error "DropMove in GenMove"
 toCoreMove (MG.GenMove T.NullMove _ _) = error "NullMove in GenMove"
 
@@ -234,17 +238,33 @@ updateCastlingRights (CastlingRights cr) from to =
 applyMoveBase :: forall c. KnownColor c => Move c -> Base.Board -> Base.Board
 applyMoveBase m b =
     case m of
-       StandardMove f t pt ->
+       QuietMove f t pt ->
           let c = toColor (colorVal @c)
               piece = T.Piece c (toPieceType pt)
               b1 = Base.unsafeRemovePiece b (toSquare f) c (toPieceType pt)
-          in Base.putPiece b1 (toSquare t) piece
+          in Base.unsafePutPiece b1 (toSquare t) piece
 
-       PromotionMove f t pt ->
+       CaptureMove f t pt cap ->
+          let c = toColor (colorVal @c)
+              oppC = Base.oppositeColor c
+              piece = T.Piece c (toPieceType pt)
+              b1 = Base.unsafeRemovePiece b (toSquare f) c (toPieceType pt)
+              b2 = Base.unsafeRemovePiece b1 (toSquare t) oppC (toPieceType cap)
+          in Base.unsafePutPiece b2 (toSquare t) piece
+
+       PromotionMove f t promo ->
           let c = toColor (colorVal @c)
               b1 = Base.unsafeRemovePiece b (toSquare f) c T.Pawn
-              promoted = T.Piece c (toPieceType pt)
-          in Base.putPiece b1 (toSquare t) promoted
+              promoted = T.Piece c (toPieceType promo)
+          in Base.unsafePutPiece b1 (toSquare t) promoted
+
+       PromotionCaptureMove f t promo cap ->
+          let c = toColor (colorVal @c)
+              oppC = Base.oppositeColor c
+              b1 = Base.unsafeRemovePiece b (toSquare f) c T.Pawn
+              b2 = Base.unsafeRemovePiece b1 (toSquare t) oppC (toPieceType cap)
+              promoted = T.Piece c (toPieceType promo)
+          in Base.unsafePutPiece b2 (toSquare t) promoted
 
        CastlingMove f t ->
           let c = toColor (colorVal @c)
@@ -313,8 +333,10 @@ genericApplyMove m ag =
         internalB = internalBoard ag
         internalB' = applyMoveBase m internalB
         (from, to) = case m of
-                       StandardMove f t _ -> (f, t)
+                       QuietMove f t _ -> (f, t)
+                       CaptureMove f t _ _ -> (f, t)
                        PromotionMove f t _ -> (f, t)
+                       PromotionCaptureMove f t _ _ -> (f, t)
                        CastlingMove f t -> (f, t)
                        EnPassantMove f t -> (f, t)
                        DropMove _ t -> (t, t)
@@ -323,19 +345,21 @@ genericApplyMove m ag =
         newCR = updateCastlingRights (castlingRights ag) from to
 
         isPawn = case m of
-                   StandardMove _ _ pt -> pt == Pawn
+                   QuietMove _ _ pt -> pt == Pawn
+                   CaptureMove _ _ pt _ -> pt == Pawn
                    EnPassantMove _ _ -> True
                    PromotionMove _ _ _ -> True
+                   PromotionCaptureMove _ _ _ _ -> True
                    DropMove pt _ -> pt == Pawn
                    _ -> False
 
         newEP = case m of
-                  StandardMove f t _ -> if isPawn && isDoublePush f t then Just (getFile f) else Nothing
+                  QuietMove f t _ -> if isPawn && isDoublePush f t then Just (getFile f) else Nothing
                   _ -> Nothing
 
         isCapture = case m of
-                      StandardMove _ t _ -> Base.pieceAt internalB (toSquare t) /= Nothing
-                      PromotionMove _ t _ -> Base.pieceAt internalB (toSquare t) /= Nothing
+                      CaptureMove {} -> True
+                      PromotionCaptureMove {} -> True
                       EnPassantMove _ _ -> True
                       _ -> False
 
