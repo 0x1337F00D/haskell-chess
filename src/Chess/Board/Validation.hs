@@ -1,19 +1,12 @@
 module Chess.Board.Validation where
 
 import Data.Bits ((.|.))
+import Data.Word (Word64)
 import Chess.Types
 import Chess.Bitboard
 import Chess.Board.Base
 import Chess.Board.GameState
 import Chess.Board.MoveGen (pseudoLegalMoves, isLegal, kingSquare)
-
--- | Represents the part of the state that must match for threefold repetition.
-data PositionRep = PositionRep
-    { prPieces :: !Board
-    , prTurn :: !Color
-    , prCastling :: !CastlingRights
-    , prEp :: !(Maybe Square)
-    } deriving (Eq, Show)
 
 -- | Check if the side to move is in check.
 isCheck :: Board -> GameState -> Bool
@@ -90,16 +83,16 @@ hasInsufficientMaterial b =
               _ -> False -- Should not happen if we counted them
 
 -- | Check if the current position has occurred at least 3 times.
-isThreefoldRepetition :: Board -> GameState -> [PositionRep] -> Bool
-isThreefoldRepetition b gs history =
-    let currentRep = PositionRep b (turn gs) (castlingRights gs) (epSquare gs)
-        -- Count occurrences of currentRep in history.
+isThreefoldRepetition :: Board -> GameState -> [Word64] -> Bool
+isThreefoldRepetition _ gs history =
+    let currentHash = zobristHash gs
+        -- Count occurrences of currentHash in history.
         -- We need 2 past occurrences + current = 3.
-        count = length (filter (== currentRep) history)
+        count = length (filter (== currentHash) history)
     in count >= 2
 
 -- | Determine the outcome of the game, if it has ended.
-outcome :: Board -> GameState -> [PositionRep] -> Maybe Outcome
+outcome :: Board -> GameState -> [Word64] -> Maybe Outcome
 outcome b gs history
     | isCheckmate b gs = Just $ Outcome Checkmate (Just (oppositeColor (turn gs)))
     | isStalemate b gs = Just $ Outcome Stalemate Nothing

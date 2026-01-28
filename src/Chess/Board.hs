@@ -30,6 +30,7 @@ module Chess.Board
 
 import Data.Maybe (isJust, fromMaybe)
 import Data.Bits (testBit, xor)
+import Data.Word (Word64)
 
 import Chess.Types
 import qualified Chess.Board.Base as Base
@@ -45,7 +46,7 @@ import qualified Chess.Board.Zobrist as Zobrist
 data Board = Board
   { pieces :: !Base.Board
   , state  :: !GS.GameState
-  , history :: ![Val.PositionRep]
+  , history :: ![Word64]
   } deriving (Eq, Show)
 
 -- | The standard initial chess position.
@@ -163,8 +164,8 @@ applyMoveHelper (Board b gs hist) m@(Move from to promo) pt capturedPt =
         nextTurn = oppC
 
         -- 0. Update history
-        posRep = Val.PositionRep b c (GS.castlingRights gs) (GS.epSquare gs)
-        hist' = posRep : hist
+        -- Store the Zobrist hash of the previous position (gs)
+        hist' = GS.zobristHash gs : hist
 
         -- Optimization: Clear history if halfmove clock resets (pawn move or capture)
         histFinal = if halfmove' == 0 then [] else hist'
