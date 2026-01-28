@@ -109,7 +109,7 @@ instance ChessVariant 'Horde where
                              && testBit pawns fromIdx
                              && not (testBit occ idx1)
                              && not (testBit occ idx2)
-                          then [MG.GenMove (T.Move (T.Square fromIdx) (T.Square idx2) Nothing) T.Pawn Nothing]
+                          then [MG.GenMove (T.Move (T.Square fromIdx) (T.Square idx2) Nothing) T.Pawn MG.Quiet]
                           else []
 
                in concatMap genRank1Double [0..7]

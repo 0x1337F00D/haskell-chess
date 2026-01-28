@@ -9,7 +9,7 @@ import Chess.Types
 import Chess.Bitboard (bbFromSquare, pattern BB_A1, pattern BB_H1, pattern BB_A8, pattern BB_H8, scanForward, pawnAttacks)
 import Chess.Board.Base
 import Chess.Board.GameState
-import Chess.Board.MoveGen (isLegal, applyMoveBoard, GenMove(..))
+import Chess.Board.MoveGen (isLegal, applyMoveBoard, GenMove(..), MoveTag(..))
 import Chess.Board.Validation (isCheck, isCheckmate)
 
 -- | Convert a move to Standard Algebraic Notation (SAN).
@@ -112,9 +112,11 @@ getCandidates b gs (Piece c pt) target =
     mkMove from = Move from target promo
     mkGenMove from =
         let m = mkMove from
-            cap = if isEpSquare target then Nothing -- EP capture handled implicitly in applyMoveBoardFast
-                  else fmap pieceType (pieceAt b target)
-        in GenMove m pt cap
+            tag = if isEpSquare target then EnPassant
+                  else case pieceAt b target of
+                         Just p -> Capture (pieceType p)
+                         Nothing -> Quiet
+        in GenMove m pt tag
 
     promo = if pt == Pawn && isPromotionRank target then Just Queen else Nothing
     isPromotionRank s = (c == White && squareRank s == 7) || (c == Black && squareRank s == 0)
@@ -173,12 +175,15 @@ parseSan b gs str =
         checkLegal m =
             let p = pieceAt b (mFrom m)
                 pt = maybe Pawn pieceType p -- Should be safe as candidates are from board
-                cap = case m of
-                        Move _ t _ ->
-                           if pt == Pawn && isEpCapture b gs m then Nothing
-                           else fmap pieceType (pieceAt b t)
-                        _ -> Nothing
-                genM = GenMove m pt cap
+                tag = case m of
+                        Move f t _ ->
+                           if pt == Pawn && isEpCapture b gs m then EnPassant
+                           else if pt == King && abs (unSquare f - unSquare t) == 2 then Castling
+                           else case pieceAt b t of
+                                  Just cp -> Capture (pieceType cp)
+                                  Nothing -> Quiet
+                        _ -> Quiet
+                genM = GenMove m pt tag
             in isLegal b gs genM
 
         findMatch candidates = find (\m -> checkLegal m && (san b gs m == str || san b gs m == cleanStr)) candidates
