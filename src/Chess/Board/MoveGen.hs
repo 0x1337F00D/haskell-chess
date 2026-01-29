@@ -1,4 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE BangPatterns #-}
 module Chess.Board.MoveGen where
 
 import Data.Bits
@@ -209,6 +210,112 @@ castlingRookMove kingFrom kingTo
 -- | Get the square of the king of a given color.
 kingSquare :: Board -> Color -> Maybe Square
 kingSquare b c = fmap Square (lsb (pieceBitboard b c King))
+
+-- | Apply a GenMove to the Board and GameState.
+-- This is a high-performance helper for perft and search.
+-- Note: The GameState's Zobrist hash is NOT updated for performance reasons.
+-- If this is used in search with TT, the hash must be updated incrementally.
+{-# INLINE applyGenMove #-}
+applyGenMove :: Board -> GameState -> GenMove -> (Board, GameState)
+applyGenMove b gs gm =
+    let !b' = applyMoveBoardFast b gs gm
+        !gs' = updateGameState gs gm
+    in (b', gs')
+
+-- | Update GameState based on a GenMove.
+-- This function contains the logic for updating castling rights, en passant, etc.
+-- Note: Zobrist hash is set to 0.
+updateGameState :: GameState -> GenMove -> GameState
+updateGameState gs gm =
+    let
+        c = turn gs
+        nextC = oppositeColor c
+
+        -- Update Castling Rights
+        cr = castlingRights gs
+        cr1 = case gm of
+                GenCastling _ _ -> cr
+                _ -> cr
+
+        -- Extract from/to
+        (from, to) = case gm of
+            GenQuiet f t _ -> (f, t)
+            GenCapture f t _ _ -> (f, t)
+            GenEnPassant f t -> (f, t)
+            GenCastling f t -> (f, t)
+            GenPromotion f t _ -> (f, t)
+            GenPromotionCapture f t _ _ -> (f, t)
+
+        -- Check for King Move (including Castling)
+        isKingMove = case gm of
+            GenQuiet _ _ King -> True
+            GenCapture _ _ King _ -> True
+            GenCastling _ _ -> True
+            _ -> False
+
+        cr2 = if isKingMove
+              then if c == White
+                   then cr1 .&. complement (BB_A1 .|. BB_H1)
+                   else cr1 .&. complement (BB_A8 .|. BB_H8)
+              else cr1
+
+        -- Check for Rook Move or Capture
+        updateRookRights rights sq = rights .&. complement (bbFromSquare sq)
+
+        -- If piece moving is Rook, remove rights for 'from'
+        isRookMove = case gm of
+            GenQuiet _ _ Rook -> True
+            GenCapture _ _ Rook _ -> True
+            _ -> False
+
+        cr3 = if isRookMove then updateRookRights cr2 from else cr2
+
+        -- If piece captured is Rook, remove rights for 'to'
+        isRookCapture = case gm of
+            GenCapture _ _ _ Rook -> True
+            GenPromotionCapture _ _ _ Rook -> True
+            _ -> False
+
+        cr4 = if isRookCapture then updateRookRights cr3 to else cr3
+
+        -- Update En Passant Target
+        newEP = case gm of
+            GenQuiet f t Pawn ->
+                let diff = abs (unSquare f - unSquare t)
+                in if diff == 16 then Just (squareFile f) else Nothing
+            _ -> Nothing
+
+        -- Update Clocks
+        isPawn = case gm of
+            GenQuiet _ _ Pawn -> True
+            GenCapture _ _ Pawn _ -> True
+            GenEnPassant _ _ -> True
+            GenPromotion _ _ _ -> True
+            GenPromotionCapture _ _ _ _ -> True
+            _ -> False
+
+        isCapture = case gm of
+            GenCapture {} -> True
+            GenPromotionCapture {} -> True
+            GenEnPassant {} -> True
+            _ -> False
+
+        newHMC = if isPawn || isCapture then 0 else halfmoveClock gs + 1
+        newFMN = fullmoveNumber gs + (if c == Black then 1 else 0)
+
+    in GameState
+        { turn = nextC
+        , castlingRights = cr4
+        , epSquare = case newEP of
+                       Just fIdx ->
+                           -- Convert File Index (0-7) to Square for EP target
+                           let rankOffset = if c == White then 16 else 40
+                           in Just (Square (fIdx + rankOffset))
+                       Nothing -> Nothing
+        , halfmoveClock = newHMC
+        , fullmoveNumber = newFMN
+        , zobristHash = 0 -- Not updating hash for perft
+        }
 
 -- Move Generators ------------------------------------------------------------
 

@@ -27,7 +27,6 @@ import qualified Chess.Bitboard as BB
 import qualified Chess.Board.Fen as Fen
 import Data.Bits (testBit, countTrailingZeros, (.|.))
 
-import Chess.Core.FastPerft (fastPerft)
 import Chess.Types (Depth)
 
 -- | Create the initial game state for Standard chess.
@@ -107,4 +106,11 @@ instance ChessVariant 'Standard where
 
   applyMove = genericApplyMove
   executeMove = genericExecuteMove
-  perftVariant d ag = fastPerft d (internalBoard ag) (toGameState ag)
+  perftVariant d ag = go d (internalBoard ag) (toGameState ag)
+    where
+      go 0 _ _ = 1
+      go 1 b gs = length (MG.legalGenMoves b gs)
+      go n b gs = sum $ map (\gm ->
+             let (b', gs') = MG.applyGenMove b gs gm
+             in go (n-1) b' gs'
+           ) (MG.legalGenMoves b gs)
