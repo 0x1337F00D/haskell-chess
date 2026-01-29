@@ -2,6 +2,7 @@
 module Chess.Board.MoveGen where
 
 import Data.Bits
+import GHC.Conc (par, pseq)
 
 import Chess.Types
 import Chess.Bitboard
@@ -31,16 +32,20 @@ genMoveToMove (GenPromotionCapture f t p _) = Move f t (Just p)
 -- | Generate all pseudo-legal moves for the side to move.
 -- Pseudo-legal means moves that follow piece movement rules and capture rules,
 -- but do not necessarily respect the rule that the king must not be in check.
+-- Optimized with basic parallelism.
 pseudoLegalMoves :: Board -> GameState -> [GenMove]
-pseudoLegalMoves b gs = concat
-    [ pawnMoves b gs
-    , pieceMoves b gs Knight
-    , pieceMoves b gs Bishop
-    , pieceMoves b gs Rook
-    , pieceMoves b gs Queen
-    , pieceMoves b gs King
-    , castlingMoves b gs
-    ]
+pseudoLegalMoves b gs =
+    let pm = pawnMoves b gs
+        nm = pieceMoves b gs Knight
+        bm = pieceMoves b gs Bishop
+        rm = pieceMoves b gs Rook
+        qm = pieceMoves b gs Queen
+        km = pieceMoves b gs King
+        cm = castlingMoves b gs
+
+        -- Spark evaluations of heavier generators
+    in nm `par` bm `par` rm `par` qm `par`
+       (pm ++ nm ++ bm ++ rm ++ qm ++ km ++ cm)
 
 -- | Generate all legal moves.
 -- Filters pseudo-legal moves to ensure the king is not left in check.
@@ -141,15 +146,23 @@ movePieceFast b from to c pt =
         b2 = case (c, pt) of
                (White, Pawn)   -> b { whitePawns   = whitePawns b `xor` mask }
                (White, Knight) -> b { whiteKnights = whiteKnights b `xor` mask }
-               (White, Bishop) -> b { whiteBishops = whiteBishops b `xor` mask }
-               (White, Rook)   -> b { whiteRooks   = whiteRooks b `xor` mask }
-               (White, Queen)  -> b { whiteQueens  = whiteQueens b `xor` mask }
+               (White, Bishop) -> b { whiteBishops = whiteBishops b `xor` mask
+                                    , whiteDiagonal = whiteDiagonal b `xor` mask }
+               (White, Rook)   -> b { whiteRooks   = whiteRooks b `xor` mask
+                                    , whiteOrthogonal = whiteOrthogonal b `xor` mask }
+               (White, Queen)  -> b { whiteQueens  = whiteQueens b `xor` mask
+                                    , whiteDiagonal = whiteDiagonal b `xor` mask
+                                    , whiteOrthogonal = whiteOrthogonal b `xor` mask }
                (White, King)   -> b { whiteKings   = whiteKings b `xor` mask }
                (Black, Pawn)   -> b { blackPawns   = blackPawns b `xor` mask }
                (Black, Knight) -> b { blackKnights = blackKnights b `xor` mask }
-               (Black, Bishop) -> b { blackBishops = blackBishops b `xor` mask }
-               (Black, Rook)   -> b { blackRooks   = blackRooks b `xor` mask }
-               (Black, Queen)  -> b { blackQueens  = blackQueens b `xor` mask }
+               (Black, Bishop) -> b { blackBishops = blackBishops b `xor` mask
+                                    , blackDiagonal = blackDiagonal b `xor` mask }
+               (Black, Rook)   -> b { blackRooks   = blackRooks b `xor` mask
+                                    , blackOrthogonal = blackOrthogonal b `xor` mask }
+               (Black, Queen)  -> b { blackQueens  = blackQueens b `xor` mask
+                                    , blackDiagonal = blackDiagonal b `xor` mask
+                                    , blackOrthogonal = blackOrthogonal b `xor` mask }
                (Black, King)   -> b { blackKings   = blackKings b `xor` mask }
 
         whiteOcc = if c == White then occupiedWhite b `xor` mask else occupiedWhite b
