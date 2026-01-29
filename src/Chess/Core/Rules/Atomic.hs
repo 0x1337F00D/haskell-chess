@@ -20,11 +20,10 @@ import Chess.Core.Move.Internal
 
 import qualified Chess.Types as T
 import qualified Chess.Board.Base as Base
-import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
-import Data.Bits ((.&.), complement, (.|.))
+import Data.Bits ((.&.), complement)
 
 instance ChessVariant 'Atomic where
   generateMoves (ag :: ActiveGame 'Atomic c s) =
@@ -45,14 +44,6 @@ instance ChessVariant 'Atomic where
            then
               let m = MG.genMoveToMove gm
                   t = T.mTo m
-                  -- En Passant special case?
-                  -- If EP, capture happens at `t` (pawn moves there).
-                  -- Explosion center is `t`.
-                  -- Wait, EP capture center:
-                  -- "In atomic chess... captures result in explosion... surrounding pieces... removed"
-                  -- "For en passant... the pawn is captured... explosion occurs at the destination square of the capturing pawn?"
-                  -- Lichess rules: "The capture is considered to take place on the square that the capturing pawn lands on."
-                  -- So `t` is correct.
 
                   ownKingSq = MG.kingSquare baseBoard (toColor c)
               in case ownKingSq of

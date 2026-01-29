@@ -97,7 +97,6 @@ instance ChessVariant 'Antichess where
             iWin = popCount myPiecesBB == 0
 
             -- 2. Opponent wins if they are stalemated (no legal moves)
-            -- We can't use Val.hasLegalMoves because it assumes Standard rules (checks).
             -- We need to replicate Antichess move generation logic for opponent.
             -- Recursively calling generateMoves would require constructing ActiveGame for opponent.
             -- We have nextAg!
