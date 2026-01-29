@@ -29,7 +29,7 @@ module Chess.Board
   , MoveGen.genMoveToMove
   ) where
 
-import Data.Maybe (isJust, fromMaybe)
+import Data.Maybe (isJust)
 import Data.Bits (testBit, xor)
 
 import Chess.Types

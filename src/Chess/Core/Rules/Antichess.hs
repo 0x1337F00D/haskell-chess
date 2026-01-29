@@ -20,10 +20,7 @@ import Chess.Core.Move.Internal
 
 import qualified Chess.Types as T
 import qualified Chess.Board.Base as Base
-import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
-import qualified Chess.Board.Validation as Val
-import qualified Chess.Bitboard as BB
 import Data.Bits (popCount)
 
 -- | Initial Game State for Antichess (Standard setup but no castling)
@@ -102,14 +99,6 @@ instance ChessVariant 'Antichess where
             -- 2. Opponent wins if they are stalemated (no legal moves)
             -- We can't use Val.hasLegalMoves because it assumes Standard rules (checks).
             -- We need to replicate Antichess move generation logic for opponent.
-
-            oppPseudos = MG.pseudoLegalMoves baseBoard (toGameState nextAg)
-            -- Note: We technically need to apply the same filtering (no castling, king promo, captures).
-            -- But checking if pseudos is null is usually enough?
-            -- No, if pseudos has quiet moves but captures are forced, then pseudos is non-null but legal might be null.
-            -- However, executeMove is expensive enough that we should be correct.
-            -- Re-calling generateMoves logic for opponent.
-
             -- Recursively calling generateMoves would require constructing ActiveGame for opponent.
             -- We have nextAg!
             oppHasMoves = not (null (generateMoves nextAg))

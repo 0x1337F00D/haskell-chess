@@ -9,7 +9,7 @@ spec :: Spec
 spec = do
   describe "Board.MoveGen" $ do
     it "generates 20 moves for starting position" $ do
-      let (Just (b, gs)) = Fen.parseFen startingFEN
+      let Just (b, gs) = Fen.parseFen startingFEN
       let moves = MoveGen.pseudoLegalMoves b gs
       length moves `shouldBe` 20
       let legal = MoveGen.legalMoves b gs
@@ -18,7 +18,7 @@ spec = do
     it "pseudoLegalMoves includes castling" $ do
        -- Position where white can castle kingside and queenside
        let fenStr = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"
-       let (Just (b, gs)) = Fen.parseFen fenStr
+       let Just (b, gs) = Fen.parseFen fenStr
        let moves = map MoveGen.genMoveToMove $ MoveGen.pseudoLegalMoves b gs
        -- Check if O-O and O-O-O are in moves
        let castlingK = Move E1 G1 Nothing
@@ -40,14 +40,14 @@ spec = do
        -- I need to place a piece to attack F1.
        -- Let's place Black Rook on F8.
        let fenStr2 = "5r2/8/8/8/8/8/8/4K2R w K - 0 1"
-       let (Just (b, gs)) = Fen.parseFen fenStr2
+       let Just (b, gs) = Fen.parseFen fenStr2
        let moves = MoveGen.legalMoves b gs
        let castlingK = Move E1 G1 Nothing
        castlingK `elem` moves `shouldBe` False
 
     it "legalMoves allows castling when legal" $ do
        let fenStr = "8/8/8/8/8/8/8/4K2R w K - 0 1"
-       let (Just (b, gs)) = Fen.parseFen fenStr
+       let Just (b, gs) = Fen.parseFen fenStr
        let moves = MoveGen.legalMoves b gs
        let castlingK = Move E1 G1 Nothing
        castlingK `elem` moves `shouldBe` True

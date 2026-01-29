@@ -111,7 +111,7 @@ mapConcurrently :: (a -> IO b) -> [a] -> IO [b]
 mapConcurrently f xs = do
     vars <- mapM (\x -> do
         v <- newEmptyMVar
-        forkIO $ do
+        _ <- forkIO $ do
             res <- f x
             putMVar v res
         return v) xs

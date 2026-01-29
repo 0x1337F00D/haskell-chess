@@ -20,12 +20,10 @@ import Chess.Core.Move.Internal
 
 import qualified Chess.Types as T
 import qualified Chess.Board.Base as Base
-import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
 import Data.Bits (popCount, testBit, setBit, (.|.))
-import Data.Word (Word64)
 
 -- | Initial Game State for Horde
 hordeInitialGame :: Game 'Horde 'Active
@@ -96,7 +94,7 @@ instance ChessVariant 'Horde where
         whiteExtraMoves = if c == White
             then
                let
-                   pawns = Base.whitePawns baseBoard
+                   wPawns = Base.whitePawns baseBoard
                    occ = Base.occupiedTotal baseBoard
 
                    -- Pawns on Rank 1 (indices 0-7)
@@ -106,7 +104,7 @@ instance ChessVariant 'Horde where
                        let idx1 = fromIdx + 8
                            idx2 = fromIdx + 16
                        in if fromIdx < 8
-                             && testBit pawns fromIdx
+                             && testBit wPawns fromIdx
                              && not (testBit occ idx1)
                              && not (testBit occ idx2)
                           then [MG.GenQuiet (T.Square fromIdx) (T.Square idx2) T.Pawn]
