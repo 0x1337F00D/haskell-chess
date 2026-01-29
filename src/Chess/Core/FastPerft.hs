@@ -24,6 +24,18 @@ fastPerft d b gs = sum (map loop (legalGenMoves b gs))
 
 -- | Update GameState based on a GenMove.
 -- This mirrors the logic in Chess.Core.Rules.Common.genericApplyMove but optimized for GenMove.
+--
+-- Logic breakdown:
+-- 1. Castling Rights:
+--    - If King moves, ALL rights for that color are removed.
+--    - If Rook moves (from), right for that specific corner is removed.
+--    - If Rook is captured (to), right for that specific corner is removed.
+-- 2. En Passant:
+--    - Set only on double pawn push (diff 16).
+--    - Target square is the skipped square (rank behind pawn).
+-- 3. Clocks:
+--    - Halfmove clock resets on Pawn move or Capture.
+--    - Fullmove number increments after Black's move.
 updateGameState :: GameState -> GenMove -> GameState
 updateGameState gs gm =
     let
