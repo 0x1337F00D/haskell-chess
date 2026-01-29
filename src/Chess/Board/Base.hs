@@ -279,3 +279,31 @@ findPieceType b c sq =
       else if testBit (blackRooks b) i then Rook
       else if testBit (blackQueens b) i then Queen
       else King
+
+-- | Move a piece assuming the target square is empty.
+-- It updates the specific piece bitboard and the occupancy bitboards.
+{-# INLINE unsafeMovePiece #-}
+unsafeMovePiece :: Board -> Square -> Square -> Color -> PieceType -> Board
+unsafeMovePiece b from to c pt =
+    let fromI = unSquare from
+        toI   = unSquare to
+        mask = (1 `shiftL` fromI) `xor` (1 `shiftL` toI)
+
+        b' = case (c, pt) of
+               (White, Pawn)   -> b { whitePawns   = whitePawns b `xor` mask }
+               (White, Knight) -> b { whiteKnights = whiteKnights b `xor` mask }
+               (White, Bishop) -> b { whiteBishops = whiteBishops b `xor` mask }
+               (White, Rook)   -> b { whiteRooks   = whiteRooks b `xor` mask }
+               (White, Queen)  -> b { whiteQueens  = whiteQueens b `xor` mask }
+               (White, King)   -> b { whiteKings   = whiteKings b `xor` mask }
+               (Black, Pawn)   -> b { blackPawns   = blackPawns b `xor` mask }
+               (Black, Knight) -> b { blackKnights = blackKnights b `xor` mask }
+               (Black, Bishop) -> b { blackBishops = blackBishops b `xor` mask }
+               (Black, Rook)   -> b { blackRooks   = blackRooks b `xor` mask }
+               (Black, Queen)  -> b { blackQueens  = blackQueens b `xor` mask }
+               (Black, King)   -> b { blackKings   = blackKings b `xor` mask }
+
+        white = if c == White then occupiedWhite b `xor` mask else occupiedWhite b
+        black = if c == Black then occupiedBlack b `xor` mask else occupiedBlack b
+        total = occupiedTotal b `xor` mask
+    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total }

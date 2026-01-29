@@ -33,6 +33,7 @@ toColor White = T.White
 toColor Black = T.Black
 
 -- | Convert Core Square to Engine Square
+{-# INLINE toSquare #-}
 toSquare :: Square -> T.Square
 toSquare (Square f r) = T.Square (fromEnum r * 8 + fromEnum f)
 
@@ -238,17 +239,13 @@ applyMoveBase m b =
     case m of
        QuietMove f t pt ->
           let c = toColor (colorVal @c)
-              piece = T.Piece c (toPieceType pt)
-              b1 = Base.unsafeRemovePiece b (toSquare f) c (toPieceType pt)
-          in Base.unsafePutPiece b1 (toSquare t) piece
+          in Base.unsafeMovePiece b (toSquare f) (toSquare t) c (toPieceType pt)
 
        CaptureMove f t pt cap ->
           let c = toColor (colorVal @c)
               oppC = Base.oppositeColor c
-              piece = T.Piece c (toPieceType pt)
-              b1 = Base.unsafeRemovePiece b (toSquare f) c (toPieceType pt)
-              b2 = Base.unsafeRemovePiece b1 (toSquare t) oppC (toPieceType cap)
-          in Base.unsafePutPiece b2 (toSquare t) piece
+              b1 = Base.unsafeRemovePiece b (toSquare t) oppC (toPieceType cap)
+          in Base.unsafeMovePiece b1 (toSquare f) (toSquare t) c (toPieceType pt)
 
        PromotionMove f t promo ->
           let c = toColor (colorVal @c)
@@ -266,19 +263,17 @@ applyMoveBase m b =
 
        CastlingMove f t ->
           let c = toColor (colorVal @c)
-              b1 = Base.unsafeRemovePiece b (toSquare f) c T.King
-              b2 = Base.unsafePutPiece b1 (toSquare t) (T.Piece c T.King)
+              b1 = Base.unsafeMovePiece b (toSquare f) (toSquare t) c T.King
               (rf, rt) = getCastlingRookMove f t
-              b3 = Base.unsafeRemovePiece b2 (toSquare rf) c T.Rook
-          in Base.unsafePutPiece b3 (toSquare rt) (T.Piece c T.Rook)
+          in Base.unsafeMovePiece b1 (toSquare rf) (toSquare rt) c T.Rook
 
        EnPassantMove f t ->
           let c = toColor (colorVal @c)
               oppC = Base.oppositeColor c
-              b1 = Base.unsafeRemovePiece b (toSquare f) c T.Pawn
-              b2 = Base.unsafePutPiece b1 (toSquare t) (T.Piece c T.Pawn)
               capSq = getEpCapturedSquare f t
-          in Base.unsafeRemovePiece b2 (toSquare capSq) oppC T.Pawn
+              b1 = Base.unsafeRemovePiece b (toSquare capSq) oppC T.Pawn
+          in Base.unsafeMovePiece b1 (toSquare f) (toSquare t) c T.Pawn
+
        DropMove p t ->
           let promoted = T.Piece (toColor (colorVal @c)) (toPieceType p)
           in Base.putPiece b (toSquare t) promoted
