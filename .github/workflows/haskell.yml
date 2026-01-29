@@ -26,3 +26,5 @@ jobs:
       - run: cabal update
       - run: cabal build all
       - run: cabal test all
+      - name: Benchmark Summary
+        run: bash scripts/ci_summary.sh
