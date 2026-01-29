@@ -2,7 +2,6 @@
 module Chess.Core.FastPerft where
 
 import Data.Bits ((.&.), (.|.), complement, testBit)
-import Data.Maybe (fromMaybe)
 
 import Chess.Types
 import Chess.Bitboard
