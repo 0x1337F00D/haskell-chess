@@ -97,10 +97,33 @@ instance Show FullmoveNumber where
 -- | Search depth measured in plies.
 newtype Depth = Depth { unDepth :: Int }
   deriving stock (Eq, Ord)
-  deriving newtype (Enum, Num, Real, Integral)
 
 instance Show Depth where
   show = show . unDepth
+
+mkDepth :: Int -> Depth
+mkDepth = Depth
+
+incDepth :: Depth -> Depth
+incDepth (Depth d) = Depth (d + 1)
+
+decDepth :: Depth -> Depth
+decDepth (Depth d) = Depth (d - 1)
+
+plusDepth :: Depth -> Depth -> Depth
+plusDepth (Depth a) (Depth b) = Depth (a + b)
+
+minusDepth :: Depth -> Depth -> Depth
+minusDepth (Depth a) (Depth b) = Depth (a - b)
+
+depthZero :: Depth
+depthZero = Depth 0
+
+depthOne :: Depth
+depthOne = Depth 1
+
+isZeroDepth :: Depth -> Bool
+isZeroDepth (Depth d) = d <= 0
 
 -- | Pattern synonyms for individual squares in A1..H8 order.
 pattern A1, B1, C1, D1, E1, F1, G1, H1 :: Square

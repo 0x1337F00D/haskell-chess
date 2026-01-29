@@ -16,6 +16,15 @@ module Chess.Board
   , isStalemate
   , hasInsufficientMaterial
   , outcome
+    -- * Safe Interface
+  , ValidatedBoard
+  , LegalMove
+  , trustBoard
+  , getBoard
+  , getGenMove
+  , legalMovesValidated
+  , captureMovesValidated
+  , applyLegalMove
     -- * Notation
   , fen
   , parseFen
@@ -268,6 +277,30 @@ uci = Uci.uci
 -- | Parse UCI string to Move.
 fromUci :: String -> Maybe Move
 fromUci = Uci.fromUci
+
+-- Safe Interface
+
+newtype ValidatedBoard = ValidatedBoard Board deriving (Eq, Show)
+newtype LegalMove = LegalMove MoveGen.GenMove deriving (Eq, Show)
+
+trustBoard :: Board -> ValidatedBoard
+trustBoard = ValidatedBoard
+
+getBoard :: ValidatedBoard -> Board
+getBoard (ValidatedBoard b) = b
+
+getGenMove :: LegalMove -> MoveGen.GenMove
+getGenMove (LegalMove gm) = gm
+
+legalMovesValidated :: ValidatedBoard -> [LegalMove]
+legalMovesValidated (ValidatedBoard b) = map LegalMove (legalGenMoves b)
+
+captureMovesValidated :: ValidatedBoard -> [LegalMove]
+captureMovesValidated (ValidatedBoard b) = map LegalMove (captureGenMoves b)
+
+applyLegalMove :: ValidatedBoard -> LegalMove -> ValidatedBoard
+applyLegalMove (ValidatedBoard b) (LegalMove gm) = ValidatedBoard (applyGenMove b gm)
+
 
 -- Helpers
 
