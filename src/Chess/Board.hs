@@ -26,7 +26,6 @@ module Chess.Board
     -- * Re-exports
   , module Chess.Types
   , MoveGen.GenMove(..)
-  , MoveGen.MoveTag(..)
   ) where
 
 import Data.Maybe (isJust, fromMaybe)
@@ -59,51 +58,66 @@ initialBoard =
 
 -- | Apply a move to the board, updating pieces and game state (counters, rights, etc).
 applyMove :: Board -> Move -> Board
-applyMove board@(Board b gs _) m@(Move from to _) =
+applyMove board@(Board b gs _) m@(Move from to promo) =
     let c = GS.turn gs
         fromI = unSquare from
     in if not (testBit (Base.occupiedBy b c) fromI)
        then board -- Invalid move (empty or wrong color)
        else
         let
-            -- Resolve pieces efficiently (avoiding pieceAt lookups)
+            -- Resolve pieces efficiently
             pt = Base.findPieceType b c from
             toI = unSquare to
             isCapture = testBit (Base.occupiedTotal b) toI
 
-            tag = if isCapture
-                  then MoveGen.Capture (Base.findPieceType b (Base.oppositeColor c) to)
-                  else if pt == Pawn && squareFile from /= squareFile to
-                  then MoveGen.EnPassant
-                  else if pt == King && abs (unSquare from - unSquare to) == 2
-                  then MoveGen.Castling
-                  else MoveGen.Quiet
+            gm = case promo of
+                   Just ppt ->
+                       if isCapture
+                       then
+                           let capPt = Base.findPieceType b (Base.oppositeColor c) to
+                           in MoveGen.GenPromotionCapture from to ppt capPt
+                       else MoveGen.GenPromotion from to ppt
+                   Nothing ->
+                       if isCapture
+                       then
+                           let capPt = Base.findPieceType b (Base.oppositeColor c) to
+                           in MoveGen.GenCapture from to pt capPt
+                       else
+                          if pt == Pawn && squareFile from /= squareFile to
+                          then MoveGen.GenEnPassant from to
+                          else if pt == King && abs (unSquare from - unSquare to) == 2
+                          then MoveGen.GenCastling from to
+                          else MoveGen.GenQuiet from to pt
 
-        in applyMoveHelper board m pt tag
+        in applyMoveHelper board gm
 applyMove b NullMove = b
 applyMove b _ = b
 
 -- | Apply a move using GenMove info (skipping piece lookup).
 applyGenMove :: Board -> MoveGen.GenMove -> Board
-applyGenMove board (MoveGen.GenMove m pt tag) = applyMoveHelper board m pt tag
+applyGenMove board gm = applyMoveHelper board gm
 
 -- | Helper to apply move logic given resolved pieces.
 {-# INLINE applyMoveHelper #-}
-applyMoveHelper :: Board -> Move -> PieceType -> MoveGen.MoveTag -> Board
-applyMoveHelper (Board b gs hist) m@(Move from to promo) pt tag =
+applyMoveHelper :: Board -> MoveGen.GenMove -> Board
+applyMoveHelper (Board b gs hist) gm =
     let
         -- 1. Update pieces (using fast path)
-        b' = MoveGen.applyMoveBoardFast b gs m pt tag
+        b' = MoveGen.applyMoveBoardFast b gs gm
 
         c = GS.turn gs
         oppC = Base.oppositeColor c
 
-        -- 2. Analyze move for state updates using resolved pieces
+        -- Extract info from GenMove
+        (from, to, pt, captured, promo, isCap, isCastling, isEP) = case gm of
+            MoveGen.GenQuiet f t p -> (f, t, p, Nothing, Nothing, False, False, False)
+            MoveGen.GenCapture f t p cap -> (f, t, p, Just cap, Nothing, True, False, False)
+            MoveGen.GenEnPassant f t -> (f, t, Pawn, Just Pawn, Nothing, True, False, True)
+            MoveGen.GenCastling f t -> (f, t, King, Nothing, Nothing, False, True, False)
+            MoveGen.GenPromotion f t p -> (f, t, Pawn, Nothing, Just p, False, False, False)
+            MoveGen.GenPromotionCapture f t p cap -> (f, t, Pawn, Just cap, Just p, True, False, False)
+
         isPawn = pt == Pawn
-        isCap = case tag of
-                  MoveGen.Capture _ -> True
-                  MoveGen.EnPassant -> True
-                  _ -> False
 
         -- Zobrist Updates ----------------------------------------------------
         h0 = GS.zobristHash gs
@@ -120,24 +134,26 @@ applyMoveHelper (Board b gs hist) m@(Move from to promo) pt tag =
                Just p  -> h1 `xor` Zobrist.zobristPiece c p to
 
         -- Handle Captures
-        h3 = case tag of
-               MoveGen.Capture cp -> h2 `xor` Zobrist.zobristPiece oppC cp to
-               MoveGen.EnPassant ->
+        h3 = case captured of
+               Just cp ->
+                   if isEP
+                   then
                         let capSq = if c == White
                                     then Square (unSquare to - 8)
                                     else Square (unSquare to + 8)
                         in h2 `xor` Zobrist.zobristPiece oppC Pawn capSq
-               _ -> h2
+                   else h2 `xor` Zobrist.zobristPiece oppC cp to
+               Nothing -> h2
 
         -- Handle Castling (Rook moves)
-        h4 = case tag of
-               MoveGen.Castling ->
+        h4 = if isCastling
+             then
                    let (rookFrom, rookTo) = if to == Square (unSquare from + 2) -- Kingside
                                             then (Square (unSquare from + 3), Square (unSquare from + 1))
                                             else (Square (unSquare from - 4), Square (unSquare from - 1))
                    in h3 `xor` Zobrist.zobristPiece c Rook rookFrom
                          `xor` Zobrist.zobristPiece c Rook rookTo
-               _ -> h3
+             else h3
 
         -- --------------------------------------------------------------------
 
@@ -155,8 +171,11 @@ applyMoveHelper (Board b gs hist) m@(Move from to promo) pt tag =
                 _ -> gs
 
         -- If capturing Rook, lose castling rights for that rook's square
-        gs2 = case tag of
-                MoveGen.Capture Rook -> GS.removeCastlingRight gs1 to
+        gs2 = case captured of
+                Just Rook ->
+                    -- For EP, capture is Pawn, so this won't trigger.
+                    -- Normal capture of Rook triggers.
+                    GS.removeCastlingRight gs1 to
                 _ -> gs1
 
         -- En Passant square
@@ -184,7 +203,6 @@ applyMoveHelper (Board b gs hist) m@(Move from to promo) pt tag =
                      , GS.fullmoveNumber = fullmove'
                      , GS.zobristHash = hFinal
                      }) histFinal
-applyMoveHelper b _ _ _ = b
 
 -- | Generate all legal moves for the current position.
 legalMoves :: Board -> [Move]
@@ -196,7 +214,7 @@ legalGenMoves (Board b gs _) = MoveGen.legalGenMoves b gs
 
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> [Move]
-pseudoLegalMoves (Board b gs _) = map (\(MoveGen.GenMove m _ _) -> m) $ MoveGen.pseudoLegalMoves b gs
+pseudoLegalMoves (Board b gs _) = map MoveGen.genMoveToMove $ MoveGen.pseudoLegalMoves b gs
 
 -- | Generate all legal capture moves.
 captureMoves :: Board -> [Move]

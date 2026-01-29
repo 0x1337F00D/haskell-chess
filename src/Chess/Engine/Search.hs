@@ -6,7 +6,7 @@ import Data.IORef (IORef, newIORef, readIORef, modifyIORef')
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar, getNumCapabilities)
 
 import Chess.Types
-import Chess.Board (Board(..), legalGenMoves, captureGenMoves, applyGenMove, applyMove, isCheck, uci, GenMove(..), MoveTag(..))
+import Chess.Board (Board(..), legalGenMoves, captureGenMoves, applyGenMove, applyMove, isCheck, uci, GenMove(..))
 import qualified Chess.Board.GameState as GS
 import Chess.Engine.Evaluation (evaluate)
 import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
@@ -84,7 +84,12 @@ alphaBetaRoot board tt depth nodes = do
         then go gms (getMove gm) score alpha beta
         else go gms bestM bestScore alpha beta
 
-    getMove (GenMove m _ _) = m
+    getMove (GenQuiet f t _) = Move f t Nothing
+    getMove (GenCapture f t _ _) = Move f t Nothing
+    getMove (GenEnPassant f t) = Move f t Nothing
+    getMove (GenCastling f t) = Move f t Nothing
+    getMove (GenPromotion f t p) = Move f t (Just p)
+    getMove (GenPromotionCapture f t p _) = Move f t (Just p)
 
 searchChunk :: Board -> TT -> Depth -> Int -> Int -> [GenMove] -> IO (Maybe (Move, Int), Int)
 searchChunk board tt depth alpha beta moves = do
@@ -105,7 +110,12 @@ searchChunk board tt depth alpha beta moves = do
                     else (bestRes, currentAlpha)
         go ln gms newRes newAlpha
 
-    getMove (GenMove m _ _) = m
+    getMove (GenQuiet f t _) = Move f t Nothing
+    getMove (GenCapture f t _ _) = Move f t Nothing
+    getMove (GenEnPassant f t) = Move f t Nothing
+    getMove (GenCastling f t) = Move f t Nothing
+    getMove (GenPromotion f t p) = Move f t (Just p)
+    getMove (GenPromotionCapture f t p _) = Move f t (Just p)
 
 mapConcurrently :: (a -> IO b) -> [a] -> IO [b]
 mapConcurrently f xs = do
@@ -186,7 +196,7 @@ alphaBeta board tt depth alpha beta canNull nodes = do
     searchMoves (gm:gms) a b d flag bestScore bestM = do
         let m = getMove gm
         let isCapture = isCap gm
-        let isProm = isPromotion m
+        let isProm = isPromotion gm
 
         let newBoard = applyGenMove board gm
 
@@ -223,12 +233,20 @@ alphaBeta board tt depth alpha beta canNull nodes = do
         else do
             searchMoves gms (max a score) b d newFlag newBestScore newBestM
 
-    getMove (GenMove m _ _) = m
-    isCap (GenMove _ _ tag) = case tag of
-                                Capture _ -> True
-                                EnPassant -> True
-                                _ -> False
-    isPromotion (Move _ _ p) = isJust p
+    getMove (GenQuiet f t _) = Move f t Nothing
+    getMove (GenCapture f t _ _) = Move f t Nothing
+    getMove (GenEnPassant f t) = Move f t Nothing
+    getMove (GenCastling f t) = Move f t Nothing
+    getMove (GenPromotion f t p) = Move f t (Just p)
+    getMove (GenPromotionCapture f t p _) = Move f t (Just p)
+
+    isCap (GenCapture {}) = True
+    isCap (GenPromotionCapture {}) = True
+    isCap (GenEnPassant {}) = True
+    isCap _ = False
+
+    isPromotion (GenPromotion {}) = True
+    isPromotion (GenPromotionCapture {}) = True
     isPromotion _ = False
 
 -- | Quiescence Search.
@@ -264,21 +282,20 @@ orderGenMoves moves (Just ttM) =
         (capProms, caps, proms, quiets) = partition others
     in ttMoves ++ capProms ++ caps ++ proms ++ quiets
   where
-    getMove (GenMove m _ _) = m
+    getMove (GenQuiet f t _) = Move f t Nothing
+    getMove (GenCapture f t _ _) = Move f t Nothing
+    getMove (GenEnPassant f t) = Move f t Nothing
+    getMove (GenCastling f t) = Move f t Nothing
+    getMove (GenPromotion f t p) = Move f t (Just p)
+    getMove (GenPromotionCapture f t p _) = Move f t (Just p)
 
 partition :: [GenMove] -> ([GenMove], [GenMove], [GenMove], [GenMove])
 partition moves = foldr part ([], [], [], []) moves
   where
-    part gm@(GenMove m _ _) (cp, c, p, q)
-        | isCapture gm =
-            if isPromotion m
-            then (gm:cp, c, p, q)
-            else (cp, gm:c, p, q)
-        | isPromotion m = (cp, c, gm:p, q)
-        | otherwise     = (cp, c, p, gm:q)
-
-    isPromotion m = isJust (promotion m)
-    isCapture (GenMove _ _ tag) = case tag of
-                                    Capture _ -> True
-                                    EnPassant -> True
-                                    _ -> False
+    part gm (cp, c, p, q) = case gm of
+        GenPromotionCapture {} -> (gm:cp, c, p, q)
+        GenCapture {} -> (cp, gm:c, p, q)
+        GenEnPassant {} -> (cp, gm:c, p, q)
+        GenPromotion {} -> (cp, c, gm:p, q)
+        GenQuiet {} -> (cp, c, p, gm:q)
+        GenCastling {} -> (cp, c, p, gm:q)

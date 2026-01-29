@@ -34,23 +34,10 @@ instance ChessVariant 'Atomic where
         pseudos = MG.pseudoLegalMoves baseBoard gs
 
         isKingCapture :: MG.GenMove -> Bool
-        isKingCapture (MG.GenMove _ pt tag) =
-           pt == T.King && case tag of
-                             MG.Capture _ -> True
-                             MG.EnPassant -> True
-                             _ -> False
-
-        isSelfExplosion :: MG.GenMove -> Bool
-        isSelfExplosion (MG.GenMove (T.Move _ t _) _ tag) =
-           let isCap = case tag of
-                         MG.Quiet -> False
-                         MG.Castling -> False
-                         _ -> True
-               ownKingSq = MG.kingSquare baseBoard (toColor c)
-           in isCap && case ownKingSq of
-                         Just k -> chebyshevDist t k <= 1
-                         Nothing -> False
-        isSelfExplosion _ = False
+        isKingCapture gm =
+           case gm of
+             MG.GenCapture _ _ T.King _ -> True
+             _ -> False
 
         chebyshevDist :: T.Square -> T.Square -> Int
         chebyshevDist (T.Square i1) (T.Square i2) =
@@ -59,6 +46,18 @@ instance ChessVariant 'Atomic where
                r2 = i2 `div` 8
                c2 = i2 `mod` 8
            in max (abs (r1 - r2)) (abs (c1 - c2))
+
+        isSelfExplosion :: MG.GenMove -> Bool
+        isSelfExplosion gm =
+           let ownKingSq = MG.kingSquare baseBoard (toColor c)
+               checkExplosion t = case ownKingSq of
+                                    Just k -> chebyshevDist t k <= 1
+                                    Nothing -> False
+           in case gm of
+                MG.GenCapture _ t _ _ -> checkExplosion t
+                MG.GenEnPassant _ t -> checkExplosion t
+                MG.GenPromotionCapture _ t _ _ -> checkExplosion t
+                _ -> False
 
         atomicMoves = filter (\gm -> not (isKingCapture gm) && not (isSelfExplosion gm)) pseudos
         validMoves = filter (MG.isLegal baseBoard gs) atomicMoves

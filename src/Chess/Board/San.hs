@@ -2,14 +2,14 @@
 module Chess.Board.San where
 
 import Data.List (find)
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, fromMaybe)
 import Data.Bits ((.&.), complement, (.|.), testBit)
 
 import Chess.Types
 import Chess.Bitboard (bbFromSquare, pattern BB_A1, pattern BB_H1, pattern BB_A8, pattern BB_H8, scanForward, pawnAttacks)
 import Chess.Board.Base
 import Chess.Board.GameState
-import Chess.Board.MoveGen (isLegal, applyMoveBoard, GenMove(..), MoveTag(..))
+import Chess.Board.MoveGen (isLegal, applyMoveBoard, GenMove(..))
 import Chess.Board.Validation (isCheck, isCheckmate)
 
 -- | Convert a move to Standard Algebraic Notation (SAN).
@@ -109,14 +109,18 @@ getCandidates b gs (Piece c pt) target =
                 _    -> testBit (attacks b from) (unSquare target)
         in pseudo && isLegal b gs (mkGenMove from)
 
-    mkMove from = Move from target promo
     mkGenMove from =
-        let m = mkMove from
-            tag = if isEpSquare target then EnPassant
-                  else case pieceAt b target of
-                         Just p -> Capture (pieceType p)
-                         Nothing -> Quiet
-        in GenMove m pt tag
+        let isEp = isEpSquare target
+            capPt = fmap pieceType (pieceAt b target)
+        in case promo of
+            Just p -> case capPt of
+                        Just cp -> GenPromotionCapture from target p cp
+                        Nothing -> GenPromotion from target p
+            Nothing ->
+                if isEp then GenEnPassant from target
+                else case capPt of
+                        Just cp -> GenCapture from target pt cp
+                        Nothing -> GenQuiet from target pt
 
     promo = if pt == Pawn && isPromotionRank target then Just Queen else Nothing
     isPromotionRank s = (c == White && squareRank s == 7) || (c == Black && squareRank s == 0)
@@ -173,18 +177,29 @@ parseSan b gs str =
 
         -- Helper to check legality of a Move (converting to GenMove first)
         checkLegal m =
-            let p = pieceAt b (mFrom m)
-                pt = maybe Pawn pieceType p -- Should be safe as candidates are from board
-                tag = case m of
-                        Move f t _ ->
-                           if pt == Pawn && isEpCapture b gs m then EnPassant
-                           else if pt == King && abs (unSquare f - unSquare t) == 2 then Castling
-                           else case pieceAt b t of
-                                  Just cp -> Capture (pieceType cp)
-                                  Nothing -> Quiet
-                        _ -> Quiet
-                genM = GenMove m pt tag
-            in isLegal b gs genM
+            let from = mFrom m
+                to = mTo m
+                p = pieceAt b from
+                pt = maybe Pawn pieceType p
+
+                isEp = pt == Pawn && isEpCapture b gs m
+                isCastling = pt == King && abs (unSquare from - unSquare to) == 2
+
+                capturedPt = fmap pieceType (pieceAt b to)
+                promo = mProm m
+
+                gm = if isCastling then GenCastling from to
+                     else case promo of
+                        Just ppt ->
+                            case capturedPt of
+                                Just cp -> GenPromotionCapture from to ppt cp
+                                Nothing -> GenPromotion from to ppt
+                        Nothing ->
+                            if isEp then GenEnPassant from to
+                            else case capturedPt of
+                                Just cp -> GenCapture from to pt cp
+                                Nothing -> GenQuiet from to pt
+            in isLegal b gs gm
 
         findMatch candidates = find (\m -> checkLegal m && (san b gs m == str || san b gs m == cleanStr)) candidates
 
