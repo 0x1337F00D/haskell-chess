@@ -154,37 +154,15 @@ isCheck b c = Val.isCheck (toBaseBoard b) (dummyGameState c)
 generateLegalMoves :: forall v c s. (KnownColor c, ChessVariant v) => ActiveGame v c s -> [Move c]
 generateLegalMoves = generateMoves
 
+-- | Convert Engine GenMove to Core Move.
+-- Utilizing the Sum Type to avoid boolean blindness.
 toCoreMove :: MG.GenMove -> Move c
-toCoreMove (MG.GenMove (T.Move f t promo) pt captured) =
-  let fromSq = fromSquare f
-      toSq = fromSquare t
-  in case promo of
-       Just ppt ->
-          case captured of
-            Nothing -> PromotionMove fromSq toSq (fromPieceType ppt)
-            Just cap -> PromotionCaptureMove fromSq toSq (fromPieceType ppt) (fromPieceType cap)
-       Nothing ->
-          if pt == T.King && abs (T.unSquare f - T.unSquare t) == 2
-          then CastlingMove fromSq toSq
-          else if pt == T.Pawn && captured == Nothing && T.squareFile f /= T.squareFile t
-               then EnPassantMove fromSq toSq
-               else case captured of
-                      Nothing -> QuietMove fromSq toSq (fromPieceType pt)
-                      Just cap -> CaptureMove fromSq toSq (fromPieceType pt) (fromPieceType cap)
-toCoreMove (MG.GenMove (T.DropMove _ _) _ _) = error "DropMove in GenMove"
-toCoreMove (MG.GenMove T.NullMove _ _) = error "NullMove in GenMove"
-
-isCastlingMove :: T.Piece -> Square -> Square -> Bool
-isCastlingMove p from to =
-  T.pieceType p == T.King && abs (fromEnum (getFile from) - fromEnum (getFile to)) == 2
-
-isEnPassantMove :: T.Piece -> Square -> Square -> Base.Board -> Bool
-isEnPassantMove p from to b =
-  T.pieceType p == T.Pawn &&
-  getFile from /= getFile to &&
-  case Base.pieceAt b (toSquare to) of
-    Nothing -> True
-    Just _ -> False
+toCoreMove (MG.GenQuiet f t pt) = QuietMove (fromSquare f) (fromSquare t) (fromPieceType pt)
+toCoreMove (MG.GenCapture f t pt cap) = CaptureMove (fromSquare f) (fromSquare t) (fromPieceType pt) (fromPieceType cap)
+toCoreMove (MG.GenCastling f t) = CastlingMove (fromSquare f) (fromSquare t)
+toCoreMove (MG.GenEnPassant f t) = EnPassantMove (fromSquare f) (fromSquare t)
+toCoreMove (MG.GenPromotion f t p) = PromotionMove (fromSquare f) (fromSquare t) (fromPieceType p)
+toCoreMove (MG.GenPromotionCapture f t p cap) = PromotionCaptureMove (fromSquare f) (fromSquare t) (fromPieceType p) (fromPieceType cap)
 
 -- Helpers for Apply Move
 getCastlingRookMove :: Square -> Square -> (Square, Square)

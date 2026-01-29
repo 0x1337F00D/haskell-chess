@@ -6,7 +6,7 @@ import Data.IORef (IORef, newIORef, readIORef, modifyIORef')
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar, getNumCapabilities)
 
 import Chess.Types
-import Chess.Board (Board(..), legalGenMoves, captureGenMoves, applyGenMove, applyMove, isCheck, uci, GenMove(..))
+import Chess.Board (Board(..), legalGenMoves, captureGenMoves, applyGenMove, applyMove, isCheck, uci, GenMove(..), genMoveToMove)
 import qualified Chess.Board.GameState as GS
 import Chess.Engine.Evaluation (evaluate)
 import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
@@ -84,7 +84,7 @@ alphaBetaRoot board tt depth nodes = do
         then go gms (getMove gm) score alpha beta
         else go gms bestM bestScore alpha beta
 
-    getMove (GenMove m _ _) = m
+    getMove = genMoveToMove
 
 searchChunk :: Board -> TT -> Depth -> Int -> Int -> [GenMove] -> IO (Maybe (Move, Int), Int)
 searchChunk board tt depth alpha beta moves = do
@@ -105,7 +105,7 @@ searchChunk board tt depth alpha beta moves = do
                     else (bestRes, currentAlpha)
         go ln gms newRes newAlpha
 
-    getMove (GenMove m _ _) = m
+    getMove = genMoveToMove
 
 mapConcurrently :: (a -> IO b) -> [a] -> IO [b]
 mapConcurrently f xs = do
@@ -186,7 +186,7 @@ alphaBeta board tt depth alpha beta canNull nodes = do
     searchMoves (gm:gms) a b d flag bestScore bestM = do
         let m = getMove gm
         let isCapture = isCap gm
-        let isProm = isPromotion m
+        let isProm = isPromotion gm
 
         let newBoard = applyGenMove board gm
 
@@ -223,9 +223,14 @@ alphaBeta board tt depth alpha beta canNull nodes = do
         else do
             searchMoves gms (max a score) b d newFlag newBestScore newBestM
 
-    getMove (GenMove m _ _) = m
-    isCap (GenMove _ _ cap) = isJust cap
-    isPromotion (Move _ _ p) = isJust p
+    getMove = genMoveToMove
+    isCap (GenCapture {}) = True
+    isCap (GenPromotionCapture {}) = True
+    isCap (GenEnPassant {}) = True
+    isCap _ = False
+
+    isPromotion (GenPromotion {}) = True
+    isPromotion (GenPromotionCapture {}) = True
     isPromotion _ = False
 
 -- | Quiescence Search.
@@ -261,20 +266,24 @@ orderGenMoves moves (Just ttM) =
         (capProms, caps, proms, quiets) = partition others
     in ttMoves ++ capProms ++ caps ++ proms ++ quiets
   where
-    getMove (GenMove m _ _) = m
+    getMove = genMoveToMove
 
 partition :: [GenMove] -> ([GenMove], [GenMove], [GenMove], [GenMove])
 partition moves = foldr part ([], [], [], []) moves
   where
-    part gm@(GenMove m _ _) (cp, c, p, q)
+    part gm (cp, c, p, q)
         | isCapture gm =
-            if isPromotion m
+            if isPromotion gm
             then (gm:cp, c, p, q)
             else (cp, gm:c, p, q)
-        | isPromotion m = (cp, c, gm:p, q)
+        | isPromotion gm = (cp, c, gm:p, q)
         | otherwise     = (cp, c, p, gm:q)
 
-    isPromotion m = isJust (promotion m)
-    isCapture (GenMove (Move f t _) pt cap) =
-        isJust cap || (pt == Pawn && squareFile f /= squareFile t)
+    isPromotion (GenPromotion {}) = True
+    isPromotion (GenPromotionCapture {}) = True
+    isPromotion _ = False
+
+    isCapture (GenCapture {}) = True
+    isCapture (GenPromotionCapture {}) = True
+    isCapture (GenEnPassant {}) = True
     isCapture _ = False

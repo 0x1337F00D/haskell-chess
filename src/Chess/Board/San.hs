@@ -9,7 +9,7 @@ import Chess.Types
 import Chess.Bitboard (bbFromSquare, pattern BB_A1, pattern BB_H1, pattern BB_A8, pattern BB_H8, scanForward, pawnAttacks)
 import Chess.Board.Base
 import Chess.Board.GameState
-import Chess.Board.MoveGen (isLegal, applyMoveBoard, GenMove(..))
+import Chess.Board.MoveGen (isLegal, applyMoveBoard, makeGenMove)
 import Chess.Board.Validation (isCheck, isCheckmate)
 
 -- | Convert a move to Standard Algebraic Notation (SAN).
@@ -112,9 +112,9 @@ getCandidates b gs (Piece c pt) target =
     mkMove from = Move from target promo
     mkGenMove from =
         let m = mkMove from
-            cap = if isEpSquare target then Nothing -- EP capture handled implicitly in applyMoveBoardFast
+            cap = if isEpSquare target then Nothing -- EP capture handled implicitly in makeGenMove logic
                   else fmap pieceType (pieceAt b target)
-        in GenMove m pt cap
+        in makeGenMove m pt cap
 
     promo = if pt == Pawn && isPromotionRank target then Just Queen else Nothing
     isPromotionRank s = (c == White && squareRank s == 7) || (c == Black && squareRank s == 0)
@@ -178,7 +178,7 @@ parseSan b gs str =
                            if pt == Pawn && isEpCapture b gs m then Nothing
                            else fmap pieceType (pieceAt b t)
                         _ -> Nothing
-                genM = GenMove m pt cap
+                genM = makeGenMove m pt cap
             in isLegal b gs genM
 
         findMatch candidates = find (\m -> checkLegal m && (san b gs m == str || san b gs m == cleanStr)) candidates

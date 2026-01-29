@@ -34,25 +34,36 @@ instance ChessVariant 'Atomic where
 
         pseudos = MG.pseudoLegalMoves baseBoard gs
 
-        isKingCapture :: T.Move -> Bool
-        isKingCapture (T.Move f t _) =
-           let p = Base.pieceAt baseBoard f
-           in fmap T.pieceType p == Just T.King && Base.pieceAt baseBoard t /= Nothing
-        isKingCapture T.NullMove = False
-        isKingCapture (T.DropMove _ _) = False
+        isKingCapture :: MG.GenMove -> Bool
+        isKingCapture (MG.GenCapture _ _ T.King _) = True
+        isKingCapture (MG.GenPromotionCapture _ _ T.King _) = True
+        isKingCapture _ = False
 
-        isSelfExplosion :: T.Move -> Bool
-        isSelfExplosion (T.Move f t _) =
-           let isCap = Base.pieceAt baseBoard t /= Nothing || isEpCapture
-               isEpCapture = case GS.epSquare gs of
-                               Just ep -> t == ep && fmap T.pieceType (Base.pieceAt baseBoard f) == Just T.Pawn
-                               Nothing -> False
-               ownKingSq = MG.kingSquare baseBoard (toColor c)
-           in isCap && case ownKingSq of
-                         Just k -> chebyshevDist t k <= 1
-                         Nothing -> False
-        isSelfExplosion T.NullMove = False
-        isSelfExplosion (T.DropMove _ _) = False
+        isSelfExplosion :: MG.GenMove -> Bool
+        isSelfExplosion gm =
+           if isCapture gm
+           then
+              let m = MG.genMoveToMove gm
+                  t = T.mTo m
+                  -- En Passant special case?
+                  -- If EP, capture happens at `t` (pawn moves there).
+                  -- Explosion center is `t`.
+                  -- Wait, EP capture center:
+                  -- "In atomic chess... captures result in explosion... surrounding pieces... removed"
+                  -- "For en passant... the pawn is captured... explosion occurs at the destination square of the capturing pawn?"
+                  -- Lichess rules: "The capture is considered to take place on the square that the capturing pawn lands on."
+                  -- So `t` is correct.
+
+                  ownKingSq = MG.kingSquare baseBoard (toColor c)
+              in case ownKingSq of
+                   Just k -> chebyshevDist t k <= 1
+                   Nothing -> False
+           else False
+
+        isCapture (MG.GenCapture {}) = True
+        isCapture (MG.GenPromotionCapture {}) = True
+        isCapture (MG.GenEnPassant {}) = True
+        isCapture _ = False
 
         chebyshevDist :: T.Square -> T.Square -> Int
         chebyshevDist (T.Square i1) (T.Square i2) =
@@ -62,7 +73,7 @@ instance ChessVariant 'Atomic where
                c2 = i2 `mod` 8
            in max (abs (r1 - r2)) (abs (c1 - c2))
 
-        atomicMoves = filter (\(MG.GenMove m _ _) -> not (isKingCapture m) && not (isSelfExplosion m)) pseudos
+        atomicMoves = filter (\gm -> not (isKingCapture gm) && not (isSelfExplosion gm)) pseudos
         validMoves = filter (MG.isLegal baseBoard gs) atomicMoves
 
     in map toCoreMove validMoves

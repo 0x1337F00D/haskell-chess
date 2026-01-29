@@ -1,0 +1,91 @@
+Build profile: -w ghc-9.4.8 -O1
+In order, the following will be built (use -v for more details):
+ - haskell-chess-0.1.0.0 (lib) (first run)
+ - haskell-chess-0.1.0.0 (exe:haskell-chess) (first run)
+ - haskell-chess-0.1.0.0 (exe:bench-search) (first run)
+ - haskell-chess-0.1.0.0 (exe:bench-core) (first run)
+Preprocessing library for haskell-chess-0.1.0.0...
+Building library for haskell-chess-0.1.0.0...
+[14 of 41] Compiling Chess.Board.San  ( src/Chess/Board/San.hs, dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board/San.o, dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board/San.dyn_o )
+[36 of 41] Compiling Chess.Board      ( src/Chess/Board.hs, dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board.o, dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board.dyn_o )
+
+src/Chess/Board.hs:32:28: warning: [-Wunused-imports]
+    The import of ‘fromMaybe’ from module ‘Data.Maybe’ is redundant
+   |
+32 | import Data.Maybe (isJust, fromMaybe)
+   |                            ^^^^^^^^^
+[37 of 41] Compiling Chess.Pgn        ( src/Chess/Pgn.hs, dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Pgn.o, dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Pgn.dyn_o )
+[38 of 41] Compiling Chess.Engine.Evaluation ( src/Chess/Engine/Evaluation.hs, dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Evaluation.o, dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Evaluation.dyn_o )
+
+src/Chess/Engine/Evaluation.hs:20:1: warning: [-Wunused-top-binds]
+    Defined but not used: ‘phasePawn’
+   |
+20 | phasePawn = 0
+   | ^^^^^^^^^
+[39 of 41] Compiling Chess.Engine.Search ( src/Chess/Engine/Search.hs, dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Search.o, dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Search.dyn_o )
+
+src/Chess/Engine/Search.hs:114:9: warning: [-Wunused-do-bind]
+    A do-notation statement discarded a result of type
+      ‘GHC.Conc.Sync.ThreadId’
+    Suggested fix:
+      Suppress this warning by saying
+        ‘_ <- forkIO
+                $ do res <- f x
+                     putMVar v res’
+    |
+114 |         forkIO $ do
+    |         ^^^^^^^^^^^...
+[40 of 41] Compiling Chess.Engine.Uci ( src/Chess/Engine/Uci.hs, dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Uci.o, dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Uci.dyn_o )
+
+src/Chess/Engine/Uci.hs:6:1: warning: [-Wunused-imports]
+    The import of ‘gets, put’
+    from module ‘Control.Monad.State’ is redundant
+  |
+6 | import Control.Monad.State (StateT, evalStateT, get, put, liftIO, gets, modify)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[41 of 41] Compiling Chess            ( src/Chess.hs, dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess.o, dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess.dyn_o )
+Configuring executable 'haskell-chess' for haskell-chess-0.1.0.0...
+Configuring executable 'bench-search' for haskell-chess-0.1.0.0...
+Configuring executable 'bench-core' for haskell-chess-0.1.0.0...
+Preprocessing executable 'bench-search' for haskell-chess-0.1.0.0...
+Building executable 'bench-search' for haskell-chess-0.1.0.0...
+Preprocessing executable 'bench-core' for haskell-chess-0.1.0.0...
+Building executable 'bench-core' for haskell-chess-0.1.0.0...
+Preprocessing executable 'haskell-chess' for haskell-chess-0.1.0.0...
+Building executable 'haskell-chess' for haskell-chess-0.1.0.0...
+[1 of 1] Compiling Main             ( app/Main.hs, dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/x/haskell-chess/build/haskell-chess/haskell-chess-tmp/Main.o )
+[1 of 1] Compiling Main             ( scripts/BenchSearch.hs, dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/x/bench-search/build/bench-search/bench-search-tmp/Main.o )
+[1 of 1] Compiling Main             ( scripts/BenchCore.hs, dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/x/bench-core/build/bench-core/bench-core-tmp/Main.o )
+
+scripts/BenchSearch.hs:4:31: warning: [-Wunused-imports]
+    The import of ‘Board’ from module ‘Chess.Board’ is redundant
+  |
+4 | import Chess.Board (parseFen, Board(..))
+  |                               ^^^^^^^^^
+
+scripts/BenchSearch.hs:15:9: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe Board’ not matched: Nothing
+   |
+15 |     let Just b = parseFen fen
+   |         ^^^^^^^^^^^^^^^^^^^^^
+
+scripts/BenchCore.hs:14:1: warning: [-Wunused-imports]
+    The import of ‘Chess.Core.Rules.Class’ is redundant
+      except perhaps to import instances from ‘Chess.Core.Rules.Class’
+    To import instances alone, use: import Chess.Core.Rules.Class()
+   |
+14 | import Chess.Core.Rules.Class (Opposite)
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+scripts/BenchCore.hs:21:1: warning: [-Wunused-imports]
+    The import of ‘System.Environment’ is redundant
+      except perhaps to import instances from ‘System.Environment’
+    To import instances alone, use: import System.Environment()
+   |
+21 | import System.Environment (getArgs)
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[2 of 2] Linking dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/x/haskell-chess/build/haskell-chess/haskell-chess
+[2 of 2] Linking dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/x/bench-search/build/bench-search/bench-search
+[2 of 2] Linking dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/x/bench-core/build/bench-core/bench-core

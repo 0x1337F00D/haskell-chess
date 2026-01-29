@@ -26,6 +26,7 @@ module Chess.Board
     -- * Re-exports
   , module Chess.Types
   , MoveGen.GenMove(..)
+  , MoveGen.genMoveToMove
   ) where
 
 import Data.Maybe (isJust, fromMaybe)
@@ -70,28 +71,37 @@ applyMove board@(Board b gs _) m@(Move from to _) =
             capturedPt = if testBit (Base.occupiedTotal b) toI
                          then Just (Base.findPieceType b (Base.oppositeColor c) to)
                          else Nothing
-        in applyMoveHelper board m pt capturedPt
+
+            gm = MoveGen.makeGenMove m pt capturedPt
+        in applyGenMoveHelper board gm
 applyMove b NullMove = b
 applyMove b _ = b
 
 -- | Apply a move using GenMove info (skipping piece lookup).
 applyGenMove :: Board -> MoveGen.GenMove -> Board
-applyGenMove board (MoveGen.GenMove m pt capturedPt) = applyMoveHelper board m pt capturedPt
+applyGenMove = applyGenMoveHelper
 
--- | Helper to apply move logic given resolved pieces.
-{-# INLINE applyMoveHelper #-}
-applyMoveHelper :: Board -> Move -> PieceType -> Maybe PieceType -> Board
-applyMoveHelper (Board b gs hist) m@(Move from to promo) pt capturedPt =
+-- | Helper to apply move logic given a GenMove.
+{-# INLINE applyGenMoveHelper #-}
+applyGenMoveHelper :: Board -> MoveGen.GenMove -> Board
+applyGenMoveHelper (Board b gs hist) gm =
     let
         -- 1. Update pieces (using fast path)
-        b' = MoveGen.applyMoveBoardFast b gs m pt capturedPt
+        b' = MoveGen.applyGenMoveFast b gs gm
 
         c = GS.turn gs
         oppC = Base.oppositeColor c
 
-        -- 2. Analyze move for state updates using resolved pieces
+        -- 2. Deconstruct GenMove for state updates
+        (from, to, pt, promo, capturedPt, isEp, isCastling) = case gm of
+            MoveGen.GenQuiet f t p -> (f, t, p, Nothing, Nothing, False, False)
+            MoveGen.GenCapture f t p cap -> (f, t, p, Nothing, Just cap, False, False)
+            MoveGen.GenCastling f t -> (f, t, King, Nothing, Nothing, False, True)
+            MoveGen.GenEnPassant f t -> (f, t, Pawn, Nothing, Nothing, True, False)
+            MoveGen.GenPromotion f t p -> (f, t, Pawn, Just p, Nothing, False, False)
+            MoveGen.GenPromotionCapture f t p cap -> (f, t, Pawn, Just p, Just cap, False, False)
+
         isPawn = pt == Pawn
-        isEp = isPawn && capturedPt == Nothing && squareFile from /= squareFile to
         isCap = isJust capturedPt || isEp
 
         -- Zobrist Updates ----------------------------------------------------
@@ -121,7 +131,7 @@ applyMoveHelper (Board b gs hist) m@(Move from to promo) pt capturedPt =
                    else h2
 
         -- Handle Castling (Rook moves)
-        h4 = if pt == King && abs (unSquare from - unSquare to) == 2
+        h4 = if isCastling
              then -- Castling
                 let (rookFrom, rookTo) = if to == Square (unSquare from + 2) -- Kingside
                                          then (Square (unSquare from + 3), Square (unSquare from + 1))
@@ -175,7 +185,6 @@ applyMoveHelper (Board b gs hist) m@(Move from to promo) pt capturedPt =
                      , GS.fullmoveNumber = fullmove'
                      , GS.zobristHash = hFinal
                      }) histFinal
-applyMoveHelper b _ _ _ = b
 
 -- | Generate all legal moves for the current position.
 legalMoves :: Board -> [Move]
@@ -187,7 +196,7 @@ legalGenMoves (Board b gs _) = MoveGen.legalGenMoves b gs
 
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> [Move]
-pseudoLegalMoves (Board b gs _) = map (\(MoveGen.GenMove m _ _) -> m) $ MoveGen.pseudoLegalMoves b gs
+pseudoLegalMoves (Board b gs _) = map MoveGen.genMoveToMove $ MoveGen.pseudoLegalMoves b gs
 
 -- | Generate all legal capture moves.
 captureMoves :: Board -> [Move]

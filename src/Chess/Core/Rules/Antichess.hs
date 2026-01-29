@@ -53,7 +53,7 @@ instance ChessVariant 'Antichess where
         pseudos = MG.pseudoLegalMoves baseBoard gs
 
         -- 1. Filter out Castling moves (Standard MG might generate them if rights exist)
-        isCastling (MG.GenMove (T.Move f t _) T.King _) = abs (T.unSquare f - T.unSquare t) == 2
+        isCastling (MG.GenCastling {}) = True
         isCastling _ = False
 
         pseudosNoCastling = filter (not . isCastling) pseudos
@@ -62,25 +62,22 @@ instance ChessVariant 'Antichess where
         -- Standard MG only generates Q, R, B, N promotions.
         -- We duplicate Queen promotions as King promotions.
         addKingPromos [] = []
-        addKingPromos (gm@(MG.GenMove (T.Move f t (Just T.Queen)) pt cap) : rest) =
-             gm : MG.GenMove (T.Move f t (Just T.King)) pt cap : addKingPromos rest
-        addKingPromos (x:xs) = x : addKingPromos xs
+        addKingPromos (gm : rest) =
+             case gm of
+                MG.GenPromotion f t T.Queen ->
+                    gm : MG.GenPromotion f t T.King : addKingPromos rest
+                MG.GenPromotionCapture f t T.Queen cap ->
+                    gm : MG.GenPromotionCapture f t T.King cap : addKingPromos rest
+                _ -> gm : addKingPromos rest
 
         pseudosEnhanced = addKingPromos pseudosNoCastling
 
         -- 3. Filter Captures (Compulsory)
         isCapture :: MG.GenMove -> Bool
-        isCapture (MG.GenMove m pt cap) =
-            case cap of
-                Just _ -> True -- Standard capture
-                Nothing ->
-                    -- Check En Passant
-                    case pt of
-                        T.Pawn ->
-                             case m of
-                               T.Move f t _ -> T.squareFile f /= T.squareFile t && Base.pieceAt baseBoard t == Nothing
-                               _ -> False
-                        _ -> False
+        isCapture (MG.GenCapture {}) = True
+        isCapture (MG.GenPromotionCapture {}) = True
+        isCapture (MG.GenEnPassant {}) = True
+        isCapture _ = False
 
         captures = filter isCapture pseudosEnhanced
 
@@ -107,7 +104,15 @@ instance ChessVariant 'Antichess where
             -- We need to replicate Antichess move generation logic for opponent.
 
             oppPseudos = MG.pseudoLegalMoves baseBoard (toGameState nextAg)
-            oppHasMoves = not (null oppPseudos)
+            -- Note: We technically need to apply the same filtering (no castling, king promo, captures).
+            -- But checking if pseudos is null is usually enough?
+            -- No, if pseudos has quiet moves but captures are forced, then pseudos is non-null but legal might be null.
+            -- However, executeMove is expensive enough that we should be correct.
+            -- Re-calling generateMoves logic for opponent.
+
+            -- Recursively calling generateMoves would require constructing ActiveGame for opponent.
+            -- We have nextAg!
+            oppHasMoves = not (null (generateMoves nextAg))
 
             opponentStalemated = not oppHasMoves
 
