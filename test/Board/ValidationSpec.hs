@@ -44,9 +44,9 @@ spec = do
 
     it "detects threefold repetition" $ do
       let (b, gs) = fromJust $ Fen.parseFen startingFEN
-      let rep = Validation.PositionRep b (GS.turn gs) (GS.castlingRights gs) (GS.epSquare gs)
+      let hash = GS.zobristHash gs
       -- 2 repetitions in history + 1 current = 3
-      let history = [rep, rep]
+      let history = [hash, hash]
       Validation.isThreefoldRepetition b gs history `shouldBe` True
       Validation.outcome b gs history `shouldBe` Just (Outcome ThreefoldRepetition Nothing)
 
