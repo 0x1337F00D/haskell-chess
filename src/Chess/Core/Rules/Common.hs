@@ -156,22 +156,20 @@ generateLegalMoves :: forall v c s. (KnownColor c, ChessVariant v) => ActiveGame
 generateLegalMoves = generateMoves
 
 toCoreMove :: MG.GenMove -> Move c
-toCoreMove (MG.GenMove (T.Move f t promo) pt tag) =
-  let fromSq = fromSquare f
-      toSq = fromSquare t
-  in case promo of
-       Just ppt ->
-          case tag of
-            MG.Capture cap -> PromotionCaptureMove fromSq toSq (fromPieceType ppt) (fromPieceType cap)
-            _ -> PromotionMove fromSq toSq (fromPieceType ppt)
-       Nothing ->
-          case tag of
-             MG.Quiet -> QuietMove fromSq toSq (fromPieceType pt)
-             MG.Capture cap -> CaptureMove fromSq toSq (fromPieceType pt) (fromPieceType cap)
-             MG.EnPassant -> EnPassantMove fromSq toSq
-             MG.Castling -> CastlingMove fromSq toSq
-toCoreMove (MG.GenMove (T.DropMove _ _) _ _) = error "DropMove in GenMove"
-toCoreMove (MG.GenMove T.NullMove _ _) = error "NullMove in GenMove"
+toCoreMove gm =
+  case gm of
+    MG.GenQuiet f t pt ->
+        QuietMove (fromSquare f) (fromSquare t) (fromPieceType pt)
+    MG.GenCapture f t pt cap ->
+        CaptureMove (fromSquare f) (fromSquare t) (fromPieceType pt) (fromPieceType cap)
+    MG.GenEnPassant f t ->
+        EnPassantMove (fromSquare f) (fromSquare t)
+    MG.GenCastling f t ->
+        CastlingMove (fromSquare f) (fromSquare t)
+    MG.GenPromotion f t ppt ->
+        PromotionMove (fromSquare f) (fromSquare t) (fromPieceType ppt)
+    MG.GenPromotionCapture f t ppt cap ->
+        PromotionCaptureMove (fromSquare f) (fromSquare t) (fromPieceType ppt) (fromPieceType cap)
 
 isCastlingMove :: T.Piece -> Square -> Square -> Bool
 isCastlingMove p from to =

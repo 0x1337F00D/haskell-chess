@@ -50,7 +50,7 @@ instance ChessVariant 'Antichess where
         pseudos = MG.pseudoLegalMoves baseBoard gs
 
         -- 1. Filter out Castling moves (Standard MG might generate them if rights exist)
-        isCastling (MG.GenMove _ _ MG.Castling) = True
+        isCastling (MG.GenCastling _ _) = True
         isCastling _ = False
 
         pseudosNoCastling = filter (not . isCastling) pseudos
@@ -59,19 +59,23 @@ instance ChessVariant 'Antichess where
         -- Standard MG only generates Q, R, B, N promotions.
         -- We duplicate Queen promotions as King promotions.
         addKingPromos [] = []
-        addKingPromos (gm@(MG.GenMove (T.Move f t (Just T.Queen)) pt tag) : rest) =
-             gm : MG.GenMove (T.Move f t (Just T.King)) pt tag : addKingPromos rest
-        addKingPromos (x:xs) = x : addKingPromos xs
+        addKingPromos (gm : rest) =
+            case gm of
+              MG.GenPromotion f t T.Queen ->
+                  gm : MG.GenPromotion f t T.King : addKingPromos rest
+              MG.GenPromotionCapture f t T.Queen c ->
+                  gm : MG.GenPromotionCapture f t T.King c : addKingPromos rest
+              _ -> gm : addKingPromos rest
 
         pseudosEnhanced = addKingPromos pseudosNoCastling
 
         -- 3. Filter Captures (Compulsory)
         isCapture :: MG.GenMove -> Bool
-        isCapture (MG.GenMove _ _ tag) =
-            case tag of
-                MG.Capture _ -> True
-                MG.EnPassant -> True
-                _ -> False
+        isCapture gm = case gm of
+            MG.GenCapture {} -> True
+            MG.GenPromotionCapture {} -> True
+            MG.GenEnPassant {} -> True
+            _ -> False
 
         captures = filter isCapture pseudosEnhanced
 

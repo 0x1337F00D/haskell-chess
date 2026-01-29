@@ -8,6 +8,26 @@ import Chess.Bitboard
 import Chess.Board.Base
 import Chess.Board.GameState
 
+-- | A move coupled with explicit semantics.
+-- Replaces the previous product type (Move, PieceType, MoveTag) with a categorical Sum Type.
+data GenMove
+  = GenQuiet !Square !Square !PieceType
+  | GenCapture !Square !Square !PieceType !PieceType -- ^ from, to, moving, captured
+  | GenEnPassant !Square !Square                     -- ^ from, to (moving=Pawn, captured=Pawn)
+  | GenCastling !Square !Square                      -- ^ from, to (moving=King)
+  | GenPromotion !Square !Square !PieceType          -- ^ from, to, promotion (moving=Pawn)
+  | GenPromotionCapture !Square !Square !PieceType !PieceType -- ^ from, to, promo, captured (moving=Pawn)
+  deriving (Eq, Show)
+
+-- | Convert a GenMove back to a standard Move.
+genMoveToMove :: GenMove -> Move
+genMoveToMove (GenQuiet f t _) = Move f t Nothing
+genMoveToMove (GenCapture f t _ _) = Move f t Nothing
+genMoveToMove (GenEnPassant f t) = Move f t Nothing
+genMoveToMove (GenCastling f t) = Move f t Nothing
+genMoveToMove (GenPromotion f t p) = Move f t (Just p)
+genMoveToMove (GenPromotionCapture f t p _) = Move f t (Just p)
+
 -- | Generate all pseudo-legal moves for the side to move.
 -- Pseudo-legal means moves that follow piece movement rules and capture rules,
 -- but do not necessarily respect the rule that the king must not be in check.
@@ -25,7 +45,7 @@ pseudoLegalMoves b gs = concat
 -- | Generate all legal moves.
 -- Filters pseudo-legal moves to ensure the king is not left in check.
 legalMoves :: Board -> GameState -> [Move]
-legalMoves b gs = map (\(GenMove m _ _) -> m) $ filter (isLegal b gs) (pseudoLegalMoves b gs)
+legalMoves b gs = map genMoveToMove $ filter (isLegal b gs) (pseudoLegalMoves b gs)
 
 -- | Generate all legal moves returning GenMove (preserving piece info).
 legalGenMoves :: Board -> GameState -> [GenMove]
@@ -44,7 +64,7 @@ pseudoLegalCaptures b gs = concat
 
 -- | Generate all legal capture moves.
 legalCaptures :: Board -> GameState -> [Move]
-legalCaptures b gs = map (\(GenMove m _ _) -> m) $ filter (isLegal b gs) (pseudoLegalCaptures b gs)
+legalCaptures b gs = map genMoveToMove $ filter (isLegal b gs) (pseudoLegalCaptures b gs)
 
 -- | Generate all legal capture moves returning GenMove.
 legalGenCaptures :: Board -> GameState -> [GenMove]
@@ -53,17 +73,17 @@ legalGenCaptures b gs = filter (isLegal b gs) (pseudoLegalCaptures b gs)
 -- | Check if a move is legal (does not leave own king in check).
 -- Note: This function assumes the move is pseudo-legal.
 isLegal :: Board -> GameState -> GenMove -> Bool
-isLegal b gs (GenMove m pt tag) =
+isLegal b gs gm =
     let c = turn gs
-        b' = applyMoveBoardFast b gs m pt tag
+        b' = applyMoveBoardFast b gs gm
         kingSq = kingSquare b' c
     in case kingSq of
         Nothing -> False -- Should not happen if king exists
-        Just k -> not (isAttackedBy b' (oppositeColor c) k) && castlingSafe b gs m tag
+        Just k -> not (isAttackedBy b' (oppositeColor c) k) && castlingSafe b gs gm
 
     where
-         castlingSafe :: Board -> GameState -> Move -> MoveTag -> Bool
-         castlingSafe _ _ (Move f t _ ) Castling =
+         castlingSafe :: Board -> GameState -> GenMove -> Bool
+         castlingSafe _ _ (GenCastling f t) =
                 let c = turn gs
                     step = (unSquare t - unSquare f) `div` 2
                     mid = Square (unSquare f + step)
@@ -72,66 +92,43 @@ isLegal b gs (GenMove m pt tag) =
                     -- Check if passed square is attacked (can't castle through check)
                     midAttacked = isAttackedBy b (oppositeColor c) mid
                 in not startAttacked && not midAttacked
-         castlingSafe _ _ _ _ = True
+         castlingSafe _ _ _ = True
 
--- | A move coupled with the piece type moving and optionally the piece type captured.
--- | Semantic tag for a move, explicitizing its effect.
-data MoveTag
-  = Quiet
-  | Capture !PieceType -- ^ Standard capture with victim type
-  | EnPassant          -- ^ En Passant capture (implicitly captures Pawn)
-  | Castling           -- ^ Castling move (implicitly moves Rook)
-  deriving (Eq, Show)
-
--- | A move coupled with the piece type moving and its semantic tag.
-data GenMove = GenMove !Move !PieceType !MoveTag
 
 -- | Faster version of applyMoveBoard that avoids pieceAt lookups by using provided piece info.
-applyMoveBoardFast :: Board -> GameState -> Move -> PieceType -> MoveTag -> Board
-applyMoveBoardFast b gs (Move from to promo) pt tag =
-    let c = turn gs
-    in
-        -- Handle Basic Move and Promotion
-        let bAfterMove =
-                case promo of
-                    Just ppt ->
-                        -- If promotion:
-                        -- 1. Remove pawn from 'from'
-                        -- 2. Remove potential capture at 'to'
-                        -- 3. Put promoted piece at 'to'
-                        let b1 = unsafeRemovePiece b from c Pawn
-                            b2 = case tag of
-                                   Capture capPt -> unsafeRemovePiece b1 to (oppositeColor c) capPt
-                                   _ -> b1
-                            newPiece = Piece c ppt
-                        in unsafePutPiece b2 to newPiece
-                    Nothing ->
-                        -- Normal move
-                        case tag of
-                            Capture capPt ->
-                                let b1 = unsafeRemovePiece b to (oppositeColor c) capPt
-                                in movePieceFast b1 from to c pt
-                            _ ->
-                                -- Quiet or En Passant or Castling (piece move handled here)
-                                movePieceFast b from to c pt
+applyMoveBoardFast :: Board -> GameState -> GenMove -> Board
+applyMoveBoardFast b gs gm =
+    case gm of
+        GenQuiet from to pt ->
+            movePieceFast b from to (turn gs) pt
 
-            bAfterEP = case tag of
-                         EnPassant ->
-                            let capSq = Square (unSquare to + (if c == White then -8 else 8))
-                                -- Capture is opposite color Pawn
-                            in unsafeRemovePiece bAfterMove capSq (oppositeColor c) Pawn
-                         _ -> bAfterMove
+        GenCapture from to pt capPt ->
+            let c = turn gs
+                b1 = unsafeRemovePiece b to (oppositeColor c) capPt
+            in movePieceFast b1 from to c pt
 
-            bFinal = case tag of
-                       Castling ->
-                          let (rookFrom, rookTo) = castlingRookMove from to
-                              -- Rook is same color, Rook.
-                              -- Move rook from rookFrom to rookTo.
-                          in movePieceFast bAfterEP rookFrom rookTo c Rook
-                       _ -> bAfterEP
+        GenEnPassant from to ->
+            let c = turn gs
+                capSq = Square (unSquare to + (if c == White then -8 else 8))
+                b1 = unsafeRemovePiece b capSq (oppositeColor c) Pawn
+            in movePieceFast b1 from to c Pawn
 
-        in bFinal
-applyMoveBoardFast b _ NullMove _ _ = b
+        GenCastling from to ->
+            let c = turn gs
+                (rookFrom, rookTo) = castlingRookMove from to
+                b1 = movePieceFast b from to c King
+            in movePieceFast b1 rookFrom rookTo c Rook
+
+        GenPromotion from to promoPt ->
+            let c = turn gs
+                b1 = unsafeRemovePiece b from c Pawn
+            in unsafePutPiece b1 to (Piece c promoPt)
+
+        GenPromotionCapture from to promoPt capPt ->
+            let c = turn gs
+                b1 = unsafeRemovePiece b from c Pawn
+                b2 = unsafeRemovePiece b1 to (oppositeColor c) capPt
+            in unsafePutPiece b2 to (Piece c promoPt)
 
 -- | Optimized movePiece that assumes capture handling is done or not needed (target empty).
 -- It only updates the bitboards for the moving piece.
@@ -163,8 +160,9 @@ movePieceFast b from to c pt =
 
 -- | Apply a move to the board (without updating game state like counters).
 -- Handles en passant capture removal and castling rook moves.
+-- It now constructs a GenMove and delegates to applyMoveBoardFast.
 applyMoveBoard :: Board -> GameState -> Move -> Board
-applyMoveBoard b gs m@(Move from to _) =
+applyMoveBoard b gs m@(Move from to promo) =
     let c = turn gs
         fromI = unSquare from
     in if not (testBit (occupiedBy b c) fromI)
@@ -172,20 +170,28 @@ applyMoveBoard b gs m@(Move from to _) =
        else
            let pt = findPieceType b c from
                toI = unSquare to
-               capturedPt = if testBit (occupiedTotal b) toI
-                            then Just (findPieceType b (oppositeColor c) to)
-                            else Nothing
+               isCapture = testBit (occupiedTotal b) toI
 
-               tag = case capturedPt of
-                       Just cp -> Capture cp
-                       Nothing ->
+               gm = case promo of
+                   Just ppt ->
+                       if isCapture
+                       then
+                           let capPt = findPieceType b (oppositeColor c) to
+                           in GenPromotionCapture from to ppt capPt
+                       else GenPromotion from to ppt
+                   Nothing ->
+                       if isCapture
+                       then
+                           let capPt = findPieceType b (oppositeColor c) to
+                           in GenCapture from to pt capPt
+                       else
                           if pt == Pawn && squareFile from /= squareFile to
-                          then EnPassant
+                          then GenEnPassant from to
                           else if pt == King && abs (unSquare from - unSquare to) == 2
-                          then Castling
-                          else Quiet
+                          then GenCastling from to
+                          else GenQuiet from to pt
 
-           in applyMoveBoardFast b gs m pt tag
+           in applyMoveBoardFast b gs gm
 applyMoveBoard b _ NullMove = b
 applyMoveBoard b _ _ = b
 
@@ -224,12 +230,10 @@ pieceMoves b gs pt = flatMapBitboard genMoves bb
 
             valid = att .&. complement (occupiedBy b c)
 
-            getTag to =
+            mkMove to =
                 if testBit (occupiedTotal b) (unSquare to)
-                then Capture (findPieceType b (oppositeColor c) to)
-                else Quiet
-
-            mkMove to = GenMove (Move from to Nothing) pt (getTag to)
+                then GenCapture from to pt (findPieceType b (oppositeColor c) to)
+                else GenQuiet from to pt
 
         in mapBitboard mkMove valid
 
@@ -252,9 +256,7 @@ pieceCaptures b gs pt = flatMapBitboard genMoves bb
             -- Only squares occupied by enemy
             valid = att .&. occupiedBy b (oppositeColor c)
 
-            getTag to = Capture (findPieceType b (oppositeColor c) to)
-
-            mkMove to = GenMove (Move from to Nothing) pt (getTag to)
+            mkMove to = GenCapture from to pt (findPieceType b (oppositeColor c) to)
 
         in mapBitboard mkMove valid
 
@@ -270,10 +272,10 @@ pawnMoves b gs =
     enemy = occupiedBy b (oppositeColor c)
 
     mkCap from dest =
-        let tag = Capture (findPieceType b (oppositeColor c) dest)
+        let capPt = findPieceType b (oppositeColor c) dest
         in if unSquare dest >= 56 || unSquare dest <= 7 -- Rank 8 or Rank 1
-           then [ GenMove (Move from dest (Just p)) Pawn tag | p <- [Queen, Rook, Bishop, Knight] ]
-           else [ GenMove (Move from dest Nothing) Pawn tag ]
+           then [ GenPromotionCapture from dest p capPt | p <- [Queen, Rook, Bishop, Knight] ]
+           else [ GenCapture from dest Pawn capPt ]
 
     whitePawnMoves =
         [ m
@@ -291,13 +293,13 @@ pawnMoves b gs =
                 then
                    let dest = Square to8
                    in if to8 >= 56 -- Rank 8
-                      then [ GenMove (Move from dest (Just p)) Pawn Quiet | p <- [Queen, Rook, Bishop, Knight] ]
+                      then [ GenPromotion from dest p | p <- [Queen, Rook, Bishop, Knight] ]
                       else
-                          let moves = [GenMove (Move from dest Nothing) Pawn Quiet]
+                          let moves = [GenQuiet from dest Pawn]
                               to16 = i + 16
                           in if i >= 8 && i <= 15 -- Rank 2
                                 && not (testBit occ to16)
-                             then moves ++ [GenMove (Move from (Square to16) Nothing) Pawn Quiet]
+                             then moves ++ [GenQuiet from (Square to16) Pawn]
                              else moves
                 else []
 
@@ -328,9 +330,9 @@ pawnMoves b gs =
                     let epIdx = unSquare ep
                     in
                        if (i + 7) == epIdx && (i `mod` 8) /= 0
-                       then [GenMove (Move from ep Nothing) Pawn EnPassant]
+                       then [GenEnPassant from ep]
                        else if (i + 9) == epIdx && (i `mod` 8) /= 7
-                       then [GenMove (Move from ep Nothing) Pawn EnPassant]
+                       then [GenEnPassant from ep]
                        else []
 
         in pushMoves ++ capLeftMoves ++ capRightMoves ++ epMoves
@@ -351,13 +353,13 @@ pawnMoves b gs =
                 then
                    let dest = Square to8
                    in if to8 <= 7 -- Rank 1
-                      then [ GenMove (Move from dest (Just p)) Pawn Quiet | p <- [Queen, Rook, Bishop, Knight] ]
+                      then [ GenPromotion from dest p | p <- [Queen, Rook, Bishop, Knight] ]
                       else
-                          let moves = [GenMove (Move from dest Nothing) Pawn Quiet]
+                          let moves = [GenQuiet from dest Pawn]
                               to16 = i - 16
                           in if i >= 48 && i <= 55 -- Rank 7
                                 && not (testBit occ to16)
-                             then moves ++ [GenMove (Move from (Square to16) Nothing) Pawn Quiet]
+                             then moves ++ [GenQuiet from (Square to16) Pawn]
                              else moves
                 else []
 
@@ -388,9 +390,9 @@ pawnMoves b gs =
                     let epIdx = unSquare ep
                     in
                        if (i - 9) == epIdx && (i `mod` 8) /= 0
-                       then [GenMove (Move from ep Nothing) Pawn EnPassant]
+                       then [GenEnPassant from ep]
                        else if (i - 7) == epIdx && (i `mod` 8) /= 7
-                       then [GenMove (Move from ep Nothing) Pawn EnPassant]
+                       then [GenEnPassant from ep]
                        else []
 
         in pushMoves ++ capLeftMoves ++ capRightMoves ++ epMoves
@@ -406,10 +408,10 @@ pawnCaptures b gs =
     enemy = occupiedBy b (oppositeColor c)
 
     mkCap from dest =
-        let tag = Capture (findPieceType b (oppositeColor c) dest)
+        let capPt = findPieceType b (oppositeColor c) dest
         in if unSquare dest >= 56 || unSquare dest <= 7 -- Rank 8 or Rank 1
-           then [ GenMove (Move from dest (Just p)) Pawn tag | p <- [Queen, Rook, Bishop, Knight] ]
-           else [ GenMove (Move from dest Nothing) Pawn tag ]
+           then [ GenPromotionCapture from dest p capPt | p <- [Queen, Rook, Bishop, Knight] ]
+           else [ GenCapture from dest Pawn capPt ]
 
     whitePawnCaptures =
         [ m
@@ -447,9 +449,9 @@ pawnCaptures b gs =
                     let epIdx = unSquare ep
                     in
                        if (i + 7) == epIdx && (i `mod` 8) /= 0
-                       then [GenMove (Move from ep Nothing) Pawn EnPassant]
+                       then [GenEnPassant from ep]
                        else if (i + 9) == epIdx && (i `mod` 8) /= 7
-                       then [GenMove (Move from ep Nothing) Pawn EnPassant]
+                       then [GenEnPassant from ep]
                        else []
 
         in capLeftMoves ++ capRightMoves ++ epMoves
@@ -490,9 +492,9 @@ pawnCaptures b gs =
                     let epIdx = unSquare ep
                     in
                        if (i - 9) == epIdx && (i `mod` 8) /= 0
-                       then [GenMove (Move from ep Nothing) Pawn EnPassant]
+                       then [GenEnPassant from ep]
                        else if (i - 7) == epIdx && (i `mod` 8) /= 7
-                       then [GenMove (Move from ep Nothing) Pawn EnPassant]
+                       then [GenEnPassant from ep]
                        else []
 
         in capLeftMoves ++ capRightMoves ++ epMoves
@@ -510,7 +512,7 @@ castlingMoves b gs = ks ++ qs
     mkCastlingMove isKingside =
         let toFile = if isKingside then 6 else 2 -- G1/G8 or C1/C8
             toSq = Square (rank * 8 + toFile)
-        in GenMove (Move kingSq toSq Nothing) King Castling
+        in GenCastling kingSq toSq
 
     kingsideClear =
         let f1 = Square (rank * 8 + 5) -- F
