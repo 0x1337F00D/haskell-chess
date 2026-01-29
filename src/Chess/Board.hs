@@ -28,7 +28,6 @@ module Chess.Board
   , MoveGen.GenMove(..)
   ) where
 
-import Data.Maybe (isJust, fromMaybe)
 import Data.Bits (testBit, xor)
 import Data.Word (Word64)
 
@@ -58,7 +57,7 @@ initialBoard =
 
 -- | Apply a move to the board, updating pieces and game state (counters, rights, etc).
 applyMove :: Board -> Move -> Board
-applyMove board@(Board b gs _) m@(Move from to promo) =
+applyMove board@(Board b gs _) (Move from to promo) =
     let c = GS.turn gs
         fromI = unSquare from
     in if not (testBit (Base.occupiedBy b c) fromI)
