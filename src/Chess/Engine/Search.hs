@@ -3,7 +3,7 @@ module Chess.Engine.Search (search) where
 
 import Data.Maybe (isJust)
 import Data.IORef (IORef, newIORef, readIORef, modifyIORef')
-import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar, getNumCapabilities)
+import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar, getNumCapabilities, newMVar, modifyMVar)
 
 import Chess.Types
 import Chess.Board (Board(..), legalGenMoves, captureGenMoves, applyGenMove, applyMove, isCheck, uci, GenMove(..))
@@ -61,8 +61,34 @@ alphaBetaRoot board tt depth nodes = do
                 if caps <= 1
                 then go gms bestMove bestScore (-infinity) infinity
                 else do
-                    let chunks = roundRobin caps gms
-                    results <- mapConcurrently (searchChunk board tt (depth - 1) bestScore infinity) chunks
+                    queue <- newMVar gms
+
+                    let worker _ = do
+                            localNodes <- newIORef 0
+
+                            let loop bestRes = do
+                                    mbMove <- modifyMVar queue $ \ms -> case ms of
+                                        [] -> return ([], Nothing)
+                                        (m:rest) -> return (rest, Just m)
+
+                                    case mbMove of
+                                        Nothing -> do
+                                            n <- readIORef localNodes
+                                            return (bestRes, n)
+                                        Just gm -> do
+                                            -- search gm
+                                            s <- alphaBeta (applyGenMove board gm) tt (depth - 1) (-infinity) (-bestScore) True localNodes
+                                            let score = -s
+
+                                            let newBestRes = case bestRes of
+                                                    Nothing -> Just (getMove gm, score)
+                                                    Just (_, bs) -> if score > bs then Just (getMove gm, score) else bestRes
+
+                                            loop newBestRes
+
+                            loop Nothing
+
+                    results <- mapConcurrently worker [1..caps]
 
                     let (finalM, finalS) = foldl merge (bestMove, bestScore) (map fst results)
                     let totalNodes = sum (map snd results)
@@ -91,32 +117,6 @@ alphaBetaRoot board tt depth nodes = do
     getMove (GenPromotion f t p) = Move f t (Just p)
     getMove (GenPromotionCapture f t p _) = Move f t (Just p)
 
-searchChunk :: Board -> TT -> Depth -> Int -> Int -> [GenMove] -> IO (Maybe (Move, Int), Int)
-searchChunk board tt depth alpha beta moves = do
-    localNodes <- newIORef 0
-    res <- go localNodes moves Nothing alpha
-    n <- readIORef localNodes
-    return (res, n)
-  where
-    go _ [] bestRes _ = return bestRes
-    go ln (gm:gms) bestRes currentAlpha = do
-        s <- alphaBeta (applyGenMove board gm) tt depth (-beta) (-currentAlpha) True ln
-        let score = -s
-        let (newRes, newAlpha) = case bestRes of
-                Nothing -> (Just (getMove gm, score), max currentAlpha score)
-                Just (_, bestScore) ->
-                    if score > bestScore
-                    then (Just (getMove gm, score), max currentAlpha score)
-                    else (bestRes, currentAlpha)
-        go ln gms newRes newAlpha
-
-    getMove (GenQuiet f t _) = Move f t Nothing
-    getMove (GenCapture f t _ _) = Move f t Nothing
-    getMove (GenEnPassant f t) = Move f t Nothing
-    getMove (GenCastling f t) = Move f t Nothing
-    getMove (GenPromotion f t p) = Move f t (Just p)
-    getMove (GenPromotionCapture f t p _) = Move f t (Just p)
-
 mapConcurrently :: (a -> IO b) -> [a] -> IO [b]
 mapConcurrently f xs = do
     vars <- mapM (\x -> do
@@ -126,9 +126,6 @@ mapConcurrently f xs = do
             putMVar v res
         return v) xs
     mapM takeMVar vars
-
-roundRobin :: Int -> [a] -> [[a]]
-roundRobin n xs = [ [ x | (i, x) <- zip [0..] xs, i `mod` n == k ] | k <- [0..n-1] ]
 
 -- | Alpha-Beta Search
 alphaBeta :: Board -> TT -> Depth -> Int -> Int -> Bool -> IORef Int -> IO Int
