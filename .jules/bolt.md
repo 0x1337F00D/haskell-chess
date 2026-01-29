@@ -21,3 +21,7 @@
 ## 2026-01-29 – [Board Update & Square Cache]
 **Learning:** `applyMoveBase` was using `removePieceAt` which clears all 15 bitboards, performing redundant operations when the piece type is known. Also, `fromSquare` allocated new `Square` objects (ADT) for every move generation, increasing GC pressure.
 **Action:** Optimized `applyMoveBase` to use `unsafeRemovePiece` (reducing bitwise ops from ~15 to ~3) and implemented `fromSquare` memoization using a static `Vector` to return shared `Square` references. Measured ~1.2% speedup on KiwiPete perft.
+
+## 2026-01-29 – [ApplyMove Optimization]
+**Learning:** `Chess.Core.Rules.Common.applyMoveBase` was performing two bitboard updates (remove + put) for every move, even for quiet moves. Each update involved multiple bitwise operations and record updates. `Chess.Board.MoveGen` already had a fast path (`movePieceFast`) using XOR masks.
+**Action:** Implemented `unsafeMovePiece` in `Chess.Board.Base` using XOR masks to perform move updates in a single pass. Refactored `applyMoveBase` to use this for `QuietMove` and `CaptureMove`. Measured ~4.5% speedup on KiwiPete perft in `bench-core`.
