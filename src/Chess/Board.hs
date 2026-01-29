@@ -26,6 +26,7 @@ module Chess.Board
     -- * Re-exports
   , module Chess.Types
   , MoveGen.GenMove(..)
+  , MoveGen.MoveTag(..)
   ) where
 
 import Data.Maybe (isJust, fromMaybe)
@@ -67,32 +68,41 @@ applyMove board@(Board b gs _) m@(Move from to _) =
             -- Resolve pieces efficiently (avoiding pieceAt lookups)
             pt = Base.findPieceType b c from
             toI = unSquare to
-            capturedPt = if testBit (Base.occupiedTotal b) toI
-                         then Just (Base.findPieceType b (Base.oppositeColor c) to)
-                         else Nothing
-        in applyMoveHelper board m pt capturedPt
+            isCapture = testBit (Base.occupiedTotal b) toI
+
+            tag = if isCapture
+                  then MoveGen.Capture (Base.findPieceType b (Base.oppositeColor c) to)
+                  else if pt == Pawn && squareFile from /= squareFile to
+                  then MoveGen.EnPassant
+                  else if pt == King && abs (unSquare from - unSquare to) == 2
+                  then MoveGen.Castling
+                  else MoveGen.Quiet
+
+        in applyMoveHelper board m pt tag
 applyMove b NullMove = b
 applyMove b _ = b
 
 -- | Apply a move using GenMove info (skipping piece lookup).
 applyGenMove :: Board -> MoveGen.GenMove -> Board
-applyGenMove board (MoveGen.GenMove m pt capturedPt) = applyMoveHelper board m pt capturedPt
+applyGenMove board (MoveGen.GenMove m pt tag) = applyMoveHelper board m pt tag
 
 -- | Helper to apply move logic given resolved pieces.
 {-# INLINE applyMoveHelper #-}
-applyMoveHelper :: Board -> Move -> PieceType -> Maybe PieceType -> Board
-applyMoveHelper (Board b gs hist) m@(Move from to promo) pt capturedPt =
+applyMoveHelper :: Board -> Move -> PieceType -> MoveGen.MoveTag -> Board
+applyMoveHelper (Board b gs hist) m@(Move from to promo) pt tag =
     let
         -- 1. Update pieces (using fast path)
-        b' = MoveGen.applyMoveBoardFast b gs m pt capturedPt
+        b' = MoveGen.applyMoveBoardFast b gs m pt tag
 
         c = GS.turn gs
         oppC = Base.oppositeColor c
 
         -- 2. Analyze move for state updates using resolved pieces
         isPawn = pt == Pawn
-        isEp = isPawn && capturedPt == Nothing && squareFile from /= squareFile to
-        isCap = isJust capturedPt || isEp
+        isCap = case tag of
+                  MoveGen.Capture _ -> True
+                  MoveGen.EnPassant -> True
+                  _ -> False
 
         -- Zobrist Updates ----------------------------------------------------
         h0 = GS.zobristHash gs
@@ -109,26 +119,24 @@ applyMoveHelper (Board b gs hist) m@(Move from to promo) pt capturedPt =
                Just p  -> h1 `xor` Zobrist.zobristPiece c p to
 
         -- Handle Captures
-        h3 = case capturedPt of
-               Just cp -> h2 `xor` Zobrist.zobristPiece oppC cp to
-               Nothing ->
-                   if isEp
-                   then -- En Passant capture: remove pawn from correct square
+        h3 = case tag of
+               MoveGen.Capture cp -> h2 `xor` Zobrist.zobristPiece oppC cp to
+               MoveGen.EnPassant ->
                         let capSq = if c == White
                                     then Square (unSquare to - 8)
                                     else Square (unSquare to + 8)
                         in h2 `xor` Zobrist.zobristPiece oppC Pawn capSq
-                   else h2
+               _ -> h2
 
         -- Handle Castling (Rook moves)
-        h4 = if pt == King && abs (unSquare from - unSquare to) == 2
-             then -- Castling
-                let (rookFrom, rookTo) = if to == Square (unSquare from + 2) -- Kingside
-                                         then (Square (unSquare from + 3), Square (unSquare from + 1))
-                                         else (Square (unSquare from - 4), Square (unSquare from - 1))
-                in h3 `xor` Zobrist.zobristPiece c Rook rookFrom
-                      `xor` Zobrist.zobristPiece c Rook rookTo
-             else h3
+        h4 = case tag of
+               MoveGen.Castling ->
+                   let (rookFrom, rookTo) = if to == Square (unSquare from + 2) -- Kingside
+                                            then (Square (unSquare from + 3), Square (unSquare from + 1))
+                                            else (Square (unSquare from - 4), Square (unSquare from - 1))
+                   in h3 `xor` Zobrist.zobristPiece c Rook rookFrom
+                         `xor` Zobrist.zobristPiece c Rook rookTo
+               _ -> h3
 
         -- --------------------------------------------------------------------
 
@@ -146,8 +154,8 @@ applyMoveHelper (Board b gs hist) m@(Move from to promo) pt capturedPt =
                 _ -> gs
 
         -- If capturing Rook, lose castling rights for that rook's square
-        gs2 = case capturedPt of
-                Just Rook -> GS.removeCastlingRight gs1 to
+        gs2 = case tag of
+                MoveGen.Capture Rook -> GS.removeCastlingRight gs1 to
                 _ -> gs1
 
         -- En Passant square

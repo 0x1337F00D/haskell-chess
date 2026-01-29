@@ -6,7 +6,7 @@ import Data.IORef (IORef, newIORef, readIORef, modifyIORef')
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar, getNumCapabilities)
 
 import Chess.Types
-import Chess.Board (Board(..), legalGenMoves, captureGenMoves, applyGenMove, applyMove, isCheck, uci, GenMove(..))
+import Chess.Board (Board(..), legalGenMoves, captureGenMoves, applyGenMove, applyMove, isCheck, uci, GenMove(..), MoveTag(..))
 import qualified Chess.Board.GameState as GS
 import Chess.Engine.Evaluation (evaluate)
 import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
@@ -224,7 +224,10 @@ alphaBeta board tt depth alpha beta canNull nodes = do
             searchMoves gms (max a score) b d newFlag newBestScore newBestM
 
     getMove (GenMove m _ _) = m
-    isCap (GenMove _ _ cap) = isJust cap
+    isCap (GenMove _ _ tag) = case tag of
+                                Capture _ -> True
+                                EnPassant -> True
+                                _ -> False
     isPromotion (Move _ _ p) = isJust p
     isPromotion _ = False
 
@@ -275,6 +278,7 @@ partition moves = foldr part ([], [], [], []) moves
         | otherwise     = (cp, c, p, gm:q)
 
     isPromotion m = isJust (promotion m)
-    isCapture (GenMove (Move f t _) pt cap) =
-        isJust cap || (pt == Pawn && squareFile f /= squareFile t)
-    isCapture _ = False
+    isCapture (GenMove _ _ tag) = case tag of
+                                    Capture _ -> True
+                                    EnPassant -> True
+                                    _ -> False

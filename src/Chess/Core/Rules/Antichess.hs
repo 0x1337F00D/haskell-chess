@@ -20,10 +20,7 @@ import Chess.Core.Move.Internal
 
 import qualified Chess.Types as T
 import qualified Chess.Board.Base as Base
-import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
-import qualified Chess.Board.Validation as Val
-import qualified Chess.Bitboard as BB
 import Data.Bits (popCount)
 
 -- | Initial Game State for Antichess (Standard setup but no castling)
@@ -53,7 +50,7 @@ instance ChessVariant 'Antichess where
         pseudos = MG.pseudoLegalMoves baseBoard gs
 
         -- 1. Filter out Castling moves (Standard MG might generate them if rights exist)
-        isCastling (MG.GenMove (T.Move f t _) T.King _) = abs (T.unSquare f - T.unSquare t) == 2
+        isCastling (MG.GenMove _ _ MG.Castling) = True
         isCastling _ = False
 
         pseudosNoCastling = filter (not . isCastling) pseudos
@@ -62,25 +59,19 @@ instance ChessVariant 'Antichess where
         -- Standard MG only generates Q, R, B, N promotions.
         -- We duplicate Queen promotions as King promotions.
         addKingPromos [] = []
-        addKingPromos (gm@(MG.GenMove (T.Move f t (Just T.Queen)) pt cap) : rest) =
-             gm : MG.GenMove (T.Move f t (Just T.King)) pt cap : addKingPromos rest
+        addKingPromos (gm@(MG.GenMove (T.Move f t (Just T.Queen)) pt tag) : rest) =
+             gm : MG.GenMove (T.Move f t (Just T.King)) pt tag : addKingPromos rest
         addKingPromos (x:xs) = x : addKingPromos xs
 
         pseudosEnhanced = addKingPromos pseudosNoCastling
 
         -- 3. Filter Captures (Compulsory)
         isCapture :: MG.GenMove -> Bool
-        isCapture (MG.GenMove m pt cap) =
-            case cap of
-                Just _ -> True -- Standard capture
-                Nothing ->
-                    -- Check En Passant
-                    case pt of
-                        T.Pawn ->
-                             case m of
-                               T.Move f t _ -> T.squareFile f /= T.squareFile t && Base.pieceAt baseBoard t == Nothing
-                               _ -> False
-                        _ -> False
+        isCapture (MG.GenMove _ _ tag) =
+            case tag of
+                MG.Capture _ -> True
+                MG.EnPassant -> True
+                _ -> False
 
         captures = filter isCapture pseudosEnhanced
 
