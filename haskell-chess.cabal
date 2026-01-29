@@ -83,6 +83,7 @@ library
                     , Chess.Core.Move
                     , Chess.Core.Move.Internal
                     , Chess.Core.Perft
+                    , Chess.Core.FastPerft
                     , Chess.Core.Rules
                     , Chess.Core.Rules.Class
                     , Chess.Core.Rules.Common
