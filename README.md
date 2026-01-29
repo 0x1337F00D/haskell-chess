@@ -9,7 +9,7 @@ A Haskell port of the [PyChess](https://github.com/pychess/pychess) library. Thi
 | **Core Rules** | `[██████████]` 100% | ✅ Implemented (Bitboards, MoveGen, Validation) |
 | **Formats** | `[██████████]` 100% | ✅ Implemented (FEN ✅, PGN ✅, UCI ✅) |
 | **Engine** | `[██████████]` 100% | ✅ Implemented (Search/Eval) |
-| **Variants** | `[████████░░]` 80% | 🚧 Atomic, KotH, RacingKings, ThreeCheck |
+| **Variants** | `[██████████]` 100% | ✅ Atomic, KotH, RacingKings, 3-Check, Crazyhouse, Antichess, Horde |
 | **Extras** | `[██████████]` 100% | ✅ Implemented (Books, TB, Time) |
 
 ## Feature Comparison
@@ -19,7 +19,7 @@ We aim to reach feature parity with PyChess. Here is the current standing:
 | Feature | haskell-chess | PyChess | Notes |
 | :--- | :---: | :---: | :--- |
 | **Board Representation** | ✅ Bitboards | ✅ Object + C++ | Haskell uses efficient 64-bit bitboards. |
-| **Move Generation** | ✅ Implemented | ✅ Implemented | Supports Standard and Atomic (via Type Class). |
+| **Move Generation** | ✅ Implemented | ✅ Implemented | Supports Standard and Variants (via Type Class). |
 | **Move Validation** | ✅ Full Legality | ✅ Full Legality | Includes checks, castling, en passant. |
 | **FEN Support** | ✅ Read/Write | ✅ Read/Write | Full support for all 6 FEN fields. |
 | **PGN Support** | ✅ Full Parsing | ✅ Full Support | Support for game trees, comments, NAGs, and variations. |
@@ -27,9 +27,9 @@ We aim to reach feature parity with PyChess. Here is the current standing:
 | **Opening Books** | ✅ Polyglot | ✅ Polyglot/BIN | Read support for .bin books. |
 | **Endgame Tablebases** | ✅ Online & Local | ✅ Gaviota/Syzygy | Queries Lichess API. Local probing supported. |
 | **Time Controls** | ✅ Implemented | ✅ Full Support | Infinite, Standard, Delay, MoveTime. |
-| **Variants** | 🚧 Atomic, KotH, RacingKings, ThreeCheck | ✅ 30+ Variants | Atomic, Crazyhouse, Shogi, etc. |
+| **Variants** | ✅ Implemented | ✅ 30+ Variants | 9 Major Variants supported. |
 | **Evaluation** | ✅ Implemented | ✅ Basic Eval | Material + PSTO evaluation. |
-| **Search** | ✅ Implemented | ✅ Alpha-Beta + ID | Alpha-Beta + Quiescence + ID. |
+| **Search** | ✅ Implemented | ✅ Alpha-Beta + ID | Parallel Search + Quiescence. |
 
 ## Roadmap & Future Tasks
 
@@ -45,7 +45,7 @@ To achieve parity with PyChess, the following tasks are identified:
 
 ### 3. Engine Features
 - [x] **Evaluation**: Implement a static evaluation function (material, position).
-- [x] **Search**: Implement Alpha-Beta search (Iterative Deepening implemented).
+- [x] **Search**: Implement Parallel Alpha-Beta search.
 - [x] **Time Management**: Implement time control logic (time left, increment, move time).
 
 ### 4. Variants (Long Term)
@@ -56,6 +56,8 @@ To achieve parity with PyChess, the following tasks are identified:
     - [x] Racing Kings
     - [x] Three-Check
     - [x] Crazyhouse
+    - [x] Antichess
+    - [x] Horde
 
 ## Supported Variants
 
@@ -75,7 +77,7 @@ Comparison of variants supported by PyChess vs haskell-chess:
 
 ## Architecture
 
-This project is evolving towards a Type-Safe Architecture to ensure correctness by construction, leveraging Haskell's advanced type system features like GADTs and DataKinds.
+This project utilizes a **Hybrid Architecture** that combines a high-performance Bitboard Engine with a Type-Safe Core. It leverages Haskell's advanced type system features like GADTs and DataKinds to ensure correctness by construction while maintaining competitive engine performance.
 See [ARCHITECTURE.md](ARCHITECTURE.md) for a deep dive into the design.
 
 ## Module Overview

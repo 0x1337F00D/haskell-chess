@@ -6,23 +6,26 @@ The design relies heavily on **Generalized Algebraic Data Types (GADTs)**, **Dat
 
 ## 0. Current Architecture in this Repo (Reality Check)
 
-The repository already has **two complementary layers**:
+The repository employs a **Hybrid Architecture** composed of two complementary layers:
 
 1. **Performance-Oriented Engine Layer (`Chess.Board.*`)**
-   * Bitboard-based representation with fast move generation, validation, and Zobrist hashing.
-   * This layer powers the engine, search, evaluation, and most format parsers (FEN/PGN/UCI).
-   * It uses `Chess.Types.Square` (0–63) and prioritizes speed.
+   * **Bitboard-based representation**: Uses fast move generation, validation, and Zobrist hashing.
+   * **Optimization**: Includes deferred check detection, `vector` based lookups, and Parallel Search.
+   * **Scope**: Powers the search, evaluation, and format parsers (FEN/PGN/UCI).
+   * **Types**: Uses `Chess.Types.Square` (0–63) and prioritizes execution speed.
 
 2. **Type-Safe Core Layer (`Chess.Core.*`)**
-   * Uses `DataKinds`, `GADTs`, and strongly-typed `File`, `Rank`, and `Square`.
-   * Encodes invariants like **exactly one king per side**, pawn rank restrictions, and turn safety.
-   * Variant logic is modeled via type classes, and moves are represented as typed proofs.
+   * **Type Safety**: Uses `DataKinds`, `GADTs`, and strongly-typed `File`, `Rank`, and `Square`.
+   * **Hybrid State**: The `ActiveGame` type wraps the optimized `Chess.Board.Base.Board` (Bitboard) for its internal state, enabling O(1) updates while enforcing high-level invariants via the type system (turn order, check status).
+   * **Invariants**: Encodes rules like **exactly one king per side**, pawn rank restrictions, and turn safety.
+   * **Variants**: Logic is modeled via type classes (`ChessVariant`), and moves are represented as typed proofs.
 
-The **bridge** between the layers lives in `Chess.Core.Rules.Common`, which converts between typed core structures and the bitboard engine representation. This keeps the engine fast while letting us expand type safety in the core.
+The **bridge** logic in `Chess.Core.Rules.Common` converts between typed core structures and the bitboard representation where necessary, but the primary state (`ActiveGame`) now holds the bitboard directly to minimize conversion overhead during play.
 
-**Recent improvement (implemented now):**
-* The engine `GameState` now uses `HalfmoveClock` and `FullmoveNumber` newtypes to prevent accidental mixing of counters (a low-friction example of leveraging Haskell’s type system without hurting performance).
-* The search stack and transposition table now share a typed `Depth` newtype, eliminating accidental mixing with evaluation scores while preserving zero-cost compilation.
+**Recent improvements (implemented now):**
+* **Internal Bitboard State**: `ActiveGame` uses `Chess.Board.Base.Board` directly, removing the overhead of the previous Map-based "Shadow Board".
+* **Deferred Check Detection**: `ActiveGame` carries a `SCheckStatus` type index (`Safe | Checked | Unchecked`), allowing move generation to optimize based on known safety (e.g., skipping castling checks if known to be safe, or generating only evasions if checked).
+* **Typed Newtypes**: `GameState` uses `HalfmoveClock` and `FullmoveNumber` newtypes; Search uses typed `Depth` to prevent accidental mixing of counters.
 
 ## 1. Foundation: The Finite Space
 *Goal: Eliminate array bounds errors and invalid coordinate arithmetic.*
@@ -46,7 +49,7 @@ We use a GADT to link pieces to their intrinsic properties at the type level.
 *   **Piece Classification**: Distinct constructors for `King`, `Pawn`, and `Slider` allow functions to enforce logic specific to movement patterns (e.g., sliding vs. stepping) via pattern matching, which the compiler checks for exhaustiveness.
 
 ### The Composite Board Structure
-A raw 64-square array allows illegal states like "zero kings" or "three kings." We replace this with a composite structure:
+A raw 64-square array allows illegal states like "zero kings" or "three kings." We replace this with a composite structure (used for setup and validation):
 
 1.  **King Registry**: `whiteKing :: Square, blackKing :: Square`.
     *   This record enforces the invariant: *There is always exactly one King per side.*
@@ -54,7 +57,9 @@ A raw 64-square array allows illegal states like "zero kings" or "three kings." 
     *   By using `PawnRank` as the key, it is statically impossible to place a pawn on a promotion rank or back rank.
 3.  **Piece Maps**: `whitePieces :: Map Square (MajorMinorPiece 'White)` and `blackPieces :: Map Square (MajorMinorPiece 'Black)`.
 
-**Prevention Mechanism**: It is impossible to represent a board state where a King is captured (missing) or where pawns exist on invalid ranks.
+**Note**: This Map-based structure (`Chess.Core.Board.Internal.Board`) is primarily used for **Setup** and **Validation** (loading FEN, verifying integrity). Once the game transitions to the `Active` phase, the internal representation switches to the optimized `Chess.Board.Base.Board` (Bitboard) wrapped in `ActiveGame` for performance, while the type system maintains the invariants established during setup.
+
+**Prevention Mechanism**: It is impossible to represent a board state where a King is captured (missing) or where pawns exist on invalid ranks during the Setup phase, and the Active phase preserves these properties via legal move generation.
 
 ## 3. Game Phases as Type States
 *Goal: Restrict operations based on the lifecycle of the game.*
@@ -130,13 +135,16 @@ data MoveResult (v :: Variant) (c :: Color) where
 **Prevention Mechanism**: The engine cannot enter an undefined state after a move. The user is forced by the compiler to handle game termination explicitly.
 
 ## 7. Tactical States: Safe vs. Checked
-*Goal: Encode King safety in the type system.*
+*Goal: Encode King safety in the type system to optimize move generation.*
 
-We can further refine the `ActiveGame` type to include the tactical status of the king:
+We refine the `ActiveGame` type to include the tactical status of the king using the `SCheckStatus` GADT:
 `data ActiveGame (v :: Variant) (turn :: Color) (status :: CheckStatus)`
 
-*   **Preconditions**: Castling is only permitted if `status ~ Safe`.
-*   **Filtering**: The move generator for `ActiveGame v c 'Checked` only generates moves that resolve the check (capturing the attacker, blocking, or moving the King).
+where `status` can be `Safe`, `Checked`, or `Unchecked`.
+
+*   **Deferred Detection**: The engine can transition to `Unchecked` after a move, deferring the expensive check verification until necessary (or computing it lazily).
+*   **Preconditions**: Castling is only permitted if `status ~ Safe` (or if verified to be safe).
+*   **Filtering**: The move generator for `ActiveGame v c 'Checked` is optimized to only generate moves that resolve the check (evasions), significantly pruning the search tree.
 
 ## 8. Module Boundaries as Safety Barriers
 *Goal: Isolate unsafe logic.*
