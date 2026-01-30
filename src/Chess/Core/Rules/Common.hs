@@ -81,6 +81,10 @@ toBaseBoard b = Base.Board
   , Base.occupiedWhite = wOcc
   , Base.occupiedBlack = bOcc
   , Base.occupiedTotal = wOcc .|. bOcc
+  , Base.whiteDiagonal = wDiagonal
+  , Base.whiteOrthogonal = wOrthogonal
+  , Base.blackDiagonal = bDiagonal
+  , Base.blackOrthogonal = bOrthogonal
   }
   where
     -- Helper to create bitboard from list of squares
@@ -117,6 +121,11 @@ toBaseBoard b = Base.Board
     bRooks   = squaresToBB (getSquaresBlack Rook)
     wQueens  = squaresToBB (getSquaresWhite Queen)
     bQueens  = squaresToBB (getSquaresBlack Queen)
+
+    wDiagonal = wBishops .|. wQueens
+    wOrthogonal = wRooks .|. wQueens
+    bDiagonal = bBishops .|. bQueens
+    bOrthogonal = bRooks .|. bQueens
 
     wOcc = wPawns .|. wKnights .|. wBishops .|. wRooks .|. wQueens .|. wKings
     bOcc = bPawns .|. bKnights .|. bBishops .|. bRooks .|. bQueens .|. bKings

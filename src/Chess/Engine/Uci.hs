@@ -3,7 +3,7 @@ module Chess.Engine.Uci (run) where
 import System.IO (hFlush, stdout, isEOF)
 import Data.Maybe (fromMaybe)
 import Control.Monad (unless)
-import Control.Monad.State (StateT, evalStateT, get, put, liftIO, gets, modify)
+import Control.Monad.State (StateT, evalStateT, get, liftIO, modify)
 
 import Chess.Board (Board, initialBoard, parseFen, fromUci, uci, applyMove)
 import Chess.Engine.Search (search)

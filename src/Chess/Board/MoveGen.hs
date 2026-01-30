@@ -75,6 +75,30 @@ legalCaptures b gs = map genMoveToMove $ filter (isLegal b gs) (pseudoLegalCaptu
 legalGenCaptures :: Board -> GameState -> [GenMove]
 legalGenCaptures b gs = filter (isLegal b gs) (pseudoLegalCaptures b gs)
 
+-- | Generate all pseudo-legal quiet moves (pushes, quiets, castling).
+pseudoLegalQuiets :: Board -> GameState -> [GenMove]
+pseudoLegalQuiets b gs = concat
+    [ pawnQuiets b gs
+    , pieceQuiets b gs Knight
+    , pieceQuiets b gs Bishop
+    , pieceQuiets b gs Rook
+    , pieceQuiets b gs Queen
+    , pieceQuiets b gs King
+    , castlingMoves b gs
+    ]
+
+-- | Generate all legal quiet moves returning GenMove.
+legalGenQuiets :: Board -> GameState -> [GenMove]
+legalGenQuiets b gs = filter (isLegal b gs) (pseudoLegalQuiets b gs)
+
+-- | Generate all pseudo-legal promotion moves (quiet only).
+pseudoLegalPromotions :: Board -> GameState -> [GenMove]
+pseudoLegalPromotions b gs = pawnPromotions b gs
+
+-- | Generate all legal promotion moves returning GenMove.
+legalGenPromotions :: Board -> GameState -> [GenMove]
+legalGenPromotions b gs = filter (isLegal b gs) (pseudoLegalPromotions b gs)
+
 -- | Check if a move is legal (does not leave own king in check).
 -- Note: This function assumes the move is pseudo-legal.
 isLegal :: Board -> GameState -> GenMove -> Bool
@@ -99,6 +123,42 @@ isLegal b gs gm =
                 in not startAttacked && not midAttacked
          castlingSafe _ _ _ = True
 
+-- | Attempt to convert a Move to GenMove and check legality.
+isLegalMove :: Board -> GameState -> Move -> Bool
+isLegalMove b gs m = case toGenMove b gs m of
+    Just gm -> isLegal b gs gm
+    Nothing -> False
+
+-- | Attempt to convert a Move to GenMove.
+toGenMove :: Board -> GameState -> Move -> Maybe GenMove
+toGenMove b gs (Move from to promo) =
+    let c = turn gs
+        fromI = unSquare from
+    in if not (testBit (occupiedBy b c) fromI)
+       then Nothing
+       else
+           let pt = findPieceType b c from
+               toI = unSquare to
+               isCapture = testBit (occupiedTotal b) toI
+           in case promo of
+               Just ppt ->
+                   if isCapture
+                   then Just (GenPromotionCapture from to ppt (findPieceType b (oppositeColor c) to))
+                   else Just (GenPromotion from to ppt)
+               Nothing ->
+                   if isCapture
+                   then Just (GenCapture from to pt (findPieceType b (oppositeColor c) to))
+                   else
+                      if pt == Pawn && squareFile from /= squareFile to
+                      then Just (GenEnPassant from to)
+                      else if pt == King && abs (unSquare from - unSquare to) == 2
+                      then Just (GenCastling from to)
+                      else
+                          let dest = unSquare to
+                          in if pt == Pawn && (dest >= 56 || dest <= 7)
+                             then Nothing -- Missing promotion
+                             else Just (GenQuiet from to pt)
+toGenMove _ _ _ = Nothing
 
 -- | Faster version of applyMoveBoard that avoids pieceAt lookups by using provided piece info.
 applyMoveBoardFast :: Board -> GameState -> GenMove -> Board
@@ -273,148 +333,120 @@ pieceCaptures b gs pt = flatMapBitboard genMoves bb
 
         in mapBitboard mkMove valid
 
+pieceQuiets :: Board -> GameState -> PieceType -> [GenMove]
+pieceQuiets b gs pt = flatMapBitboard genMoves bb
+  where
+    c = turn gs
+    bb = pieceBitboard b c pt
+
+    genMoves :: Square -> [GenMove]
+    genMoves from =
+        let att = case pt of
+                    Knight -> knightAttacks from
+                    Bishop -> bishopAttacks from (occupiedTotal b)
+                    Rook   -> rookAttacks from (occupiedTotal b)
+                    Queen  -> bishopAttacks from (occupiedTotal b) .|. rookAttacks from (occupiedTotal b)
+                    King   -> kingAttacks from
+                    _      -> 0
+
+            valid = att .&. complement (occupiedTotal b) -- Only empty squares
+            mkMove to = GenQuiet from to pt
+
+        in mapBitboard mkMove valid
+
 pawnMoves :: Board -> GameState -> [GenMove]
 pawnMoves b gs =
-    if c == White
-    then whitePawnMoves
-    else blackPawnMoves
+    pawnQuiets b gs ++ pawnCaptures b gs ++ pawnPromotions b gs
+
+pawnQuiets :: Board -> GameState -> [GenMove]
+pawnQuiets b gs =
+    if c == White then whitePawnQuiets else blackPawnQuiets
   where
     c = turn gs
     pawns = pieceBitboard b c Pawn
     occ   = occupiedTotal b
-    enemy = occupiedBy b (oppositeColor c)
 
-    mkCap from dest =
-        let capPt = findPieceType b (oppositeColor c) dest
-        in if unSquare dest >= 56 || unSquare dest <= 7 -- Rank 8 or Rank 1
-           then [ GenPromotionCapture from dest p capPt | p <- [Queen, Rook, Bishop, Knight] ]
-           else [ GenCapture from dest Pawn capPt ]
-
-    whitePawnMoves =
+    whitePawnQuiets =
         [ m
         | from <- mapBitboard id pawns
         , let i = unSquare from
-        , m <- genWhiteMoves i from
+        , m <- genWhiteQuiets i from
         ]
 
-    genWhiteMoves i from =
-        let
-            -- Single Push (Up 8)
-            to8 = i + 8
-            pushMoves =
-                if not (testBit occ to8)
-                then
-                   let dest = Square to8
-                   in if to8 >= 56 -- Rank 8
-                      then [ GenPromotion from dest p | p <- [Queen, Rook, Bishop, Knight] ]
-                      else
-                          let moves = [GenQuiet from dest Pawn]
-                              to16 = i + 16
-                          in if i >= 8 && i <= 15 -- Rank 2
-                                && not (testBit occ to16)
-                             then moves ++ [GenQuiet from (Square to16) Pawn]
-                             else moves
-                else []
+    genWhiteQuiets i from =
+        let to8 = i + 8
+        in if not (testBit occ to8)
+           then
+               if to8 >= 56 -- Promotion (Rank 8) - Handled in Proms
+               then []
+               else
+                   let moves = [GenQuiet from (Square to8) Pawn]
+                       to16 = i + 16
+                   in if i >= 8 && i <= 15 -- Rank 2
+                         && not (testBit occ to16)
+                      then moves ++ [GenQuiet from (Square to16) Pawn]
+                      else moves
+           else []
 
-            -- Capture Left (UpLeft +7) - exclude File A
-            capLeftMoves =
-                if (i `mod` 8) /= 0
-                then
-                    let to7 = i + 7
-                    in if testBit enemy to7
-                       then mkCap from (Square to7)
-                       else []
-                else []
-
-            -- Capture Right (UpRight +9) - exclude File H
-            capRightMoves =
-                if (i `mod` 8) /= 7
-                then
-                    let to9 = i + 9
-                    in if testBit enemy to9
-                       then mkCap from (Square to9)
-                       else []
-                else []
-
-            -- En Passant
-            epMoves = case epSquare gs of
-                Nothing -> []
-                Just ep ->
-                    let epIdx = unSquare ep
-                    in
-                       if (i + 7) == epIdx && (i `mod` 8) /= 0
-                       then [GenEnPassant from ep]
-                       else if (i + 9) == epIdx && (i `mod` 8) /= 7
-                       then [GenEnPassant from ep]
-                       else []
-
-        in pushMoves ++ capLeftMoves ++ capRightMoves ++ epMoves
-
-    blackPawnMoves =
+    blackPawnQuiets =
         [ m
         | from <- mapBitboard id pawns
         , let i = unSquare from
-        , m <- genBlackMoves i from
+        , m <- genBlackQuiets i from
         ]
 
-    genBlackMoves i from =
-        let
-            -- Single Push (Down 8)
-            to8 = i - 8
-            pushMoves =
-                if not (testBit occ to8)
-                then
-                   let dest = Square to8
-                   in if to8 <= 7 -- Rank 1
-                      then [ GenPromotion from dest p | p <- [Queen, Rook, Bishop, Knight] ]
-                      else
-                          let moves = [GenQuiet from dest Pawn]
-                              to16 = i - 16
-                          in if i >= 48 && i <= 55 -- Rank 7
-                                && not (testBit occ to16)
-                             then moves ++ [GenQuiet from (Square to16) Pawn]
-                             else moves
-                else []
+    genBlackQuiets i from =
+        let to8 = i - 8
+        in if not (testBit occ to8)
+           then
+               if to8 <= 7 -- Promotion (Rank 1) - Handled in Proms
+               then []
+               else
+                   let moves = [GenQuiet from (Square to8) Pawn]
+                       to16 = i - 16
+                   in if i >= 48 && i <= 55 -- Rank 7
+                         && not (testBit occ to16)
+                      then moves ++ [GenQuiet from (Square to16) Pawn]
+                      else moves
+           else []
 
-            -- Capture Left (DownLeft -9) - exclude File A
-            capLeftMoves =
-                if (i `mod` 8) /= 0
-                then
-                    let to9 = i - 9
-                    in if testBit enemy to9
-                       then mkCap from (Square to9)
-                       else []
-                else []
+pawnPromotions :: Board -> GameState -> [GenMove]
+pawnPromotions b gs =
+    if c == White then whitePawnPromotions else blackPawnPromotions
+  where
+    c = turn gs
+    pawns = pieceBitboard b c Pawn
+    occ   = occupiedTotal b
 
-            -- Capture Right (DownRight -7) - exclude File H
-            capRightMoves =
-                if (i `mod` 8) /= 7
-                then
-                    let to7 = i - 7
-                    in if testBit enemy to7
-                       then mkCap from (Square to7)
-                       else []
-                else []
+    whitePawnPromotions =
+        [ m
+        | from <- mapBitboard id pawns
+        , let i = unSquare from
+        , m <- genWhitePromotions i from
+        ]
 
-            -- En Passant
-            epMoves = case epSquare gs of
-                Nothing -> []
-                Just ep ->
-                    let epIdx = unSquare ep
-                    in
-                       if (i - 9) == epIdx && (i `mod` 8) /= 0
-                       then [GenEnPassant from ep]
-                       else if (i - 7) == epIdx && (i `mod` 8) /= 7
-                       then [GenEnPassant from ep]
-                       else []
+    genWhitePromotions i from =
+        let to8 = i + 8
+        in if not (testBit occ to8) && to8 >= 56 -- Rank 8
+           then [ GenPromotion from (Square to8) p | p <- [Queen, Rook, Bishop, Knight] ]
+           else []
 
-        in pushMoves ++ capLeftMoves ++ capRightMoves ++ epMoves
+    blackPawnPromotions =
+        [ m
+        | from <- mapBitboard id pawns
+        , let i = unSquare from
+        , m <- genBlackPromotions i from
+        ]
+
+    genBlackPromotions i from =
+        let to8 = i - 8
+        in if not (testBit occ to8) && to8 <= 7 -- Rank 1
+           then [ GenPromotion from (Square to8) p | p <- [Queen, Rook, Bishop, Knight] ]
+           else []
 
 pawnCaptures :: Board -> GameState -> [GenMove]
 pawnCaptures b gs =
-    if c == White
-    then whitePawnCaptures
-    else blackPawnCaptures
+    if c == White then whitePawnCaptures else blackPawnCaptures
   where
     c = turn gs
     pawns = pieceBitboard b c Pawn
@@ -422,7 +454,7 @@ pawnCaptures b gs =
 
     mkCap from dest =
         let capPt = findPieceType b (oppositeColor c) dest
-        in if unSquare dest >= 56 || unSquare dest <= 7 -- Rank 8 or Rank 1
+        in if unSquare dest >= 56 || unSquare dest <= 7
            then [ GenPromotionCapture from dest p capPt | p <- [Queen, Rook, Bishop, Knight] ]
            else [ GenCapture from dest Pawn capPt ]
 
@@ -435,38 +467,21 @@ pawnCaptures b gs =
 
     genWhiteCaptures i from =
         let
-            -- Capture Left (UpLeft +7) - exclude File A
             capLeftMoves =
                 if (i `mod` 8) /= 0
-                then
-                    let to7 = i + 7
-                    in if testBit enemy to7
-                       then mkCap from (Square to7)
-                       else []
+                then let to7 = i + 7 in if testBit enemy to7 then mkCap from (Square to7) else []
                 else []
-
-            -- Capture Right (UpRight +9) - exclude File H
             capRightMoves =
                 if (i `mod` 8) /= 7
-                then
-                    let to9 = i + 9
-                    in if testBit enemy to9
-                       then mkCap from (Square to9)
-                       else []
+                then let to9 = i + 9 in if testBit enemy to9 then mkCap from (Square to9) else []
                 else []
-
-            -- En Passant
             epMoves = case epSquare gs of
                 Nothing -> []
                 Just ep ->
                     let epIdx = unSquare ep
-                    in
-                       if (i + 7) == epIdx && (i `mod` 8) /= 0
-                       then [GenEnPassant from ep]
-                       else if (i + 9) == epIdx && (i `mod` 8) /= 7
-                       then [GenEnPassant from ep]
+                    in if (i + 7) == epIdx && (i `mod` 8) /= 0 then [GenEnPassant from ep]
+                       else if (i + 9) == epIdx && (i `mod` 8) /= 7 then [GenEnPassant from ep]
                        else []
-
         in capLeftMoves ++ capRightMoves ++ epMoves
 
     blackPawnCaptures =
@@ -478,38 +493,21 @@ pawnCaptures b gs =
 
     genBlackCaptures i from =
         let
-            -- Capture Left (DownLeft -9) - exclude File A
             capLeftMoves =
                 if (i `mod` 8) /= 0
-                then
-                    let to9 = i - 9
-                    in if testBit enemy to9
-                       then mkCap from (Square to9)
-                       else []
+                then let to9 = i - 9 in if testBit enemy to9 then mkCap from (Square to9) else []
                 else []
-
-            -- Capture Right (DownRight -7) - exclude File H
             capRightMoves =
                 if (i `mod` 8) /= 7
-                then
-                    let to7 = i - 7
-                    in if testBit enemy to7
-                       then mkCap from (Square to7)
-                       else []
+                then let to7 = i - 7 in if testBit enemy to7 then mkCap from (Square to7) else []
                 else []
-
-            -- En Passant
             epMoves = case epSquare gs of
                 Nothing -> []
                 Just ep ->
                     let epIdx = unSquare ep
-                    in
-                       if (i - 9) == epIdx && (i `mod` 8) /= 0
-                       then [GenEnPassant from ep]
-                       else if (i - 7) == epIdx && (i `mod` 8) /= 7
-                       then [GenEnPassant from ep]
+                    in if (i - 9) == epIdx && (i `mod` 8) /= 0 then [GenEnPassant from ep]
+                       else if (i - 7) == epIdx && (i `mod` 8) /= 7 then [GenEnPassant from ep]
                        else []
-
         in capLeftMoves ++ capRightMoves ++ epMoves
 
 castlingMoves :: Board -> GameState -> [GenMove]
@@ -520,20 +518,20 @@ castlingMoves b gs = ks ++ qs
     qs = if canCastleQueenside gs c && queensideClear then [mkCastlingMove False] else []
 
     rank = if c == White then 0 else 7
-    kingSq = Square (rank * 8 + 4) -- E1/E8
+    kingSq = Square (rank * 8 + 4)
 
     mkCastlingMove isKingside =
-        let toFile = if isKingside then 6 else 2 -- G1/G8 or C1/C8
+        let toFile = if isKingside then 6 else 2
             toSq = Square (rank * 8 + toFile)
         in GenCastling kingSq toSq
 
     kingsideClear =
-        let f1 = Square (rank * 8 + 5) -- F
-            g1 = Square (rank * 8 + 6) -- G
+        let f1 = Square (rank * 8 + 5)
+            g1 = Square (rank * 8 + 6)
         in not (testBit (occupiedTotal b) (unSquare f1)) && not (testBit (occupiedTotal b) (unSquare g1))
 
     queensideClear =
-        let d1 = Square (rank * 8 + 3) -- D
-            c1 = Square (rank * 8 + 2) -- C
-            b1 = Square (rank * 8 + 1) -- B
+        let d1 = Square (rank * 8 + 3)
+            c1 = Square (rank * 8 + 2)
+            b1 = Square (rank * 8 + 1)
         in not (testBit (occupiedTotal b) (unSquare d1)) && not (testBit (occupiedTotal b) (unSquare c1)) && not (testBit (occupiedTotal b) (unSquare b1))

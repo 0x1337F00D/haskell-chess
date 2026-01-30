@@ -14,7 +14,7 @@ import Chess.Core.Rules
 import Chess.Core.Rules.Class (Opposite)
 import Chess.Core.Perft
 import Chess.Core.Board.Internal (KnownColor(..), SColor(..), sColor)
-import Chess.Types (Depth)
+import Chess.Types (Depth, mkDepth, unDepth)
 import Data.Time.Clock
 import Text.Printf
 import Control.Exception (evaluate)
@@ -37,7 +37,7 @@ runPerft name depth ag = do
     let seconds = realToFrac duration :: Double
     let nps = if seconds > 0 then fromIntegral nodes / seconds else 0
 
-    printf "Core | %-10s | Depth %d | Nodes: %10d | Time: %6.3fs | NPS: %10.0f\n" name (fromIntegral depth :: Int) nodes seconds nps
+    printf "Core | %-10s | Depth %d | Nodes: %10d | Time: %6.3fs | NPS: %10.0f\n" name (unDepth depth) nodes seconds nps
 
 benchGame :: String -> Depth -> Game 'Standard 'Active -> IO ()
 benchGame name depth (InProgressGame (ag :: ActiveGame 'Standard c s)) =
@@ -49,10 +49,10 @@ main = do
 
     -- Start Position
     let gameStart = initialGame
-    benchGame "Start" 5 gameStart
+    benchGame "Start" (mkDepth 5) gameStart
 
     -- KiwiPete Position
     let kiwiFen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
     case gameFromFEN kiwiFen of
-        Just game -> benchGame "KiwiPete" 4 game
+        Just game -> benchGame "KiwiPete" (mkDepth 4) game
         _ -> putStrLn "Error: Failed to parse KiwiPete FEN"
