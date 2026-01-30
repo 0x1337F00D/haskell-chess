@@ -13,6 +13,8 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Bits (countTrailingZeros, popCount, clearBit)
 import Data.Char (toLower)
+import Data.Monoid ((<>))
+import qualified Data.ByteString.Builder as B
 
 import qualified Chess.Board.Fen as Fen
 import qualified Chess.Board.Base as Base
@@ -97,6 +99,31 @@ rankToString Rank8 = "8"
 
 squareToString :: Square -> String
 squareToString (Square f r) = fileToString f ++ rankToString r
+
+-- Builder Variants
+
+fileToBuilder :: File -> B.Builder
+fileToBuilder FileA = B.char7 'a'
+fileToBuilder FileB = B.char7 'b'
+fileToBuilder FileC = B.char7 'c'
+fileToBuilder FileD = B.char7 'd'
+fileToBuilder FileE = B.char7 'e'
+fileToBuilder FileF = B.char7 'f'
+fileToBuilder FileG = B.char7 'g'
+fileToBuilder FileH = B.char7 'h'
+
+rankToBuilder :: Rank -> B.Builder
+rankToBuilder Rank1 = B.char7 '1'
+rankToBuilder Rank2 = B.char7 '2'
+rankToBuilder Rank3 = B.char7 '3'
+rankToBuilder Rank4 = B.char7 '4'
+rankToBuilder Rank5 = B.char7 '5'
+rankToBuilder Rank6 = B.char7 '6'
+rankToBuilder Rank7 = B.char7 '7'
+rankToBuilder Rank8 = B.char7 '8'
+
+squareToBuilder :: Square -> B.Builder
+squareToBuilder (Square f r) = fileToBuilder f <> rankToBuilder r
 
 -- 2. The Physical Board: Structural Invariants
 
