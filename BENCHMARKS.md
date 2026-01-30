@@ -1,6 +1,6 @@
 # Benchmark Results
 
-Date: 2026-01-29
+Date: 2026-01-30
 
 ## Core NPS (Perft)
 
@@ -13,19 +13,20 @@ Date: 2026-01-29
 
 ## Search NPS (KiwiPete Depth 6)
 
-- **Current (Parallel)**: 1,589,363 NPS (approx 1.59M)
-- **Time**: 26.86s
-- **Nodes**: 42,690,375
+- **Current (Killer + History)**: 1,217,510 NPS (approx 1.22M)
+- **Time**: 1.278s
+- **Nodes**: 1,556,000
 
 **Comparison**:
 - **Baseline (Single Threaded likely)**: ~0.38M NPS (`baseline.log`)
-- **Previous Parallel**: ~0.92M NPS (`parallel.log`)
-- **Current**: 1.59M NPS
+- **Parallel Only**: ~1.59M NPS (42M Nodes)
+- **Killer + History**: ~1.22M NPS (1.5M Nodes)
 
 **Analysis**:
-- Search performance has improved significantly (+72% vs previous parallel run).
-- Parallelism is effective (329% CPU usage observed).
+- **Drastic improvement in search efficiency**: Node count reduced from ~42M to ~1.5M.
+- **Time to depth 6**: Reduced from 26.86s to 1.28s.
+- NPS decreased slightly due to move ordering overhead, but overall search is much faster.
 
 ## Conclusion
 
-The engine maintains high performance (>6M NPS for core operations). Search performance has notably improved due to parallelization optimizations.
+The engine maintains high performance (>6M NPS for core operations). Search performance has notably improved due to Move Ordering optimizations (Killer Moves + History Heuristic).

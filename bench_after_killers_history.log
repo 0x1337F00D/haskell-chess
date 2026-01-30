@@ -1,9 +1,0 @@
-Up to date
-Starting Benchmark (KiwiPete Depth 6)...
-info depth 1 score cp 25 nodes 1620 pv e2a6
-info depth 2 score cp 352 nodes 5502 pv e5g6
-info depth 3 score cp -12 nodes 19470 pv e2a6
-info depth 4 score cp 341 nodes 48440 pv d5e6
-info depth 5 score cp -14 nodes 210747 pv e2a6
-info depth 6 score cp 516 nodes 1556000 pv e5c6
-Time: 1.278432463s
