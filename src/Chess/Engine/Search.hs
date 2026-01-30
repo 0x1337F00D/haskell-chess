@@ -154,6 +154,7 @@ alphaBeta vBoard tt depth alpha beta canNull nodes = do
                        TTExact -> True
                        TTLower -> ttScore >= beta
                        TTUpper -> ttScore <= alpha
+                       TTEval  -> False -- Evaluation is not a search result
                    else False
 
     if ttCutoff && abs ttScore < (mateValue - 100) -- Don't return mate scores from TT directly to avoid ply issues? Or adjust them.
@@ -163,7 +164,7 @@ alphaBeta vBoard tt depth alpha beta canNull nodes = do
 
         -- Checkmate/Stalemate detection if no moves (handled later) or depth <= 0
         if isZeroDepth depth
-        then quiescence vBoard alpha beta nodes
+        then quiescence vBoard tt alpha beta nodes
         else do
             -- 2. Null Move Pruning
             -- R=2 if depth > 6 else R=2? Usually R=2.
@@ -261,11 +262,29 @@ alphaBeta vBoard tt depth alpha beta canNull nodes = do
     isPromotion _ = False
 
 -- | Quiescence Search.
-quiescence :: ValidatedBoard -> Int -> Int -> IORef Int -> IO Int
-quiescence vBoard alpha beta nodes = do
+quiescence :: ValidatedBoard -> TT -> Int -> Int -> IORef Int -> IO Int
+quiescence vBoard tt alpha beta nodes = do
     modifyIORef' nodes (+1)
     let board = getBoard vBoard
-    let standPat = evaluate board
+
+    -- Check for cached evaluation in TT
+    let hash = GS.zobristHash (state board)
+    ttEntry <- probeTT tt hash
+
+    -- Use cached eval if available (depth 0 is convention for static eval in this context,
+    -- or we check specifically for TTEval flag)
+    let staticEval = case ttEntry of
+            Just (_, s, d, TTEval) -> Just s
+            _ -> Nothing
+
+    standPat <- case staticEval of
+        Just s -> return s
+        Nothing -> do
+            let s = evaluate vBoard
+            -- Store static eval in TT
+            storeTT tt hash depthZero s TTEval nullMove
+            return s
+
     if standPat >= beta
     then return beta
     else do
@@ -278,7 +297,7 @@ quiescence vBoard alpha beta nodes = do
     go [] a = return a
     go (lm:lms) a = do
         score <- do
-            s <- quiescence (applyLegalMove vBoard lm) (-beta) (-a) nodes
+            s <- quiescence (applyLegalMove vBoard lm) tt (-beta) (-a) nodes
             return (-s)
         if score >= beta
         then return beta

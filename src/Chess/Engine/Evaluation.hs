@@ -40,9 +40,10 @@ egValueQueen  = 936
 
 -- | Evaluate the board position from the perspective of the side to move.
 -- Now takes ValidatedBoard to ensure only legal states are evaluated.
-evaluate :: Board -> Score
-evaluate (Board b gs _) =
-    let (mgScore, egScore, phase) = evalTerms b
+evaluate :: ValidatedBoard -> Score
+evaluate vBoard =
+    let (Board b gs _) = getBoard vBoard
+        (mgScore, egScore, phase) = evalTerms b
         finalScore = ((mgScore * phase) + (egScore * (totalPhase - phase))) `div` totalPhase
     in if turn gs == White then finalScore else -finalScore
 
