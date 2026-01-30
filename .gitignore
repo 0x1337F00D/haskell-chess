@@ -14,3 +14,4 @@ cabal.project.local
 *.swp
 *.chi
 *.chs.h
+*.log
