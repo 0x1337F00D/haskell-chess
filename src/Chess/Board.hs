@@ -25,6 +25,11 @@ module Chess.Board
   , legalMovesValidated
   , captureMovesValidated
   , applyLegalMove
+  , moveFrom
+  , moveTo
+  , movePromotion
+  , isCapture
+  , isPromotion
     -- * Notation
   , fen
   , parseFen
@@ -301,6 +306,39 @@ captureMovesValidated (ValidatedBoard b) = map LegalMove (captureGenMoves b)
 applyLegalMove :: ValidatedBoard -> LegalMove -> ValidatedBoard
 applyLegalMove (ValidatedBoard b) (LegalMove gm) = ValidatedBoard (applyGenMove b gm)
 
+-- Safe Accessors for LegalMove
+
+moveFrom :: LegalMove -> Square
+moveFrom (LegalMove (MoveGen.GenQuiet f _ _)) = f
+moveFrom (LegalMove (MoveGen.GenCapture f _ _ _)) = f
+moveFrom (LegalMove (MoveGen.GenEnPassant f _)) = f
+moveFrom (LegalMove (MoveGen.GenCastling f _)) = f
+moveFrom (LegalMove (MoveGen.GenPromotion f _ _)) = f
+moveFrom (LegalMove (MoveGen.GenPromotionCapture f _ _ _)) = f
+
+moveTo :: LegalMove -> Square
+moveTo (LegalMove (MoveGen.GenQuiet _ t _)) = t
+moveTo (LegalMove (MoveGen.GenCapture _ t _ _)) = t
+moveTo (LegalMove (MoveGen.GenEnPassant _ t)) = t
+moveTo (LegalMove (MoveGen.GenCastling _ t)) = t
+moveTo (LegalMove (MoveGen.GenPromotion _ t _)) = t
+moveTo (LegalMove (MoveGen.GenPromotionCapture _ t _ _)) = t
+
+movePromotion :: LegalMove -> Maybe PieceType
+movePromotion (LegalMove (MoveGen.GenPromotion _ _ p)) = Just p
+movePromotion (LegalMove (MoveGen.GenPromotionCapture _ _ p _)) = Just p
+movePromotion _ = Nothing
+
+isCapture :: LegalMove -> Bool
+isCapture (LegalMove (MoveGen.GenCapture {})) = True
+isCapture (LegalMove (MoveGen.GenPromotionCapture {})) = True
+isCapture (LegalMove (MoveGen.GenEnPassant {})) = True
+isCapture _ = False
+
+isPromotion :: LegalMove -> Bool
+isPromotion (LegalMove (MoveGen.GenPromotion {})) = True
+isPromotion (LegalMove (MoveGen.GenPromotionCapture {})) = True
+isPromotion _ = False
 
 -- Helpers
 
