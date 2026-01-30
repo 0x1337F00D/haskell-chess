@@ -28,9 +28,21 @@ The `ActiveGame` type remains an opaque, type-indexed wrapper, but its internal 
 *   **Redundant Turn Information**: `GameState` stores the turn dynamically (as a value), while `ActiveGame` stores it statically (as a type index). We introduce a redundancy that must be kept synchronized. This is managed by the trusted kernel (constructors and move application functions), ensuring the runtime value always matches the type index.
 *   **Opaque Data Dependency**: `Chess.Core` becomes more tightly coupled to `Chess.Board.GameState`. Changes to the `GameState` layout will directly affect `ActiveGame`'s memory layout (which is generally desired for performance but increases coupling).
 
-## Guidance
+## Implementation Strategy
 
-This optimization belongs in `Chess.Core.Game.Internal`. It requires:
-1.  Modifying the `ActiveGame` data definition.
-2.  Updating `initialGame`, `gameFromFEN`, and `genericApplyMove` to initialize and maintain the `GameState` correctly.
-3.  Removing the legacy `toGameState` conversion logic.
+This optimization belongs in `Chess.Core.Game.Internal` and should follow these steps:
+
+1.  **Refactor ActiveGame**:
+    Modify the `ActiveGame` data definition to remove `castlingRights`, `enPassantTarget`, `halfMoveClock`, and `fullMoveNumber`. Replace them with `internalState :: !Chess.Board.GameState.GameState`.
+
+2.  **Update Constructors**:
+    Update `initialGame` and `gameFromFEN` in `Chess.Core.Rules.Standard` (and other variants) to initialize the `internalState`.
+
+3.  **Maintain Synchronization**:
+    Update `genericApplyMove` in `Chess.Core.Rules.Common` to ensure that when a move is applied, the new `ActiveGame`'s phantom type index matches the new `internalState`'s turn.
+
+4.  **Remove Legacy Conversion**:
+    Delete the `toGameState` function and replace its usage with a direct accessor to `internalState`.
+
+5.  **Fix Fischer Random**:
+    Update `FischerRandom` rules to read castling rights directly from the bitboards in `internalState`, removing the `Word8` translation layer.
