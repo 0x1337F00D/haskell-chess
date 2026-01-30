@@ -2,7 +2,6 @@
 module Chess.Board.MoveGen where
 
 import Data.Bits
-import GHC.Conc (par, pseq)
 
 import Chess.Types
 import Chess.Bitboard
@@ -43,9 +42,7 @@ pseudoLegalMoves b gs =
         km = pieceMoves b gs King
         cm = castlingMoves b gs
 
-        -- Spark evaluations of heavier generators
-    in nm `par` bm `par` rm `par` qm `par`
-       (pm ++ nm ++ bm ++ rm ++ qm ++ km ++ cm)
+    in pm ++ nm ++ bm ++ rm ++ qm ++ km ++ cm
 
 -- | Generate all legal moves.
 -- Filters pseudo-legal moves to ensure the king is not left in check.
