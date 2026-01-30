@@ -3,12 +3,15 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Chess.Core.Rules.Class where
 
 import Chess.Core.Game.Internal
 import Chess.Core.Move.Internal
-import Chess.Core.Board.Internal (Color(..), KnownColor(..))
+import Chess.Core.Board.Internal (Color(..), KnownColor(..), sColor, SColor(..))
 
 -- Type-level Opposite Color
 type family Opposite (c :: Color) :: Color where
@@ -24,12 +27,26 @@ class ChessVariant (v :: Variant) where
   -- | Perft (Performance Test) for this variant.
   -- Returns the number of leaf nodes at the given depth.
   -- Has a default implementation using executeMove, but can be optimized.
-  perftVariant :: KnownColor c => Int -> ActiveGame v c s -> Int
-  default perftVariant :: (KnownColor c, KnownColor (Opposite c)) => Int -> ActiveGame v c s -> Int
-  perftVariant depth game
-    | depth == 0 = 1
-    | otherwise = sum $ map go (generateMoves game)
-    where
-      go m = case executeMove m game of
-               Continue nextGame -> perftVariant (depth - 1) nextGame
-               _ -> if depth == 1 then 1 else 0
+  perftVariant :: (KnownColor c, KnownColor (Opposite c)) => Int -> ActiveGame v c s -> Int
+  default perftVariant :: forall c s. (KnownColor c, KnownColor (Opposite c)) => Int -> ActiveGame v c s -> Int
+  perftVariant depth game = case sColor @c of
+    SWhite -> perftWhite depth game
+    SBlack -> perftBlack depth game
+
+perftWhite :: ChessVariant v => Int -> ActiveGame v 'White s -> Int
+perftWhite depth game
+  | depth == 0 = 1
+  | otherwise = sum $ map go (generateMoves game)
+  where
+    go m = case executeMove m game of
+             Continue nextGame -> perftBlack (depth - 1) nextGame
+             _ -> if depth == 1 then 1 else 0
+
+perftBlack :: ChessVariant v => Int -> ActiveGame v 'Black s -> Int
+perftBlack depth game
+  | depth == 0 = 1
+  | otherwise = sum $ map go (generateMoves game)
+  where
+    go m = case executeMove m game of
+             Continue nextGame -> perftWhite (depth - 1) nextGame
+             _ -> if depth == 1 then 1 else 0

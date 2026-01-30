@@ -1,7 +1,7 @@
 module Main where
 
 import Data.Time.Clock (getCurrentTime, diffUTCTime)
-import Chess.Board (parseFen, Board(..))
+import Chess.Board (parseFen)
 import Chess.Engine.Search (search)
 import Chess.Engine.TT (newTT)
 

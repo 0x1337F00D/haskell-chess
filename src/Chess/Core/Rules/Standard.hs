@@ -25,7 +25,8 @@ import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
 import qualified Chess.Board.Fen as Fen
-import Chess.Board (Board(..), applyGenMove, legalGenMoves) -- Import fast board ops
+import qualified Chess.Board as FastBoard
+import Chess.Board (applyGenMove, legalGenMoves) -- Import fast board ops
 import Data.Bits (testBit, countTrailingZeros, (.|.))
 
 -- | Create the initial game state for Standard chess.
@@ -110,10 +111,10 @@ instance ChessVariant 'Standard where
   perftVariant depth ag =
       let b = internalBoard ag
           gs = toGameState ag
-          board = Board b gs []
+          board = FastBoard.Board b gs []
       in fastPerft depth board
 
-fastPerft :: Int -> Board -> Int
+fastPerft :: Int -> FastBoard.Board -> Int
 fastPerft 0 _ = 1
 fastPerft 1 b = length (legalGenMoves b)
 fastPerft d b = sum $ map (fastPerft (d - 1) . applyGenMove b) (legalGenMoves b)

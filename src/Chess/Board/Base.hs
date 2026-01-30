@@ -8,26 +8,26 @@ import Chess.Bitboard
 
 -- | A board representation with bitboards for each piece type and color.
 data Board = Board
-  { whitePawns   :: !Bitboard
-  , whiteKnights :: !Bitboard
-  , whiteBishops :: !Bitboard
-  , whiteRooks   :: !Bitboard
-  , whiteQueens  :: !Bitboard
-  , whiteKings   :: !Bitboard
-  , blackPawns   :: !Bitboard
-  , blackKnights :: !Bitboard
-  , blackBishops :: !Bitboard
-  , blackRooks   :: !Bitboard
-  , blackQueens  :: !Bitboard
-  , blackKings   :: !Bitboard
-  , occupiedWhite :: !Bitboard
-  , occupiedBlack :: !Bitboard
-  , occupiedTotal :: !Bitboard
+  { whitePawns   :: {-# UNPACK #-} !Bitboard
+  , whiteKnights :: {-# UNPACK #-} !Bitboard
+  , whiteBishops :: {-# UNPACK #-} !Bitboard
+  , whiteRooks   :: {-# UNPACK #-} !Bitboard
+  , whiteQueens  :: {-# UNPACK #-} !Bitboard
+  , whiteKings   :: {-# UNPACK #-} !Bitboard
+  , blackPawns   :: {-# UNPACK #-} !Bitboard
+  , blackKnights :: {-# UNPACK #-} !Bitboard
+  , blackBishops :: {-# UNPACK #-} !Bitboard
+  , blackRooks   :: {-# UNPACK #-} !Bitboard
+  , blackQueens  :: {-# UNPACK #-} !Bitboard
+  , blackKings   :: {-# UNPACK #-} !Bitboard
+  , occupiedWhite :: {-# UNPACK #-} !Bitboard
+  , occupiedBlack :: {-# UNPACK #-} !Bitboard
+  , occupiedTotal :: {-# UNPACK #-} !Bitboard
   -- Aggregated Bitboards (Segmented)
-  , whiteDiagonal   :: !Bitboard -- Bishops | Queens
-  , whiteOrthogonal :: !Bitboard -- Rooks | Queens
-  , blackDiagonal   :: !Bitboard -- Bishops | Queens
-  , blackOrthogonal :: !Bitboard -- Rooks | Queens
+  , whiteDiagonal   :: {-# UNPACK #-} !Bitboard -- Bishops | Queens
+  , whiteOrthogonal :: {-# UNPACK #-} !Bitboard -- Rooks | Queens
+  , blackDiagonal   :: {-# UNPACK #-} !Bitboard -- Bishops | Queens
+  , blackOrthogonal :: {-# UNPACK #-} !Bitboard -- Rooks | Queens
   } deriving (Eq, Show)
 
 -- | An empty board.

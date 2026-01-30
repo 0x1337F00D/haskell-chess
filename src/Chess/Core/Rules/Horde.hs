@@ -65,6 +65,10 @@ hordeInitialGame =
           , Base.occupiedWhite = wOcc
           , Base.occupiedBlack = bOcc
           , Base.occupiedTotal = wOcc .|. bOcc
+          , Base.whiteDiagonal = 0
+          , Base.whiteOrthogonal = 0
+          , Base.blackDiagonal = bBishops .|. bQueens
+          , Base.blackOrthogonal = bRooks .|. bQueens
           }
 
       -- Castling Rights: Black only (King Side + Queen Side)

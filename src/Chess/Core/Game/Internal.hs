@@ -6,6 +6,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Chess.Core.Game.Internal where
 

@@ -3,7 +3,7 @@ module Chess.Engine.TT where
 
 import Data.Word
 import Data.Bits
-import qualified Data.Vector.Unboxed.Mutable as UM
+import qualified Data.Vector.Storable.Mutable as UM
 import Control.Monad (when)
 
 import Chess.Types (Move(..), Square(..), PieceType(..), Depth(..))

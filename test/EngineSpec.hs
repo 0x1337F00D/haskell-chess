@@ -2,7 +2,7 @@ module EngineSpec (spec) where
 
 import Test.Hspec
 import Data.Maybe (fromJust)
-import Chess.Board (initialBoard, parseFen, uci)
+import Chess.Board (initialBoard, parseFen, uci, trustBoard)
 import Chess.Engine.Evaluation (evaluate)
 import Chess.Engine.Search (search)
 import Chess.Engine.TT (newTT)
@@ -11,7 +11,7 @@ spec :: Spec
 spec = describe "Engine" $ do
   describe "Evaluation" $ do
     it "evaluates initial board to 0" $ do
-      evaluate initialBoard `shouldBe` 0
+      evaluate (trustBoard initialBoard) `shouldBe` 0
 
   describe "Search" $ do
     it "finds simple mate in 1" $ do

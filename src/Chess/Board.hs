@@ -11,6 +11,10 @@ module Chess.Board
   , pseudoLegalMoves
   , captureMoves
   , captureGenMoves
+  , legalGenQuiets
+  , legalGenPromotions
+  , pseudoLegalQuiets
+  , pseudoLegalPromotions
   , isCheck
   , isCheckmate
   , isStalemate
@@ -24,12 +28,17 @@ module Chess.Board
   , getGenMove
   , legalMovesValidated
   , captureMovesValidated
+  , legalQuietsValidated
+  , legalPromotionsValidated
   , applyLegalMove
   , moveFrom
   , moveTo
   , movePromotion
   , isCapture
   , isPromotion
+  , toGenMove
+  , isLegalMove
+  , mkLegalMove
     -- * Notation
   , fen
   , parseFen
@@ -237,6 +246,22 @@ captureMoves (Board b gs _) = MoveGen.legalCaptures b gs
 captureGenMoves :: Board -> [MoveGen.GenMove]
 captureGenMoves (Board b gs _) = MoveGen.legalGenCaptures b gs
 
+-- | Generate all legal quiet moves preserving piece info.
+legalGenQuiets :: Board -> [MoveGen.GenMove]
+legalGenQuiets (Board b gs _) = MoveGen.legalGenQuiets b gs
+
+-- | Generate all legal promotion moves preserving piece info.
+legalGenPromotions :: Board -> [MoveGen.GenMove]
+legalGenPromotions (Board b gs _) = MoveGen.legalGenPromotions b gs
+
+-- | Generate all pseudo-legal quiet moves.
+pseudoLegalQuiets :: Board -> [Move]
+pseudoLegalQuiets (Board b gs _) = map MoveGen.genMoveToMove $ MoveGen.pseudoLegalQuiets b gs
+
+-- | Generate all pseudo-legal promotion moves.
+pseudoLegalPromotions :: Board -> [Move]
+pseudoLegalPromotions (Board b gs _) = map MoveGen.genMoveToMove $ MoveGen.pseudoLegalPromotions b gs
+
 -- | Check if the side to move is in check.
 isCheck :: Board -> Bool
 isCheck (Board b gs _) = Val.isCheck b gs
@@ -302,6 +327,21 @@ legalMovesValidated (ValidatedBoard b) = map LegalMove (legalGenMoves b)
 
 captureMovesValidated :: ValidatedBoard -> [LegalMove]
 captureMovesValidated (ValidatedBoard b) = map LegalMove (captureGenMoves b)
+
+legalQuietsValidated :: ValidatedBoard -> [LegalMove]
+legalQuietsValidated (ValidatedBoard b) = map LegalMove (legalGenQuiets b)
+
+legalPromotionsValidated :: ValidatedBoard -> [LegalMove]
+legalPromotionsValidated (ValidatedBoard b) = map LegalMove (legalGenPromotions b)
+
+mkLegalMove :: MoveGen.GenMove -> LegalMove
+mkLegalMove = LegalMove
+
+toGenMove :: Board -> Move -> Maybe MoveGen.GenMove
+toGenMove (Board b gs _) m = MoveGen.toGenMove b gs m
+
+isLegalMove :: Board -> Move -> Bool
+isLegalMove (Board b gs _) m = MoveGen.isLegalMove b gs m
 
 applyLegalMove :: ValidatedBoard -> LegalMove -> ValidatedBoard
 applyLegalMove (ValidatedBoard b) (LegalMove gm) = ValidatedBoard (applyGenMove b gm)
