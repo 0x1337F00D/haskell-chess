@@ -92,6 +92,7 @@ updateOccupancy b =
        }
 
 -- | Get the piece at a square, if any.
+{-# INLINE pieceAt #-}
 pieceAt :: Board -> Square -> Maybe Piece
 pieceAt b sq
   | not (testBit (occupiedTotal b) i) = Nothing
@@ -112,6 +113,7 @@ pieceAt b sq
   where i = unSquare sq
 
 -- | Get the color of the piece at a square, if any.
+{-# INLINE colorAt #-}
 colorAt :: Board -> Square -> Maybe Color
 colorAt b sq = fmap pieceColor (pieceAt b sq)
 
@@ -271,10 +273,12 @@ movePiece b from to c pt =
     in b2 { occupiedWhite = whiteOcc, occupiedBlack = blackOcc, occupiedTotal = totalOcc }
 
 -- | Bitboard of all pieces.
+{-# INLINE occupied #-}
 occupied :: Board -> Bitboard
 occupied = occupiedTotal
 
 -- | Bitboard of pieces by color.
+{-# INLINE occupiedBy #-}
 occupiedBy :: Board -> Color -> Bitboard
 occupiedBy b White = occupiedWhite b
 occupiedBy b Black = occupiedBlack b
@@ -295,18 +299,23 @@ attacks b sq = case pieceAt b sq of
     Queen -> bishopAttacks sq (occupied b) .|. rookAttacks sq (occupied b)
 
 -- | Check if a square is attacked by any piece of the given color.
--- Optimized using aggregated bitboards.
+-- Optimized using aggregated bitboards and direct field access.
+{-# INLINE isAttackedBy #-}
 isAttackedBy :: Board -> Color -> Square -> Bool
-isAttackedBy b color sq =
-  (pawnAttacks (oppositeColor color) sq .&. pieceBitboard b color Pawn /= 0) ||
-  (knightAttacks sq .&. pieceBitboard b color Knight /= 0) ||
-  (kingAttacks sq .&. pieceBitboard b color King /= 0) ||
-  (bishopAttacks sq (occupied b) .&. diagSliders /= 0) ||
-  (rookAttacks sq (occupied b) .&. orthSliders /= 0)
-  where
-    diagSliders = if color == White then whiteDiagonal b else blackDiagonal b
-    orthSliders = if color == White then whiteOrthogonal b else blackOrthogonal b
+isAttackedBy b White sq =
+  (pawnAttacks Black sq .&. whitePawns b /= 0) ||
+  (knightAttacks sq .&. whiteKnights b /= 0) ||
+  (kingAttacks sq .&. whiteKings b /= 0) ||
+  (bishopAttacks sq (occupied b) .&. whiteDiagonal b /= 0) ||
+  (rookAttacks sq (occupied b) .&. whiteOrthogonal b /= 0)
+isAttackedBy b Black sq =
+  (pawnAttacks White sq .&. blackPawns b /= 0) ||
+  (knightAttacks sq .&. blackKnights b /= 0) ||
+  (kingAttacks sq .&. blackKings b /= 0) ||
+  (bishopAttacks sq (occupied b) .&. blackDiagonal b /= 0) ||
+  (rookAttacks sq (occupied b) .&. blackOrthogonal b /= 0)
 
+{-# INLINE oppositeColor #-}
 oppositeColor :: Color -> Color
 oppositeColor White = Black
 oppositeColor Black = White
