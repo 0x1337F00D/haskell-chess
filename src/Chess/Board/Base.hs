@@ -23,11 +23,16 @@ data Board = Board
   , occupiedWhite :: !Bitboard
   , occupiedBlack :: !Bitboard
   , occupiedTotal :: !Bitboard
+  -- Aggregated Bitboards (Segmented)
+  , whiteDiagonal   :: !Bitboard -- Bishops | Queens
+  , whiteOrthogonal :: !Bitboard -- Rooks | Queens
+  , blackDiagonal   :: !Bitboard -- Bishops | Queens
+  , blackOrthogonal :: !Bitboard -- Rooks | Queens
   } deriving (Eq, Show)
 
 -- | An empty board.
 empty :: Board
-empty = Board 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+empty = Board 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 
 -- | Get the bitboard for a specific piece type and color.
 pieceBitboard :: Board -> Color -> PieceType -> Bitboard
@@ -60,14 +65,34 @@ setPieceBitboard b c pt bb = updateOccupancy $ case (c, pt) of
   (Black, Queen)  -> b { blackQueens  = bb }
   (Black, King)   -> b { blackKings   = bb }
 
--- | Update cached occupancy bitboards.
+-- | Update cached occupancy and aggregated bitboards.
 updateOccupancy :: Board -> Board
 updateOccupancy b =
-  let white = whitePawns b .|. whiteKnights b .|. whiteBishops b .|. whiteRooks b .|. whiteQueens b .|. whiteKings b
-      black = blackPawns b .|. blackKnights b .|. blackBishops b .|. blackRooks b .|. blackQueens b .|. blackKings b
-  in b { occupiedWhite = white, occupiedBlack = black, occupiedTotal = white .|. black }
+  let wB = whiteBishops b
+      wR = whiteRooks b
+      wQ = whiteQueens b
+      bB = blackBishops b
+      bR = blackRooks b
+      bQ = blackQueens b
+
+      wDiag = wB .|. wQ
+      wOrth = wR .|. wQ
+      bDiag = bB .|. bQ
+      bOrth = bR .|. bQ
+
+      white = whitePawns b .|. whiteKnights b .|. wB .|. wR .|. wQ .|. whiteKings b
+      black = blackPawns b .|. blackKnights b .|. bB .|. bR .|. bQ .|. blackKings b
+  in b { occupiedWhite = white
+       , occupiedBlack = black
+       , occupiedTotal = white .|. black
+       , whiteDiagonal = wDiag
+       , whiteOrthogonal = wOrth
+       , blackDiagonal = bDiag
+       , blackOrthogonal = bOrth
+       }
 
 -- | Get the piece at a square, if any.
+{-# INLINE pieceAt #-}
 pieceAt :: Board -> Square -> Maybe Piece
 pieceAt b sq
   | not (testBit (occupiedTotal b) i) = Nothing
@@ -88,6 +113,7 @@ pieceAt b sq
   where i = unSquare sq
 
 -- | Get the color of the piece at a square, if any.
+{-# INLINE colorAt #-}
 colorAt :: Board -> Square -> Maybe Color
 colorAt b sq = fmap pieceColor (pieceAt b sq)
 
@@ -110,19 +136,28 @@ putPiece b sq piece =
 unsafePutPiece :: Board -> Square -> Piece -> Board
 unsafePutPiece b sq (Piece c pt) =
     let i = unSquare sq
-        -- Update specific bitboard
+        -- Update specific bitboard and aggregates
         b' = case (c, pt) of
                (White, Pawn)   -> b { whitePawns   = setBit (whitePawns b) i }
                (White, Knight) -> b { whiteKnights = setBit (whiteKnights b) i }
-               (White, Bishop) -> b { whiteBishops = setBit (whiteBishops b) i }
-               (White, Rook)   -> b { whiteRooks   = setBit (whiteRooks b) i }
-               (White, Queen)  -> b { whiteQueens  = setBit (whiteQueens b) i }
+               (White, Bishop) -> b { whiteBishops = setBit (whiteBishops b) i
+                                    , whiteDiagonal = setBit (whiteDiagonal b) i }
+               (White, Rook)   -> b { whiteRooks   = setBit (whiteRooks b) i
+                                    , whiteOrthogonal = setBit (whiteOrthogonal b) i }
+               (White, Queen)  -> b { whiteQueens  = setBit (whiteQueens b) i
+                                    , whiteDiagonal = setBit (whiteDiagonal b) i
+                                    , whiteOrthogonal = setBit (whiteOrthogonal b) i }
                (White, King)   -> b { whiteKings   = setBit (whiteKings b) i }
+
                (Black, Pawn)   -> b { blackPawns   = setBit (blackPawns b) i }
                (Black, Knight) -> b { blackKnights = setBit (blackKnights b) i }
-               (Black, Bishop) -> b { blackBishops = setBit (blackBishops b) i }
-               (Black, Rook)   -> b { blackRooks   = setBit (blackRooks b) i }
-               (Black, Queen)  -> b { blackQueens  = setBit (blackQueens b) i }
+               (Black, Bishop) -> b { blackBishops = setBit (blackBishops b) i
+                                    , blackDiagonal = setBit (blackDiagonal b) i }
+               (Black, Rook)   -> b { blackRooks   = setBit (blackRooks b) i
+                                    , blackOrthogonal = setBit (blackOrthogonal b) i }
+               (Black, Queen)  -> b { blackQueens  = setBit (blackQueens b) i
+                                    , blackDiagonal = setBit (blackDiagonal b) i
+                                    , blackOrthogonal = setBit (blackOrthogonal b) i }
                (Black, King)   -> b { blackKings   = setBit (blackKings b) i }
 
         -- Update occupancy
@@ -136,19 +171,28 @@ unsafePutPiece b sq (Piece c pt) =
 unsafeRemovePiece :: Board -> Square -> Color -> PieceType -> Board
 unsafeRemovePiece b sq c pt =
     let i = unSquare sq
-        -- Update the specific bitboard
+        -- Update the specific bitboard and aggregates
         b' = case (c, pt) of
                (White, Pawn)   -> b { whitePawns   = clearBit (whitePawns b) i }
                (White, Knight) -> b { whiteKnights = clearBit (whiteKnights b) i }
-               (White, Bishop) -> b { whiteBishops = clearBit (whiteBishops b) i }
-               (White, Rook)   -> b { whiteRooks   = clearBit (whiteRooks b) i }
-               (White, Queen)  -> b { whiteQueens  = clearBit (whiteQueens b) i }
+               (White, Bishop) -> b { whiteBishops = clearBit (whiteBishops b) i
+                                    , whiteDiagonal = clearBit (whiteDiagonal b) i }
+               (White, Rook)   -> b { whiteRooks   = clearBit (whiteRooks b) i
+                                    , whiteOrthogonal = clearBit (whiteOrthogonal b) i }
+               (White, Queen)  -> b { whiteQueens  = clearBit (whiteQueens b) i
+                                    , whiteDiagonal = clearBit (whiteDiagonal b) i
+                                    , whiteOrthogonal = clearBit (whiteOrthogonal b) i }
                (White, King)   -> b { whiteKings   = clearBit (whiteKings b) i }
+
                (Black, Pawn)   -> b { blackPawns   = clearBit (blackPawns b) i }
                (Black, Knight) -> b { blackKnights = clearBit (blackKnights b) i }
-               (Black, Bishop) -> b { blackBishops = clearBit (blackBishops b) i }
-               (Black, Rook)   -> b { blackRooks   = clearBit (blackRooks b) i }
-               (Black, Queen)  -> b { blackQueens  = clearBit (blackQueens b) i }
+               (Black, Bishop) -> b { blackBishops = clearBit (blackBishops b) i
+                                    , blackDiagonal = clearBit (blackDiagonal b) i }
+               (Black, Rook)   -> b { blackRooks   = clearBit (blackRooks b) i
+                                    , blackOrthogonal = clearBit (blackOrthogonal b) i }
+               (Black, Queen)  -> b { blackQueens  = clearBit (blackQueens b) i
+                                    , blackDiagonal = clearBit (blackDiagonal b) i
+                                    , blackOrthogonal = clearBit (blackOrthogonal b) i }
                (Black, King)   -> b { blackKings   = clearBit (blackKings b) i }
 
         -- Update occupancy
@@ -159,7 +203,7 @@ unsafeRemovePiece b sq c pt =
 
 -- | Remove a piece from the board.
 removePieceAt :: Board -> Square -> Board
-removePieceAt b sq = b
+removePieceAt b sq = updateOccupancy $ b
   { whitePawns   = clearBit (whitePawns b) i
   , whiteKnights = clearBit (whiteKnights b) i
   , whiteBishops = clearBit (whiteBishops b) i
@@ -172,9 +216,6 @@ removePieceAt b sq = b
   , blackRooks   = clearBit (blackRooks b) i
   , blackQueens  = clearBit (blackQueens b) i
   , blackKings   = clearBit (blackKings b) i
-  , occupiedWhite = clearBit (occupiedWhite b) i
-  , occupiedBlack = clearBit (occupiedBlack b) i
-  , occupiedTotal = clearBit (occupiedTotal b) i
   }
   where i = unSquare sq
 
@@ -203,15 +244,24 @@ movePiece b from to c pt =
         b2 = case (c, pt) of
                (White, Pawn)   -> b1 { whitePawns   = whitePawns b1 `xor` mask }
                (White, Knight) -> b1 { whiteKnights = whiteKnights b1 `xor` mask }
-               (White, Bishop) -> b1 { whiteBishops = whiteBishops b1 `xor` mask }
-               (White, Rook)   -> b1 { whiteRooks   = whiteRooks b1 `xor` mask }
-               (White, Queen)  -> b1 { whiteQueens  = whiteQueens b1 `xor` mask }
+               (White, Bishop) -> b1 { whiteBishops = whiteBishops b1 `xor` mask
+                                     , whiteDiagonal = whiteDiagonal b1 `xor` mask }
+               (White, Rook)   -> b1 { whiteRooks   = whiteRooks b1 `xor` mask
+                                     , whiteOrthogonal = whiteOrthogonal b1 `xor` mask }
+               (White, Queen)  -> b1 { whiteQueens  = whiteQueens b1 `xor` mask
+                                     , whiteDiagonal = whiteDiagonal b1 `xor` mask
+                                     , whiteOrthogonal = whiteOrthogonal b1 `xor` mask }
                (White, King)   -> b1 { whiteKings   = whiteKings b1 `xor` mask }
+
                (Black, Pawn)   -> b1 { blackPawns   = blackPawns b1 `xor` mask }
                (Black, Knight) -> b1 { blackKnights = blackKnights b1 `xor` mask }
-               (Black, Bishop) -> b1 { blackBishops = blackBishops b1 `xor` mask }
-               (Black, Rook)   -> b1 { blackRooks   = blackRooks b1 `xor` mask }
-               (Black, Queen)  -> b1 { blackQueens  = blackQueens b1 `xor` mask }
+               (Black, Bishop) -> b1 { blackBishops = blackBishops b1 `xor` mask
+                                     , blackDiagonal = blackDiagonal b1 `xor` mask }
+               (Black, Rook)   -> b1 { blackRooks   = blackRooks b1 `xor` mask
+                                     , blackOrthogonal = blackOrthogonal b1 `xor` mask }
+               (Black, Queen)  -> b1 { blackQueens  = blackQueens b1 `xor` mask
+                                     , blackDiagonal = blackDiagonal b1 `xor` mask
+                                     , blackOrthogonal = blackOrthogonal b1 `xor` mask }
                (Black, King)   -> b1 { blackKings   = blackKings b1 `xor` mask }
 
         -- Update occupancy
@@ -223,10 +273,12 @@ movePiece b from to c pt =
     in b2 { occupiedWhite = whiteOcc, occupiedBlack = blackOcc, occupiedTotal = totalOcc }
 
 -- | Bitboard of all pieces.
+{-# INLINE occupied #-}
 occupied :: Board -> Bitboard
 occupied = occupiedTotal
 
 -- | Bitboard of pieces by color.
+{-# INLINE occupiedBy #-}
 occupiedBy :: Board -> Color -> Bitboard
 occupiedBy b White = occupiedWhite b
 occupiedBy b Black = occupiedBlack b
@@ -247,14 +299,23 @@ attacks b sq = case pieceAt b sq of
     Queen -> bishopAttacks sq (occupied b) .|. rookAttacks sq (occupied b)
 
 -- | Check if a square is attacked by any piece of the given color.
+-- Optimized using aggregated bitboards and direct field access.
+{-# INLINE isAttackedBy #-}
 isAttackedBy :: Board -> Color -> Square -> Bool
-isAttackedBy b color sq =
-  (pawnAttacks (oppositeColor color) sq .&. pieceBitboard b color Pawn /= 0) ||
-  (knightAttacks sq .&. pieceBitboard b color Knight /= 0) ||
-  (kingAttacks sq .&. pieceBitboard b color King /= 0) ||
-  (bishopAttacks sq (occupied b) .&. (pieceBitboard b color Bishop .|. pieceBitboard b color Queen) /= 0) ||
-  (rookAttacks sq (occupied b) .&. (pieceBitboard b color Rook .|. pieceBitboard b color Queen) /= 0)
+isAttackedBy b White sq =
+  (pawnAttacks Black sq .&. whitePawns b /= 0) ||
+  (knightAttacks sq .&. whiteKnights b /= 0) ||
+  (kingAttacks sq .&. whiteKings b /= 0) ||
+  (bishopAttacks sq (occupied b) .&. whiteDiagonal b /= 0) ||
+  (rookAttacks sq (occupied b) .&. whiteOrthogonal b /= 0)
+isAttackedBy b Black sq =
+  (pawnAttacks White sq .&. blackPawns b /= 0) ||
+  (knightAttacks sq .&. blackKnights b /= 0) ||
+  (kingAttacks sq .&. blackKings b /= 0) ||
+  (bishopAttacks sq (occupied b) .&. blackDiagonal b /= 0) ||
+  (rookAttacks sq (occupied b) .&. blackOrthogonal b /= 0)
 
+{-# INLINE oppositeColor #-}
 oppositeColor :: Color -> Color
 oppositeColor White = Black
 oppositeColor Black = White
@@ -292,15 +353,24 @@ unsafeMovePiece b from to c pt =
         b' = case (c, pt) of
                (White, Pawn)   -> b { whitePawns   = whitePawns b `xor` mask }
                (White, Knight) -> b { whiteKnights = whiteKnights b `xor` mask }
-               (White, Bishop) -> b { whiteBishops = whiteBishops b `xor` mask }
-               (White, Rook)   -> b { whiteRooks   = whiteRooks b `xor` mask }
-               (White, Queen)  -> b { whiteQueens  = whiteQueens b `xor` mask }
+               (White, Bishop) -> b { whiteBishops = whiteBishops b `xor` mask
+                                    , whiteDiagonal = whiteDiagonal b `xor` mask }
+               (White, Rook)   -> b { whiteRooks   = whiteRooks b `xor` mask
+                                    , whiteOrthogonal = whiteOrthogonal b `xor` mask }
+               (White, Queen)  -> b { whiteQueens  = whiteQueens b `xor` mask
+                                    , whiteDiagonal = whiteDiagonal b `xor` mask
+                                    , whiteOrthogonal = whiteOrthogonal b `xor` mask }
                (White, King)   -> b { whiteKings   = whiteKings b `xor` mask }
+
                (Black, Pawn)   -> b { blackPawns   = blackPawns b `xor` mask }
                (Black, Knight) -> b { blackKnights = blackKnights b `xor` mask }
-               (Black, Bishop) -> b { blackBishops = blackBishops b `xor` mask }
-               (Black, Rook)   -> b { blackRooks   = blackRooks b `xor` mask }
-               (Black, Queen)  -> b { blackQueens  = blackQueens b `xor` mask }
+               (Black, Bishop) -> b { blackBishops = blackBishops b `xor` mask
+                                    , blackDiagonal = blackDiagonal b `xor` mask }
+               (Black, Rook)   -> b { blackRooks   = blackRooks b `xor` mask
+                                    , blackOrthogonal = blackOrthogonal b `xor` mask }
+               (Black, Queen)  -> b { blackQueens  = blackQueens b `xor` mask
+                                    , blackDiagonal = blackDiagonal b `xor` mask
+                                    , blackOrthogonal = blackOrthogonal b `xor` mask }
                (Black, King)   -> b { blackKings   = blackKings b `xor` mask }
 
         white = if c == White then occupiedWhite b `xor` mask else occupiedWhite b

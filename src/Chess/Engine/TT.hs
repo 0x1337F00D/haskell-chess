@@ -9,7 +9,8 @@ import Control.Monad (when)
 import Chess.Types (Move(..), Square(..), PieceType(..), Depth(..))
 
 -- | Transposition Table Entry Flags
-data TTFlag = TTExact | TTLower | TTUpper
+-- TTEval is for storing static evaluation (depth 0).
+data TTFlag = TTExact | TTLower | TTUpper | TTEval
     deriving (Eq, Show, Enum)
 
 -- | Transposition Table
