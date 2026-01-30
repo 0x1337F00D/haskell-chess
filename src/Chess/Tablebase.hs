@@ -15,6 +15,7 @@ import Text.ParserCombinators.ReadP
 import Data.Char (isDigit, toLower)
 import Control.Exception (try, IOException)
 import Data.List (find, isPrefixOf)
+import Control.Concurrent.Async (Async, async)
 
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS (tlsManagerSettings)
@@ -34,7 +35,7 @@ data SyzygyResult = SyzygyResult {
 type ProcessRunner = FilePath -> [String] -> String -> IO String
 
 -- | Probe a position (FEN). Currently defaults to online probing.
-probeSyzygy :: String -> IO (Either String SyzygyResult)
+probeSyzygy :: String -> IO (Async (Either String SyzygyResult))
 probeSyzygy = probeOnline
 
 -- | Global Manager to reuse connections.
@@ -44,8 +45,8 @@ globalManager :: Manager
 globalManager = unsafePerformIO $ newManager tlsManagerSettings
 
 -- | Probe the Lichess Online Tablebase API.
-probeOnline :: String -> IO (Either String SyzygyResult)
-probeOnline fen = do
+probeOnline :: String -> IO (Async (Either String SyzygyResult))
+probeOnline fen = async $ do
     let url = "https://tablebase.lichess.ovh/standard?fen=" ++ mapSpace fen
     request <- parseRequest url
     result <- try (httpLbs request globalManager) :: IO (Either HttpException (Response L8.ByteString))
@@ -59,11 +60,11 @@ probeOnline fen = do
                else return $ Left $ "HTTP Error: " ++ show status
 
 -- | Probe using a local Syzygy tool (e.g. Fathom).
-probeLocal :: FilePath -> FilePath -> String -> IO (Either String SyzygyResult)
+probeLocal :: FilePath -> FilePath -> String -> IO (Async (Either String SyzygyResult))
 probeLocal = probeLocalWith readProcess
 
-probeLocalWith :: ProcessRunner -> FilePath -> FilePath -> String -> IO (Either String SyzygyResult)
-probeLocalWith runner tool paths fen = do
+probeLocalWith :: ProcessRunner -> FilePath -> FilePath -> String -> IO (Async (Either String SyzygyResult))
+probeLocalWith runner tool paths fen = async $ do
     result <- try (runner tool ["--path=" ++ paths, fen] "") :: IO (Either IOException String)
     case result of
         Left err -> return $ Left $ "Execution error: " ++ show err
