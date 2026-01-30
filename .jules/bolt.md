@@ -25,3 +25,7 @@
 ## 2026-01-29 – [ApplyMove Optimization]
 **Learning:** `Chess.Core.Rules.Common.applyMoveBase` was performing two bitboard updates (remove + put) for every move, even for quiet moves. Each update involved multiple bitwise operations and record updates. `Chess.Board.MoveGen` already had a fast path (`movePieceFast`) using XOR masks.
 **Action:** Implemented `unsafeMovePiece` in `Chess.Board.Base` using XOR masks to perform move updates in a single pass. Refactored `applyMoveBase` to use this for `QuietMove` and `CaptureMove`. Measured ~4.5% speedup on KiwiPete perft in `bench-core`.
+
+## 2026-01-30 – [Attack Detection Optimization]
+**Learning:** `isAttackedBy` (hot path for move legality) was accessing `pieceBitboard` 5-10 times per call. `pieceBitboard` performed a case analysis on `PieceType` and `Color` every time. Additionally, `occupiedTotal` and queen bitboards were recomputed or re-accessed repeatedly within the logical OR chain.
+**Action:** Refactored `isAttackedBy` to use top-level pattern matching on `Color` and direct record field access. Factored out `occupiedTotal` and `queen` bitboard lookups. Reduced dispatch overhead and redundant memory accesses. Measured ~5.5% speedup on KiwiPete perft and ~8.8% speedup on Search.

@@ -248,12 +248,22 @@ attacks b sq = case pieceAt b sq of
 
 -- | Check if a square is attacked by any piece of the given color.
 isAttackedBy :: Board -> Color -> Square -> Bool
-isAttackedBy b color sq =
-  (pawnAttacks (oppositeColor color) sq .&. pieceBitboard b color Pawn /= 0) ||
-  (knightAttacks sq .&. pieceBitboard b color Knight /= 0) ||
-  (kingAttacks sq .&. pieceBitboard b color King /= 0) ||
-  (bishopAttacks sq (occupied b) .&. (pieceBitboard b color Bishop .|. pieceBitboard b color Queen) /= 0) ||
-  (rookAttacks sq (occupied b) .&. (pieceBitboard b color Rook .|. pieceBitboard b color Queen) /= 0)
+isAttackedBy b White sq =
+  let occ    = occupiedTotal b
+      queens = whiteQueens b
+  in (pawnAttacks Black sq .&. whitePawns b /= 0) ||
+     (knightAttacks sq .&. whiteKnights b /= 0) ||
+     (kingAttacks sq .&. whiteKings b /= 0) ||
+     (bishopAttacks sq occ .&. (whiteBishops b .|. queens) /= 0) ||
+     (rookAttacks sq occ .&. (whiteRooks b .|. queens) /= 0)
+isAttackedBy b Black sq =
+  let occ    = occupiedTotal b
+      queens = blackQueens b
+  in (pawnAttacks White sq .&. blackPawns b /= 0) ||
+     (knightAttacks sq .&. blackKnights b /= 0) ||
+     (kingAttacks sq .&. blackKings b /= 0) ||
+     (bishopAttacks sq occ .&. (blackBishops b .|. queens) /= 0) ||
+     (rookAttacks sq occ .&. (blackRooks b .|. queens) /= 0)
 
 oppositeColor :: Color -> Color
 oppositeColor White = Black
