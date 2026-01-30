@@ -7,7 +7,6 @@ import Data.IORef (IORef, newIORef, readIORef, modifyIORef')
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar, getNumCapabilities, newMVar, modifyMVar)
 import qualified Data.Vector.Mutable as VM
 import qualified Data.Vector.Unboxed.Mutable as UM
-import Data.Word (Word16)
 
 import Chess.Types
 import Chess.Board (Board(..), applyMove, isCheck, uci, GenMove(..)
