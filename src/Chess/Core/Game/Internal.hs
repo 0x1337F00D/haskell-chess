@@ -129,3 +129,18 @@ viewBoard :: ActiveGame v c s -> Board
 viewBoard ag = case fromBaseBoard (internalBoard ag) of
                  Just b -> b
                  Nothing -> error "Internal board corruption: ActiveGame contains invalid Base.Board"
+
+-- | Transition: Setup -> Active
+-- This allows for board validation logic to be inserted here.
+startGame :: forall v. (VariantState v ~ ()) => Game v 'Setup -> Maybe (Game v 'Active)
+startGame (SetupGame board) =
+    -- Validation placeholder: Ensure kings exist
+    -- In a real implementation, we would convert Board to Base.Board here
+    -- and check variant-specific constraints.
+    -- For now, we assume standard startup for variants with unit state.
+    -- This is a stub to demonstrate the architectural boundary.
+    Nothing
+
+-- | Transition: Active -> Finished
+endGame :: Game v 'Active -> Outcome -> Game v 'Finished
+endGame (InProgressGame _) outcome = FinishedGame outcome

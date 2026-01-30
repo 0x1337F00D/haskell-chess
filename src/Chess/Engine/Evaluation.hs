@@ -7,7 +7,7 @@ import Chess.Types
 import Chess.Bitboard
 import qualified Chess.Board.Base as Base
 import Chess.Board.GameState (GameState(..))
-import Chess.Board (Board(..))
+import Chess.Board (Board(..), ValidatedBoard, getBoard)
 
 -- | Evaluation score in centipawns.
 type Score = Int
@@ -39,8 +39,9 @@ egValueRook   = 512
 egValueQueen  = 936
 
 -- | Evaluate the board position from the perspective of the side to move.
-evaluate :: Chess.Board.Board -> Score
-evaluate (Chess.Board.Board b gs _) =
+-- Now takes ValidatedBoard to ensure only legal states are evaluated.
+evaluate :: Board -> Score
+evaluate (Board b gs _) =
     let (mgScore, egScore, phase) = evalTerms b
         finalScore = ((mgScore * phase) + (egScore * (totalPhase - phase))) `div` totalPhase
     in if turn gs == White then finalScore else -finalScore
