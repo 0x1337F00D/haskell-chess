@@ -12,8 +12,13 @@ module Chess.Core.Move
   , MoveResult(..) -- We can export MoveResult constructors as they are consumed by user
   ) where
 
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Builder as B
+import Data.Monoid ((<>))
+
 import Chess.Core.Board
-import Chess.Core.Board.Internal (squareToString)
+import Chess.Core.Board.Internal (squareToString, squareToBuilder)
 import Chess.Core.Move.Internal
 
 moveFrom :: Move c -> Square
@@ -36,27 +41,28 @@ moveTo (PromotionCaptureMove _ t _ _) = t
 moveTo (DropMove _ t) = t
 moveTo (Castling960Move _ r) = r -- Return Rook source as 'to' square for UCI convention in 960
 
-toUCI :: Move c -> String
-toUCI (QuietMove f t _) = squareToString f ++ squareToString t
-toUCI (CaptureMove f t _ _) = squareToString f ++ squareToString t
-toUCI (CastlingMove f t) = squareToString f ++ squareToString t -- e1g1
-toUCI (EnPassantMove f t) = squareToString f ++ squareToString t
-toUCI (PromotionMove f t p) = squareToString f ++ squareToString t ++ pieceTypeChar p
-toUCI (PromotionCaptureMove f t p _) = squareToString f ++ squareToString t ++ pieceTypeChar p
-toUCI (DropMove p t) = pieceTypeSymbol p ++ "@" ++ squareToString t
-toUCI (Castling960Move f r) = squareToString f ++ squareToString r
+toUCI :: Move c -> BS.ByteString
+toUCI m = BL.toStrict $ B.toLazyByteString $ case m of
+  QuietMove f t _ -> squareToBuilder f <> squareToBuilder t
+  CaptureMove f t _ _ -> squareToBuilder f <> squareToBuilder t
+  CastlingMove f t -> squareToBuilder f <> squareToBuilder t -- e1g1
+  EnPassantMove f t -> squareToBuilder f <> squareToBuilder t
+  PromotionMove f t p -> squareToBuilder f <> squareToBuilder t <> pieceTypeCharBuilder p
+  PromotionCaptureMove f t p _ -> squareToBuilder f <> squareToBuilder t <> pieceTypeCharBuilder p
+  DropMove p t -> pieceTypeSymbolBuilder p <> B.char7 '@' <> squareToBuilder t
+  Castling960Move f r -> squareToBuilder f <> squareToBuilder r
 
-pieceTypeSymbol :: PieceType -> String
-pieceTypeSymbol Pawn   = "P"
-pieceTypeSymbol Knight = "N"
-pieceTypeSymbol Bishop = "B"
-pieceTypeSymbol Rook   = "R"
-pieceTypeSymbol Queen  = "Q"
-pieceTypeSymbol King   = "K"
+pieceTypeSymbolBuilder :: PieceType -> B.Builder
+pieceTypeSymbolBuilder Pawn   = B.char7 'P'
+pieceTypeSymbolBuilder Knight = B.char7 'N'
+pieceTypeSymbolBuilder Bishop = B.char7 'B'
+pieceTypeSymbolBuilder Rook   = B.char7 'R'
+pieceTypeSymbolBuilder Queen  = B.char7 'Q'
+pieceTypeSymbolBuilder King   = B.char7 'K'
 
-pieceTypeChar :: PieceType -> String
-pieceTypeChar Queen  = "q"
-pieceTypeChar Rook   = "r"
-pieceTypeChar Bishop = "b"
-pieceTypeChar Knight = "n"
-pieceTypeChar _      = "" -- Should not happen for promotion
+pieceTypeCharBuilder :: PieceType -> B.Builder
+pieceTypeCharBuilder Queen  = B.char7 'q'
+pieceTypeCharBuilder Rook   = B.char7 'r'
+pieceTypeCharBuilder Bishop = B.char7 'b'
+pieceTypeCharBuilder Knight = B.char7 'n'
+pieceTypeCharBuilder _      = mempty
