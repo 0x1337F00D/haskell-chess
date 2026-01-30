@@ -2,7 +2,7 @@
 module Chess.Engine.Search (search) where
 
 import Data.Maybe (fromMaybe, isJust)
-import Data.List (sortOn)
+import Data.List (sortOn, foldl')
 import Data.IORef (IORef, newIORef, readIORef, modifyIORef')
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar, getNumCapabilities, newMVar, modifyMVar)
 import qualified Data.Vector.Mutable as VM
@@ -118,7 +118,7 @@ alphaBetaRoot ctx vBoard tt depth nodes = do
 
                     results <- mapConcurrently worker [1..caps]
 
-                    let (finalM, finalS) = foldl merge (bestMove, bestScore) (map fst results)
+                    let (finalM, finalS) = foldl' merge (bestMove, bestScore) (map fst results)
                     let totalNodes = sum (map snd results)
                     modifyIORef' nodes (+ totalNodes)
                     return (finalM, finalS)
