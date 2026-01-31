@@ -33,13 +33,9 @@ import Data.Bits (testBit, countTrailingZeros, (.|.))
 initialGame :: Game 'Standard 'Active
 initialGame =
   let b = initialBoard
-      cr = CastlingRights (castlingWhiteKingSide .|. castlingWhiteQueenSide .|. castlingBlackKingSide .|. castlingBlackQueenSide)
       ag = ActiveGame
            { internalBoard = toBaseBoard b
-           , castlingRights = cr
-           , enPassantTarget = Nothing
-           , halfMoveClock = 0
-           , fullMoveNumber = 1
+           , gameState = GS.initialGameState
            , variantState = ()
            , checkStatus = SSafe
            } :: ActiveGame 'Standard 'White 'Safe
@@ -54,32 +50,17 @@ gameFromFEN s = do
             T.White -> White
             T.Black -> Black
 
-      -- Map bitboard bits to CastlingRights bits
-      crVal = (if testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_H1) then castlingWhiteKingSide else 0) .|.
-              (if testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_A1) then castlingWhiteQueenSide else 0) .|.
-              (if testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_H8) then castlingBlackKingSide else 0) .|.
-              (if testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_A8) then castlingBlackQueenSide else 0)
-
-      cr = CastlingRights crVal
-
-      ep = case GS.epSquare gs of
-             Nothing -> Nothing
-             Just sq -> Just (getFile (fromBaseSquare sq))
-
-      hmc = GS.halfmoveClock gs
-      fmn = GS.fullmoveNumber gs
-
       checked = Val.isCheck baseBoard gs
       hasMoves = Val.hasLegalMoves baseBoard gs
 
   if hasMoves
     then case c of
       White -> if checked
-               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () SChecked :: ActiveGame 'Standard 'White 'Checked)
-               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () SSafe    :: ActiveGame 'Standard 'White 'Safe)
+               then return $ InProgressGame (ActiveGame baseBoard gs () SChecked :: ActiveGame 'Standard 'White 'Checked)
+               else return $ InProgressGame (ActiveGame baseBoard gs () SSafe    :: ActiveGame 'Standard 'White 'Safe)
       Black -> if checked
-               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () SChecked :: ActiveGame 'Standard 'Black 'Checked)
-               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn () SSafe    :: ActiveGame 'Standard 'Black 'Safe)
+               then return $ InProgressGame (ActiveGame baseBoard gs () SChecked :: ActiveGame 'Standard 'Black 'Checked)
+               else return $ InProgressGame (ActiveGame baseBoard gs () SSafe    :: ActiveGame 'Standard 'Black 'Safe)
     else Nothing
 
 instance ChessVariant 'Standard where

@@ -20,6 +20,7 @@ import Chess.Core.Move.Internal
 
 import qualified Chess.Types as T
 import qualified Chess.Board.Base as Base
+import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
@@ -85,6 +86,15 @@ instance ChessVariant 'Atomic where
                       EnPassantMove _ _ -> True
                       _ -> False
 
+        isPawn = case m of
+                   QuietMove _ _ pt -> pt == Pawn
+                   CaptureMove _ _ pt _ -> pt == Pawn
+                   EnPassantMove _ _ -> True
+                   PromotionMove _ _ _ -> True
+                   PromotionCaptureMove _ _ _ _ -> True
+                   DropMove pt _ -> pt == Pawn
+                   _ -> False
+
         bFinal = if isCapture
           then
             let center = to
@@ -129,16 +139,28 @@ instance ChessVariant 'Atomic where
             in Base.updateOccupancy b2
           else bBasic
 
-        newCR = updateCastlingRights (castlingRights ag) from to
+        gs = gameState ag
+        gsUpdated = updateCastlingRights gs m
 
         newEP = case m of
-                  QuietMove f t pt -> if pt == Pawn && isDoublePush f t then Just (getFile f) else Nothing
+                  QuietMove f t _ ->
+                    if isPawn && isDoublePush f t
+                    then Just (toSquare (Square (getFile f) (epRank (colorVal @(Opposite c)))))
+                    else Nothing
                   _ -> Nothing
 
-        newHMC = halfMoveClock ag + 1
-        newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
+        newHMC = if isPawn || isCapture then 0 else GS.halfmoveClock gs + 1
+        newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
 
-        nextAg = ActiveGame bFinal newCR newEP newHMC newFMN () SUnchecked
+        newGS = gsUpdated
+          { GS.turn = toColor (colorVal @(Opposite c))
+          , GS.epSquare = newEP
+          , GS.halfmoveClock = newHMC
+          , GS.fullmoveNumber = newFMN
+          , GS.zobristHash = 0
+          }
+
+        nextAg = ActiveGame bFinal newGS () SUnchecked
 
     in Transition nextAg
 

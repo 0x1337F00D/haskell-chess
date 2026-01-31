@@ -12,6 +12,7 @@ module Chess.Core.Game.Internal where
 
 import Chess.Core.Board.Internal
 import qualified Chess.Board.Base as Base
+import qualified Chess.Board.GameState as GS
 import Chess.Types (HalfmoveClock, FullmoveNumber)
 import Data.Word (Word8)
 import Data.Bits ((.|.), (.&.), complement, testBit, setBit, clearBit)
@@ -100,10 +101,7 @@ castlingBlackQueenSide = 0x8
 -- Indexed by the current turn, check status, and variant.
 data ActiveGame (v :: Variant) (turn :: Color) (status :: CheckStatus) = ActiveGame
   { internalBoard :: Base.Board
-  , castlingRights :: CastlingRights
-  , enPassantTarget :: Maybe File -- File of the pawn that moved two squares, if any
-  , halfMoveClock :: HalfmoveClock
-  , fullMoveNumber :: FullmoveNumber
+  , gameState :: GS.GameState
   , variantState :: VariantState v
   , checkStatus :: SCheckStatus status
   }

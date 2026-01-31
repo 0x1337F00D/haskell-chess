@@ -20,6 +20,7 @@ import Chess.Core.Move.Internal
 
 import qualified Chess.Types as T
 import qualified Chess.Board.Base as Base
+import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
 import Data.Bits (popCount)
 
@@ -27,14 +28,9 @@ import Data.Bits (popCount)
 antichessInitialGame :: Game 'Antichess 'Active
 antichessInitialGame =
   let b = initialBoard
-      -- Castling is not allowed in Antichess
-      cr = CastlingRights 0
       ag = ActiveGame
            { internalBoard = toBaseBoard b
-           , castlingRights = cr
-           , enPassantTarget = Nothing
-           , halfMoveClock = 0
-           , fullMoveNumber = 1
+           , gameState = GS.initialGameState { GS.castlingRights = 0 }
            , variantState = ()
            , checkStatus = SSafe
            } :: ActiveGame 'Antichess 'White 'Safe

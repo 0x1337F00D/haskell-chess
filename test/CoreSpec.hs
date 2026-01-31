@@ -17,18 +17,21 @@ import qualified Data.Map as Map
 import Data.Maybe (fromJust)
 import qualified Chess.Core.Board.Internal as CBI
 import qualified Chess.Board.Base as Base
-import Data.Bits ((.|.))
+import qualified Chess.Board.GameState as GS
+import qualified Chess.Bitboard as BB
+import qualified Chess.Types as T
+import Data.Bits ((.|.), (.&.))
 import Data.Word (Word8)
 
 unsafeViewBoard :: Base.Board -> CBI.Board
 unsafeViewBoard bb = fromJust (CBI.fromBaseBoard bb)
 
-mkCastlingRights :: Bool -> Bool -> Bool -> Bool -> CastlingRights
-mkCastlingRights wk wq bk bq = CastlingRights $
-    (if wk then castlingWhiteKingSide else 0) .|.
-    (if wq then castlingWhiteQueenSide else 0) .|.
-    (if bk then castlingBlackKingSide else 0) .|.
-    (if bq then castlingBlackQueenSide else 0)
+mkCastlingRights :: Bool -> Bool -> Bool -> Bool -> GS.CastlingRights
+mkCastlingRights wk wq bk bq =
+    (if wk then BB.BB_H1 else 0) .|.
+    (if wq then BB.BB_A1 else 0) .|.
+    (if bk then BB.BB_H8 else 0) .|.
+    (if bq then BB.BB_A8 else 0)
 
 spec :: Spec
 spec = describe "Core Architecture" $ do
@@ -117,10 +120,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard initialBoard
-               , castlingRights = mkCastlingRights True True True True
-               , enPassantTarget = Nothing
-               , halfMoveClock = 0
-               , fullMoveNumber = 1
+               , gameState = GS.initialGameState
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -140,10 +140,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard initialBoard
-               , castlingRights = mkCastlingRights True True True True
-               , enPassantTarget = Nothing
-               , halfMoveClock = 0
-               , fullMoveNumber = 1
+               , gameState = GS.initialGameState
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -168,10 +165,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , castlingRights = mkCastlingRights True False False False
-               , enPassantTarget = Nothing
-               , halfMoveClock = 0
-               , fullMoveNumber = 1
+               , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights True False False False }
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -193,10 +187,10 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , castlingRights = mkCastlingRights False False False False
-               , enPassantTarget = Just FileF
-               , halfMoveClock = 0
-               , fullMoveNumber = 1
+               , gameState = GS.initialGameState
+                   { GS.castlingRights = mkCastlingRights False False False False
+                   , GS.epSquare = Just (toSquare (Square FileF Rank6))
+                   }
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -219,10 +213,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Atomic 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , castlingRights = mkCastlingRights False False False False
-               , enPassantTarget = Nothing
-               , halfMoveClock = 0
-               , fullMoveNumber = 1
+               , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights False False False False }
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -248,10 +239,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'KingOfTheHill 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , castlingRights = mkCastlingRights False False False False
-               , enPassantTarget = Nothing
-               , halfMoveClock = 0
-               , fullMoveNumber = 1
+               , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights False False False False }
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -273,10 +261,7 @@ spec = describe "Core Architecture" $ do
         let ag :: ActiveGame 'RacingKings 'White 'Safe
             ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , castlingRights = mkCastlingRights False False False False
-               , enPassantTarget = Nothing
-               , halfMoveClock = 0
-               , fullMoveNumber = 1
+               , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights False False False False }
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -296,10 +281,7 @@ spec = describe "Core Architecture" $ do
        let ag :: ActiveGame 'RacingKings 'White 'Safe
            ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , castlingRights = mkCastlingRights False False False False
-               , enPassantTarget = Nothing
-               , halfMoveClock = 0
-               , fullMoveNumber = 1
+               , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights False False False False }
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -322,10 +304,7 @@ spec = describe "Core Architecture" $ do
        let ag :: ActiveGame 'ThreeCheck 'White 'Safe
            ag = ActiveGame
                 { internalBoard = toBaseBoard b
-                , castlingRights = mkCastlingRights False False False False
-                , enPassantTarget = Nothing
-                , halfMoveClock = 0
-                , fullMoveNumber = 1
+                , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights False False False False }
                 , variantState = (0, 0)
                 , checkStatus = SSafe
                 }
@@ -341,10 +320,7 @@ spec = describe "Core Architecture" $ do
        let agTwo :: ActiveGame 'ThreeCheck 'White 'Safe
            agTwo = ActiveGame
                 { internalBoard = toBaseBoard b
-                , castlingRights = mkCastlingRights False False False False
-                , enPassantTarget = Nothing
-                , halfMoveClock = 0
-                , fullMoveNumber = 1
+                , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights False False False False }
                 , variantState = (2, 0)
                 , checkStatus = SSafe
                 }
