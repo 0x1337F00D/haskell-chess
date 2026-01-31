@@ -1,7 +1,8 @@
+{-# LANGUAGE BangPatterns #-}
 module Chess.Engine.Evaluation (evaluate) where
 
 import qualified Data.Vector.Unboxed as U
-import Data.Bits (countTrailingZeros, clearBit)
+import Data.Bits (countTrailingZeros, clearBit, popCount)
 
 import Chess.Types
 import Chess.Bitboard
@@ -40,77 +41,79 @@ egValueQueen  = 936
 
 -- | Evaluate the board position from the perspective of the side to move.
 -- Now takes ValidatedBoard to ensure only legal states are evaluated.
+-- Inlined evalTerms to avoid tuple allocation and enable better optimization.
 evaluate :: ValidatedBoard -> Score
 evaluate vBoard =
     let (Board b gs _) = getBoard vBoard
-        (mgScore, egScore, phase) = evalTerms b
-        finalScore = ((mgScore * phase) + (egScore * (totalPhase - phase))) `div` totalPhase
-    in if turn gs == White then finalScore else -finalScore
 
--- | Calculate MG score, EG score, and Phase.
-evalTerms :: Base.Board -> (Score, Score, Int)
-evalTerms b =
-    let
-        -- Material Counts
-        wp = popcount (Base.whitePawns b)
-        wn = popcount (Base.whiteKnights b)
-        wb = popcount (Base.whiteBishops b)
-        wr = popcount (Base.whiteRooks b)
-        wq = popcount (Base.whiteQueens b)
-        bp = popcount (Base.blackPawns b)
-        bn = popcount (Base.blackKnights b)
-        bb = popcount (Base.blackBishops b)
-        br = popcount (Base.blackRooks b)
-        bq = popcount (Base.blackQueens b)
+        -- Material Counts (using popCount directly)
+        !wp = popCount (Base.whitePawns b)
+        !wn = popCount (Base.whiteKnights b)
+        !wb = popCount (Base.whiteBishops b)
+        !wr = popCount (Base.whiteRooks b)
+        !wq = popCount (Base.whiteQueens b)
+        !wk = popCount (Base.whiteKings b)
+        !bp = popCount (Base.blackPawns b)
+        !bn = popCount (Base.blackKnights b)
+        !bb = popCount (Base.blackBishops b)
+        !br = popCount (Base.blackRooks b)
+        !bq = popCount (Base.blackQueens b)
+        !bk = popCount (Base.blackKings b)
 
         -- Phase
-        phase = wn * phaseKnight + wb * phaseBishop + wr * phaseRook + wq * phaseQueen +
-                bn * phaseKnight + bb * phaseBishop + br * phaseRook + bq * phaseQueen
-        clampedPhase = min totalPhase (max 0 phase)
+        !phase = wn * phaseKnight + wb * phaseBishop + wr * phaseRook + wq * phaseQueen +
+                 bn * phaseKnight + bb * phaseBishop + br * phaseRook + bq * phaseQueen
+        !clampedPhase = min totalPhase (max 0 phase)
 
         -- Material Scores
-        mgMat = (wp * mgValuePawn + wn * mgValueKnight + wb * mgValueBishop + wr * mgValueRook + wq * mgValueQueen) -
-                (bp * mgValuePawn + bn * mgValueKnight + bb * mgValueBishop + br * mgValueRook + bq * mgValueQueen)
-        egMat = (wp * egValuePawn + wn * egValueKnight + wb * egValueBishop + wr * egValueRook + wq * egValueQueen) -
-                (bp * egValuePawn + bn * egValueKnight + bb * egValueBishop + br * egValueRook + bq * egValueQueen)
+        !mgMat = (wp * mgValuePawn + wn * mgValueKnight + wb * mgValueBishop + wr * mgValueRook + wq * mgValueQueen) -
+                 (bp * mgValuePawn + bn * mgValueKnight + bb * mgValueBishop + br * mgValueRook + bq * mgValueQueen)
+        !egMat = (wp * egValuePawn + wn * egValueKnight + wb * egValueBishop + wr * egValueRook + wq * egValueQueen) -
+                 (bp * egValuePawn + bn * egValueKnight + bb * egValueBishop + br * egValueRook + bq * egValueQueen)
 
         -- PST Scores
-        -- Note: mgTable is White table. mgTableFlip is Black table.
-        mgPST = evalPSTO (Base.whitePawns b)   mgPawnTable   +
-                evalPSTO (Base.whiteKnights b) mgKnightTable +
-                evalPSTO (Base.whiteBishops b) mgBishopTable +
-                evalPSTO (Base.whiteRooks b)   mgRookTable   +
-                evalPSTO (Base.whiteQueens b)  mgQueenTable  +
-                evalPSTO (Base.whiteKings b)   mgKingTable   -
-                evalPSTO (Base.blackPawns b)   mgPawnTableFlip   -
-                evalPSTO (Base.blackKnights b) mgKnightTableFlip -
-                evalPSTO (Base.blackBishops b) mgBishopTableFlip -
-                evalPSTO (Base.blackRooks b)   mgRookTableFlip   -
-                evalPSTO (Base.blackQueens b)  mgQueenTableFlip  -
-                evalPSTO (Base.blackKings b)   mgKingTableFlip
+        -- Computed strict and inline to avoid thunks/allocations
+        !mgPST = evalPSTO (Base.whitePawns b)   mgPawnTable   +
+                 evalPSTO (Base.whiteKnights b) mgKnightTable +
+                 evalPSTO (Base.whiteBishops b) mgBishopTable +
+                 evalPSTO (Base.whiteRooks b)   mgRookTable   +
+                 evalPSTO (Base.whiteQueens b)  mgQueenTable  +
+                 evalPSTO (Base.whiteKings b)   mgKingTable   -
+                 (evalPSTO (Base.blackPawns b)   mgPawnTableFlip   +
+                  evalPSTO (Base.blackKnights b) mgKnightTableFlip +
+                  evalPSTO (Base.blackBishops b) mgBishopTableFlip +
+                  evalPSTO (Base.blackRooks b)   mgRookTableFlip   +
+                  evalPSTO (Base.blackQueens b)  mgQueenTableFlip  +
+                  evalPSTO (Base.blackKings b)   mgKingTableFlip)
 
-        egPST = evalPSTO (Base.whitePawns b)   egPawnTable   +
-                evalPSTO (Base.whiteKnights b) egKnightTable +
-                evalPSTO (Base.whiteBishops b) egBishopTable +
-                evalPSTO (Base.whiteRooks b)   egRookTable   +
-                evalPSTO (Base.whiteQueens b)  egQueenTable  +
-                evalPSTO (Base.whiteKings b)   egKingTable   -
-                evalPSTO (Base.blackPawns b)   egPawnTableFlip   -
-                evalPSTO (Base.blackKnights b) egKnightTableFlip -
-                evalPSTO (Base.blackBishops b) egBishopTableFlip -
-                evalPSTO (Base.blackRooks b)   egRookTableFlip   -
-                evalPSTO (Base.blackQueens b)  egQueenTableFlip  -
-                evalPSTO (Base.blackKings b)   egKingTableFlip
+        !egPST = evalPSTO (Base.whitePawns b)   egPawnTable   +
+                 evalPSTO (Base.whiteKnights b) egKnightTable +
+                 evalPSTO (Base.whiteBishops b) egBishopTable +
+                 evalPSTO (Base.whiteRooks b)   egRookTable   +
+                 evalPSTO (Base.whiteQueens b)  egQueenTable  +
+                 evalPSTO (Base.whiteKings b)   egKingTable   -
+                 (evalPSTO (Base.blackPawns b)   egPawnTableFlip   +
+                  evalPSTO (Base.blackKnights b) egKnightTableFlip +
+                  evalPSTO (Base.blackBishops b) egBishopTableFlip +
+                  evalPSTO (Base.blackRooks b)   egRookTableFlip   +
+                  evalPSTO (Base.blackQueens b)  egQueenTableFlip  +
+                  evalPSTO (Base.blackKings b)   egKingTableFlip)
 
-    in (mgMat + mgPST, egMat + egPST, clampedPhase)
+        !mgScore = mgMat + mgPST
+        !egScore = egMat + egPST
+
+        !finalScore = ((mgScore * clampedPhase) + (egScore * (totalPhase - clampedPhase))) `div` totalPhase
+    in if turn gs == White then finalScore else -finalScore
 
 evalPSTO :: Bitboard -> U.Vector Score -> Score
+{-# INLINE evalPSTO #-}
 evalPSTO bb table = go bb 0
   where
-    go 0 acc = acc
-    go b acc =
+    go :: Bitboard -> Int -> Int
+    go 0 !acc = acc
+    go b !acc =
         let i = countTrailingZeros b
-            score = table `U.unsafeIndex` i
+            !score = table `U.unsafeIndex` i
         in go (clearBit b i) (acc + score)
 
 -- | Flip a PSTO table for Black (mirror ranks).
@@ -292,4 +295,3 @@ egBishopTableFlip = rawEgBishopTable
 egRookTableFlip   = rawEgRookTable
 egQueenTableFlip  = rawEgQueenTable
 egKingTableFlip   = rawEgKingTable
-
