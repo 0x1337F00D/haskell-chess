@@ -2,7 +2,7 @@
 module Chess.Engine.Search (search) where
 
 import Data.Maybe (fromMaybe, isJust)
-import Data.List (sortOn, foldl')
+import Data.List (sortOn, foldl', partition)
 import Data.IORef (IORef, newIORef, readIORef, modifyIORef')
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar, getNumCapabilities, newMVar, modifyMVar)
 import qualified Data.Vector.Mutable as VM
@@ -16,6 +16,7 @@ import Chess.Board (Board(..), applyMove, isCheck, uci, GenMove(..)
 import qualified Chess.Board.GameState as GS
 import Chess.Engine.Evaluation (evaluate)
 import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
+import Chess.Engine.SEE (see)
 
 -- | Search Constants
 infinity :: Int
@@ -29,6 +30,7 @@ mateValue = 20000
 data SearchContext = SearchContext
     { ctxKillers :: !(VM.IOVector Move) -- 2 killers per ply * maxDepth
     , ctxHistory :: !(UM.IOVector Int)  -- 64*64 = 4096
+    , ctxCounterMove :: !(VM.IOVector Move) -- 64*64 = 4096
     , ctxMaxDepth :: !Int
     }
 
@@ -42,8 +44,10 @@ search board tt maxDepthInt = do
     -- Killers: 2 per ply. Let's assume max depth 128. Size = 128 * 2 = 256.
     killers <- VM.replicate 256 nullMove
     -- History: 64 * 64 = 4096.
-    history <- UM.replicate 4096 0
-    let ctx = SearchContext killers history 128
+    historyVec <- UM.replicate 4096 0
+    -- Counter Moves: 64 * 64 = 4096.
+    counterMove <- VM.replicate 4096 nullMove
+    let ctx = SearchContext killers historyVec counterMove 128
 
     let vBoard = trustBoard board
     let loop depth bestM
@@ -70,13 +74,13 @@ alphaBetaRoot ctx vBoard tt depth nodes = do
     ttEntry <- probeTT tt hash
     let ttMove = case ttEntry of Just (m, _, _, _) -> Just m; Nothing -> Nothing
 
-    let sortedMoves = orderGenMoves moves ttMove
+    let sortedMoves = orderGenMoves vBoard moves ttMove
 
     case sortedMoves of
         [] -> return (nullMove, 0) -- Should not happen if game not over
         (lm:lms) -> do
             let gm = getGenMove lm
-            score <- alphaBeta ctx (applyLegalMove vBoard lm) tt (decDepth depth) (-infinity) infinity True nodes
+            score <- alphaBeta ctx (applyLegalMove vBoard lm) tt (Just (getMove gm)) (decDepth depth) (-infinity) infinity True nodes
             let bestMove = getMove gm
             let bestScore = -score
 
@@ -103,14 +107,12 @@ alphaBetaRoot ctx vBoard tt depth nodes = do
                                         Just lmWorker -> do
                                             let gmWorker = getGenMove lmWorker
                                             -- search gm
-                                            s <- alphaBeta ctx (applyLegalMove vBoard lmWorker) tt (decDepth depth) (-infinity) (-bestScore) True localNodes
+                                            s <- alphaBeta ctx (applyLegalMove vBoard lmWorker) tt (Just (getMove gmWorker)) (decDepth depth) (-infinity) (-bestScore) True localNodes
                                             let searchScore = -s
 
                                             let newBestRes = case bestRes of
                                                     Nothing -> Just (getMove gmWorker, searchScore)
                                                     Just (_, bs) -> if searchScore > bs then Just (getMove gmWorker, searchScore) else bestRes
-                                                    Nothing -> Just (getMove gmWorker, score)
-                                                    Just (_, bs) -> if score > bs then Just (getMove gmWorker, score) else bestRes
 
                                             loop newBestRes
 
@@ -132,7 +134,7 @@ alphaBetaRoot ctx vBoard tt depth nodes = do
         let gm = getGenMove lm
         -- PVS: Search with null window first if we found a good move
         let newAlpha = max alpha bestScore
-        s <- alphaBeta ctx (applyLegalMove vBoard lm) tt (decDepth depth) (-beta) (-newAlpha) True nodes
+        s <- alphaBeta ctx (applyLegalMove vBoard lm) tt (Just (getMove gm)) (decDepth depth) (-beta) (-newAlpha) True nodes
         let score = -s
 
         if score > bestScore
@@ -157,8 +159,8 @@ mapConcurrently f xs = do
     mapM takeMVar vars
 
 -- | Alpha-Beta Search
-alphaBeta :: SearchContext -> ValidatedBoard -> TT -> Depth -> Int -> Int -> Bool -> IORef Int -> IO Int
-alphaBeta ctx vBoard tt depth alpha beta canNull nodes = do
+alphaBeta :: SearchContext -> ValidatedBoard -> TT -> Maybe Move -> Depth -> Int -> Int -> Bool -> IORef Int -> IO Int
+alphaBeta ctx vBoard tt lastMove depth alpha beta canNull nodes = do
     modifyIORef' nodes (+1)
     let board = getBoard vBoard
     let hash = GS.zobristHash (state board)
@@ -199,7 +201,7 @@ alphaBeta ctx vBoard tt depth alpha beta canNull nodes = do
                              let nullVB = trustBoard nullB -- Assuming null move is safe if inCheck is false
                              -- depth - 1 - r
                              let d' = depth `minusDepth` depthOne `minusDepth` r
-                             score <- alphaBeta ctx nullVB tt d' (-beta) (-beta + 1) False nodes
+                             score <- alphaBeta ctx nullVB tt Nothing d' (-beta) (-beta + 1) False nodes
                              return (if -score >= beta then Just beta else Nothing)
                          else return Nothing
 
@@ -221,7 +223,7 @@ alphaBeta ctx vBoard tt depth alpha beta canNull nodes = do
                                         let lm = Chess.Board.mkLegalMove gm
                                         let newVBoard = applyLegalMove vBoard lm
 
-                                        s <- alphaBeta ctx newVBoard tt (decDepth depth) (-beta) (-alpha) True nodes
+                                        s <- alphaBeta ctx newVBoard tt (Just ttM) (decDepth depth) (-beta) (-alpha) True nodes
                                         let score = -s
 
                                         if score >= beta
@@ -242,20 +244,21 @@ alphaBeta ctx vBoard tt depth alpha beta canNull nodes = do
                         let filterTT ms = if searchedTT then filter (\lm -> getMove (getGenMove lm) /= ttM) ms else ms
                         let sortingTT = if searchedTT then Nothing else Just ttM
 
-                        -- Stage 1: Captures
+                        -- Stage 1: Captures (Good)
                         let captures = captureMovesValidated vBoard
-                        let sortedCaptures = orderGenMoves (filterTT captures) sortingTT
+                        let (goodCaps, badCaps) = partitionSEE vBoard captures
+                        let sortedGood = orderGenMoves vBoard (filterTT goodCaps) sortingTT
 
-                        (score1, flag1, bestM1, found1, alpha1) <- searchStage sortedCaptures alpha0 beta depth flag0 score0 bestM0 found0
+                        (score1, flag1, bestM1, found1, alpha1) <- searchStage sortedGood (0 :: Int) inCheck alpha0 beta depth flag0 score0 bestM0 found0
 
                         if score1 >= beta
                         then storeAndReturn score1 bestM1 TTLower
                         else do
-                            -- Stage 2: Promotions (Quiet)
-                            let promotions = legalPromotionsValidated vBoard
-                            let sortedPromotions = orderGenMoves (filterTT promotions) sortingTT
+                            -- Stage 2: Promotions (Quiet only)
+                            let promotions = filter (not . isCapture) (legalPromotionsValidated vBoard)
+                            let sortedPromotions = orderGenMoves vBoard (filterTT promotions) sortingTT
 
-                            (score2, flag2, bestM2, found2, alpha2) <- searchStage sortedPromotions alpha1 beta depth flag1 score1 bestM1 found1
+                            (score2, flag2, bestM2, found2, alpha2) <- searchStage sortedPromotions (0 :: Int) inCheck alpha1 beta depth flag1 score1 bestM1 found1
 
                             if score2 >= beta
                             then storeAndReturn score2 bestM2 TTLower
@@ -263,13 +266,21 @@ alphaBeta ctx vBoard tt depth alpha beta canNull nodes = do
                                 -- Stage 3: Quiets
                                 let quiets = legalQuietsValidated vBoard
                                 killers <- getKillers ctx depth
-                                sortedQuiets <- orderQuiets ctx (filterTT quiets) killers sortingTT
+                                counterMove <- getCounterMove ctx lastMove
+                                sortedQuiets <- orderQuiets ctx (filterTT quiets) killers counterMove sortingTT
 
-                                (score3, flag3, bestM3, found3, _) <- searchStage sortedQuiets alpha2 beta depth flag2 score2 bestM2 found2
+                                (score3, flag3, bestM3, found3, alpha3) <- searchStage sortedQuiets (0 :: Int) inCheck alpha2 beta depth flag2 score2 bestM2 found2
 
-                                if not found3 -- No moves found (Checkmate or Stalemate)
-                                then return $ if inCheck then -mateValue + (100 - unDepth depth) else 0
-                                else storeAndReturn score3 bestM3 flag3
+                                if score3 >= beta
+                                then storeAndReturn score3 bestM3 flag3
+                                else do
+                                    -- Stage 4: Captures (Bad)
+                                    let sortedBad = orderGenMoves vBoard (filterTT badCaps) sortingTT
+                                    (score4, flag4, bestM4, found4, _) <- searchStage sortedBad (0 :: Int) inCheck alpha3 beta depth flag3 score3 bestM3 found3
+
+                                    if not found4 -- No moves found (Checkmate or Stalemate)
+                                    then return $ if inCheck then -mateValue + (100 - unDepth depth) else 0
+                                    else storeAndReturn score4 bestM4 flag4
 
   where
     storeAndReturn s m f = do
@@ -278,8 +289,8 @@ alphaBeta ctx vBoard tt depth alpha beta canNull nodes = do
         storeTT tt hash depth s f m
         return s
 
-    searchStage [] a _ _ flag bestScore bestM found = return (bestScore, flag, bestM, found, a)
-    searchStage (lm:lms) a b d flag bestScore bestM _ = do
+    searchStage [] _ _ a _ _ flag bestScore bestM found = return (bestScore, flag, bestM, found, a)
+    searchStage (lm:lms) !index inCheck a b d flag bestScore bestM _ = do
         let gm = getGenMove lm
         let m = getMove gm
         let isCap = Chess.Board.isCapture lm
@@ -290,20 +301,20 @@ alphaBeta ctx vBoard tt depth alpha beta canNull nodes = do
         -- PVS
         score <- if bestScore == -infinity -- First move
                  then do
-                     s <- alphaBeta ctx newVBoard tt (decDepth d) (-b) (-a) True nodes
+                     s <- alphaBeta ctx newVBoard tt (Just m) (decDepth d) (-b) (-a) True nodes
                      return (-s)
                  else do
                      -- Late Move Reduction?
                      -- If quiet, depth > 2, not checking, etc.
-                     let lmr = if d >= mkDepth 3 && not isCap && not isProm -- && index > ...
+                     let lmr = if d >= mkDepth 3 && not isCap && not isProm && index >= 3 && not inCheck
                                then depthOne else depthZero
                      let d' = d `minusDepth` depthOne `minusDepth` lmr
 
-                     s <- alphaBeta ctx newVBoard tt d' (-a - 1) (-a) True nodes -- Null window
+                     s <- alphaBeta ctx newVBoard tt (Just m) d' (-a - 1) (-a) True nodes -- Null window
                      if s > a && s < b
                      then do
                          -- Re-search with full window
-                         s2 <- alphaBeta ctx newVBoard tt (decDepth d) (-b) (-a) True nodes
+                         s2 <- alphaBeta ctx newVBoard tt (Just m) (decDepth d) (-b) (-a) True nodes
                          return (-s2)
                      else return (-s)
 
@@ -318,9 +329,10 @@ alphaBeta ctx vBoard tt depth alpha beta canNull nodes = do
              then do
                  updateKillers ctx d m
                  updateHistory ctx d m
+                 updateCounterMove ctx lastMove m
              else return ()
              return (score, TTLower, m, True, newAlpha) -- Fail high
-        else searchStage lms newAlpha b d newFlag newBestScore newBestM True
+        else searchStage lms (index + 1) inCheck newAlpha b d newFlag newBestScore newBestM True
 
     getMove (GenQuiet f t _) = Move f t Nothing
     getMove (GenCapture f t _ _) = Move f t Nothing
@@ -362,14 +374,40 @@ updateHistory ctx depth (Move f t _) = do
     UM.unsafeWrite (ctxHistory ctx) idx (v + bonus)
 updateHistory _ _ _ = return ()
 
-orderQuiets :: SearchContext -> [LegalMove] -> [Move] -> Maybe Move -> IO [LegalMove]
-orderQuiets ctx quiets killers ttM = do
-    let (kMoves, others) = partitionKillers quiets killers
+updateCounterMove :: SearchContext -> Maybe Move -> Move -> IO ()
+updateCounterMove _ Nothing _ = return ()
+updateCounterMove ctx (Just prevM) m = do
+    if isNullMove prevM then return () else do
+        let idx = moveToIndex prevM
+        if idx >= 0 && idx < 4096 then
+            VM.unsafeWrite (ctxCounterMove ctx) idx m
+        else return ()
 
-    scoredOthers <- mapM (\lm -> do s <- scoreHistory ctx lm; return (lm, s)) others
+getCounterMove :: SearchContext -> Maybe Move -> IO (Maybe Move)
+getCounterMove _ Nothing = return Nothing
+getCounterMove ctx (Just prevM) = do
+    if isNullMove prevM then return Nothing else do
+        let idx = moveToIndex prevM
+        if idx >= 0 && idx < 4096 then do
+            m <- VM.unsafeRead (ctxCounterMove ctx) idx
+            if isNullMove m then return Nothing else return (Just m)
+        else return Nothing
+
+moveToIndex :: Move -> Int
+moveToIndex (Move f t _) = (unSquare f) * 64 + (unSquare t)
+moveToIndex _ = -1
+
+orderQuiets :: SearchContext -> [LegalMove] -> [Move] -> Maybe Move -> Maybe Move -> IO [LegalMove]
+orderQuiets ctx quiets killers counterMove ttM = do
+    let (kMoves, others) = partitionKillers quiets killers
+    let (cmMoves, others2) = case counterMove of
+            Nothing -> ([], others)
+            Just cm -> partitionCounterMove others cm
+
+    scoredOthers <- mapM (\lm -> do s <- scoreHistory ctx lm; return (lm, s)) others2
     let sortedOthers = map fst $ sortOn (negate . snd) scoredOthers
 
-    let combined = kMoves ++ sortedOthers
+    let combined = kMoves ++ cmMoves ++ sortedOthers
 
     let filtered = case ttM of
             Nothing -> combined
@@ -379,6 +417,14 @@ orderQuiets ctx quiets killers ttM = do
     getMove (GenQuiet f t _) = Move f t Nothing
     getMove (GenCastling f t) = Move f t Nothing
     getMove _ = nullMove -- Should not happen for quiets
+
+partitionCounterMove :: [LegalMove] -> Move -> ([LegalMove], [LegalMove])
+partitionCounterMove lms cm = foldr part ([], []) lms
+  where
+    part lm (c, o) = if getMove (getGenMove lm) == cm then (lm:c, o) else (c, lm:o)
+    getMove (GenQuiet f t _) = Move f t Nothing
+    getMove (GenCastling f t) = Move f t Nothing
+    getMove _ = nullMove
 
 partitionKillers :: [LegalMove] -> [Move] -> ([LegalMove], [LegalMove])
 partitionKillers lms ks = foldr part ([], []) lms
@@ -429,7 +475,7 @@ quiescence vBoard tt alpha beta nodes = do
         let caps = captureMovesValidated vBoard
         let proms = legalPromotionsValidated vBoard
         let allMoves = caps ++ proms
-        let sortedMoves = orderGenMoves allMoves Nothing
+        let sortedMoves = orderGenMoves vBoard allMoves Nothing
 
         go sortedMoves a
   where
@@ -443,16 +489,18 @@ quiescence vBoard tt alpha beta nodes = do
         else go lms (max a score)
 
 -- | Move Ordering
-orderGenMoves :: [LegalMove] -> Maybe Move -> [LegalMove]
-orderGenMoves moves Nothing =
-    let (capProms, caps, proms, quiets) = partition moves
+orderGenMoves :: ValidatedBoard -> [LegalMove] -> Maybe Move -> [LegalMove]
+orderGenMoves vBoard moves ttM =
+    let board = pieces (getBoard vBoard)
+        (ttMoves, rest) = case ttM of
+            Nothing -> ([], moves)
+            Just tm -> foldr (\lm (t, o) -> if getMove (getGenMove lm) == tm then (lm:t, o) else (t, lm:o)) ([], []) moves
+
+        (capProms, capsAll, proms, quiets) = partitionMoves rest
+        (goodCaps, badCaps) = partition (\lm -> see board (getMove (getGenMove lm)) >= 0) capsAll
+
         sortDesc = sortOn (negate . scoreMove . getGenMove)
-    in sortDesc capProms ++ sortDesc caps ++ sortDesc proms ++ quiets
-orderGenMoves moves (Just ttM) =
-    let (ttMoves, others) = foldr (\lm (t, o) -> if getMove (getGenMove lm) == ttM then (lm:t, o) else (t, lm:o)) ([], []) moves
-        (capProms, caps, proms, quiets) = partition others
-        sortDesc = sortOn (negate . scoreMove . getGenMove)
-    in ttMoves ++ sortDesc capProms ++ sortDesc caps ++ sortDesc proms ++ quiets
+    in ttMoves ++ sortDesc capProms ++ sortDesc goodCaps ++ sortDesc proms ++ quiets ++ sortDesc badCaps
   where
     getMove (GenQuiet f t _) = Move f t Nothing
     getMove (GenCapture f t _ _) = Move f t Nothing
@@ -476,8 +524,24 @@ pieceValue Rook = 5
 pieceValue Queen = 9
 pieceValue King = 100
 
-partition :: [LegalMove] -> ([LegalMove], [LegalMove], [LegalMove], [LegalMove])
-partition moves = foldr part ([], [], [], []) moves
+partitionSEE :: ValidatedBoard -> [LegalMove] -> ([LegalMove], [LegalMove])
+partitionSEE vb moves = partition isGood moves
+  where
+    b = pieces (getBoard vb)
+    isGood lm = case getGenMove lm of
+        GenPromotionCapture {} -> True
+        GenEnPassant {} -> True
+        GenCapture {} -> see b (getMove (getGenMove lm)) >= 0
+        _ -> True
+    getMove (GenQuiet f t _) = Move f t Nothing
+    getMove (GenCapture f t _ _) = Move f t Nothing
+    getMove (GenEnPassant f t) = Move f t Nothing
+    getMove (GenCastling f t) = Move f t Nothing
+    getMove (GenPromotion f t p) = Move f t (Just p)
+    getMove (GenPromotionCapture f t p _) = Move f t (Just p)
+
+partitionMoves :: [LegalMove] -> ([LegalMove], [LegalMove], [LegalMove], [LegalMove])
+partitionMoves moves = foldr part ([], [], [], []) moves
   where
     part lm (cp, c, p, q) = case getGenMove lm of
         GenPromotionCapture {} -> (lm:cp, c, p, q)
