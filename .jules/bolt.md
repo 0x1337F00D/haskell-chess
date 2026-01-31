@@ -25,3 +25,7 @@
 ## 2026-01-29 – [ApplyMove Optimization]
 **Learning:** `Chess.Core.Rules.Common.applyMoveBase` was performing two bitboard updates (remove + put) for every move, even for quiet moves. Each update involved multiple bitwise operations and record updates. `Chess.Board.MoveGen` already had a fast path (`movePieceFast`) using XOR masks.
 **Action:** Implemented `unsafeMovePiece` in `Chess.Board.Base` using XOR masks to perform move updates in a single pass. Refactored `applyMoveBase` to use this for `QuietMove` and `CaptureMove`. Measured ~4.5% speedup on KiwiPete perft in `bench-core`.
+
+## 2026-01-31 – [Manual Record Fusion vs Straight-line Updates]
+**Learning:** Attempted to fuse 'remove piece' and 'move piece' operations in 'applyMoveBoardFast' to reduce 'Board' allocations. The resulting function required complex conditional dispatch (12 checks) to construct the record in one go. This proved *slower* (Time doubled) and increased allocation slightly (intermediates?), compared to the original sequential updates. Straight-line updates with simple logic are often better optimized by GHC.
+**Action:** Avoid manual fusion of record updates if it introduces significant branching. Trust GHC to optimize sequential updates or accept the small allocation cost for simpler control flow.
