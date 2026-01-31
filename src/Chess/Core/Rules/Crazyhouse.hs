@@ -37,20 +37,6 @@ crazyhouseGameFromFEN s = do
             T.White -> White
             T.Black -> Black
 
-      crVal = (if testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_H1) then castlingWhiteKingSide else 0) .|.
-              (if testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_A1) then castlingWhiteQueenSide else 0) .|.
-              (if testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_H8) then castlingBlackKingSide else 0) .|.
-              (if testBit (GS.castlingRights gs) (countTrailingZeros BB.BB_A8) then castlingBlackQueenSide else 0)
-
-      cr = CastlingRights crVal
-
-      ep = case GS.epSquare gs of
-             Nothing -> Nothing
-             Just sq -> Just (getFile (fromBaseSquare sq))
-
-      hmc = GS.halfmoveClock gs
-      fmn = GS.fullmoveNumber gs
-
       -- Parse pockets
       pocketStr = case filter (\x -> not (null x) && head x == '[') extra of
                     (p:_) -> p
@@ -109,13 +95,13 @@ crazyhouseGameFromFEN s = do
   case c of
       White -> if hasMoves @'White
                then if checked
-                    then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs SChecked :: ActiveGame 'Crazyhouse 'White 'Checked)
-                    else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs SSafe    :: ActiveGame 'Crazyhouse 'White 'Safe)
+                    then return $ InProgressGame (ActiveGame baseBoard gs vs SChecked :: ActiveGame 'Crazyhouse 'White 'Checked)
+                    else return $ InProgressGame (ActiveGame baseBoard gs vs SSafe    :: ActiveGame 'Crazyhouse 'White 'Safe)
                else Nothing
       Black -> if hasMoves @'Black
                then if checked
-                    then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs SChecked :: ActiveGame 'Crazyhouse 'Black 'Checked)
-                    else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn vs SSafe    :: ActiveGame 'Crazyhouse 'Black 'Safe)
+                    then return $ InProgressGame (ActiveGame baseBoard gs vs SChecked :: ActiveGame 'Crazyhouse 'Black 'Checked)
+                    else return $ InProgressGame (ActiveGame baseBoard gs vs SSafe    :: ActiveGame 'Crazyhouse 'Black 'Safe)
                else Nothing
 
 instance ChessVariant 'Crazyhouse where
@@ -233,9 +219,8 @@ instance ChessVariant 'Crazyhouse where
 
               in (pockets', p3)
 
-        newCR = case m of
-                  DropMove _ _ -> castlingRights ag
-                  _ -> updateCastlingRights (castlingRights ag) from to
+        gs = gameState ag
+        gsUpdated = updateCastlingRights gs m
 
         isPawn = case m of
                    QuietMove _ _ pt -> pt == Pawn
@@ -245,8 +230,12 @@ instance ChessVariant 'Crazyhouse where
                    PromotionCaptureMove _ _ _ _ -> True
                    DropMove pt _ -> pt == Pawn
                    _ -> False
+
         newEP = case m of
-                  QuietMove f t _ -> if isPawn && isDoublePush f t then Just (getFile f) else Nothing
+                  QuietMove f t _ ->
+                    if isPawn && isDoublePush f t
+                    then Just (toSquare (Square (getFile f) (epRank (colorVal @(Opposite c)))))
+                    else Nothing
                   _ -> Nothing
 
         isCapture = case m of
@@ -256,12 +245,20 @@ instance ChessVariant 'Crazyhouse where
                       _ -> False
 
         resetClock = isPawn || isCapture
-        newHMC = if resetClock then 0 else halfMoveClock ag + 1
-        newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
+        newHMC = if resetClock then 0 else GS.halfmoveClock gs + 1
+        newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
+
+        newGS = gsUpdated
+          { GS.turn = toColor (colorVal @(Opposite c))
+          , GS.epSquare = newEP
+          , GS.halfmoveClock = newHMC
+          , GS.fullmoveNumber = newFMN
+          , GS.zobristHash = 0
+          }
 
         newState = CrazyhouseState wPocket' bPocket' promoted'
 
-        nextAg = ActiveGame internalB' newCR newEP newHMC newFMN newState SUnchecked
+        nextAg = ActiveGame internalB' newGS newState SUnchecked
 
     in Transition nextAg
 

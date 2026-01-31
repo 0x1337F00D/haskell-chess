@@ -73,15 +73,17 @@ hordeInitialGame =
 
       -- Castling Rights: Black only (King Side + Queen Side)
       -- White has no King, so no castling rights.
-      -- Bit 2: Black King Side, Bit 3: Black Queen Side
-      cr = CastlingRights (castlingBlackKingSide .|. castlingBlackQueenSide)
+      -- Black Rooks at A8 (56) and H8 (63).
+      crBB = BB.BB_A8 .|. BB.BB_H8
+
+      gs = GS.initialGameState
+           { GS.castlingRights = crBB
+           , GS.turn = T.White
+           }
 
       ag = ActiveGame
            { internalBoard = baseBoard
-           , castlingRights = cr
-           , enPassantTarget = Nothing
-           , halfMoveClock = 0
-           , fullMoveNumber = 1
+           , gameState = gs
            , variantState = ()
            , checkStatus = SSafe
            } :: ActiveGame 'Horde 'White 'Safe
@@ -140,7 +142,8 @@ instance ChessVariant 'Horde where
                        DropMove _ t -> (t, t)
                        Castling960Move _ _ -> error "Castling960Move invalid in Horde"
 
-        newCR = updateCastlingRights (castlingRights ag) from to
+        gs = gameState ag
+        gsUpdated = updateCastlingRights gs m
 
         isPawn = case m of
                    QuietMove _ _ pt -> pt == Pawn
@@ -156,10 +159,10 @@ instance ChessVariant 'Horde where
                       if isPawn
                       then
                           if isDoublePush f t
-                          then Just (getFile f)
+                          then Just (toSquare (Square (getFile f) (epRank (colorVal @(Opposite c)))))
                           -- Horde Special: Rank 1 Double Push
                           else if c == White && (fromEnum (getRank f) == 0) && (fromEnum (getRank t) == 2)
-                               then Just (getFile f)
+                               then Just (toSquare (Square (getFile f) Rank2))
                                else Nothing
                       else Nothing
                   _ -> Nothing
@@ -170,10 +173,18 @@ instance ChessVariant 'Horde where
                       EnPassantMove _ _ -> True
                       _ -> False
 
-        newHMC = if isPawn || isCapture then 0 else halfMoveClock ag + 1
-        newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
+        newHMC = if isPawn || isCapture then 0 else GS.halfmoveClock gs + 1
+        newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
 
-        nextAg = ActiveGame internalB' newCR newEP newHMC newFMN () SUnchecked
+        newGS = gsUpdated
+          { GS.turn = toColor (colorVal @(Opposite c))
+          , GS.epSquare = newEP
+          , GS.halfmoveClock = newHMC
+          , GS.fullmoveNumber = newFMN
+          , GS.zobristHash = 0
+          }
+
+        nextAg = ActiveGame internalB' newGS () SUnchecked
 
     in Transition nextAg
 

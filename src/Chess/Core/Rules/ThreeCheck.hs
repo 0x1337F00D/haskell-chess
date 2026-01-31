@@ -47,22 +47,38 @@ instance ChessVariant 'ThreeCheck where
                        DropMove _ t -> (t, t)
                        Castling960Move _ _ -> error "Castling960Move invalid in ThreeCheck"
 
-        newCR = updateCastlingRights (castlingRights ag) from to
+        gs = gameState ag
+        gsUpdated = updateCastlingRights gs m
+
+        isPawn = case m of
+                   QuietMove _ _ pt -> pt == Pawn
+                   CaptureMove _ _ pt _ -> pt == Pawn
+                   EnPassantMove _ _ -> True
+                   PromotionMove _ _ _ -> True
+                   PromotionCaptureMove _ _ _ _ -> True
+                   DropMove pt _ -> pt == Pawn
+                   _ -> False
+
+        isCapture = case m of
+                      CaptureMove {} -> True
+                      PromotionCaptureMove {} -> True
+                      EnPassantMove _ _ -> True
+                      _ -> False
 
         newEP = case m of
-                  QuietMove f t pt -> if pt == Pawn && isDoublePush f t then Just (getFile f) else Nothing
+                  QuietMove f t _ ->
+                    if isPawn && isDoublePush f t
+                    then Just (toSquare (Square (getFile f) (epRank (colorVal @(Opposite c)))))
+                    else Nothing
                   _ -> Nothing
 
-        newHMC = halfMoveClock ag + 1
-        newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
+        newHMC = if isPawn || isCapture then 0 else GS.halfmoveClock gs + 1
+        newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
 
         baseBoard = internalB'
-        nextTurnGS = GS.GameState
+        nextTurnGS = gsUpdated
           { GS.turn = toColor oppC
-          , GS.castlingRights = toCastlingRights newCR
-          , GS.epSquare = case newEP of
-                            Nothing -> Nothing
-                            Just f -> Just (toSquare (Square f (epRank oppC)))
+          , GS.epSquare = newEP
           , GS.halfmoveClock = newHMC
           , GS.fullmoveNumber = newFMN
           , GS.zobristHash = 0
@@ -78,8 +94,8 @@ instance ChessVariant 'ThreeCheck where
         newVariantState = (wChecks', bChecks')
 
     in if isChecked
-       then Transition (ActiveGame internalB' newCR newEP newHMC newFMN newVariantState SChecked)
-       else Transition (ActiveGame internalB' newCR newEP newHMC newFMN newVariantState SSafe)
+       then Transition (ActiveGame internalB' nextTurnGS newVariantState SChecked)
+       else Transition (ActiveGame internalB' nextTurnGS newVariantState SSafe)
 
   executeMove (m :: Move c) (ag :: ActiveGame 'ThreeCheck c s) =
     case applyMove m ag of

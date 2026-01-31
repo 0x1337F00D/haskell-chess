@@ -132,27 +132,11 @@ toBaseBoard b = Base.Board
 
 -- | Convert ActiveGame to Engine GameState
 toGameState :: forall v c s. KnownColor c => ActiveGame v c s -> GS.GameState
-toGameState ag = GS.GameState
-  { GS.turn = toColor (colorVal @c)
-  , GS.castlingRights = toCastlingRights (castlingRights ag)
-  , GS.epSquare = case enPassantTarget ag of
-                    Nothing -> Nothing
-                    Just f -> Just (toSquare (Square f (epRank (colorVal @c))))
-  , GS.halfmoveClock = halfMoveClock ag
-  , GS.fullmoveNumber = fullMoveNumber ag
-  , GS.zobristHash = 0
-  }
+toGameState ag = gameState ag
 
 epRank :: Color -> Rank
 epRank White = Rank6
 epRank Black = Rank3
-
-toCastlingRights :: CastlingRights -> GS.CastlingRights
-toCastlingRights (CastlingRights cr) =
-  (if testBit cr 0 then BB.BB_H1 else 0) .|. -- White King Side (Bit 0) -> H1
-  (if testBit cr 1 then BB.BB_A1 else 0) .|. -- White Queen Side (Bit 1) -> A1
-  (if testBit cr 2 then BB.BB_H8 else 0) .|. -- Black King Side (Bit 2) -> H8
-  (if testBit cr 3 then BB.BB_A8 else 0)     -- Black Queen Side (Bit 3) -> A8
 
 -- | Check if side `c` is in check.
 isCheck :: Board -> Color -> Bool
@@ -211,34 +195,35 @@ isDoublePush _ _ = False
 getFile :: Square -> File
 getFile (Square f _) = f
 
-updateCastlingRights :: CastlingRights -> Square -> Square -> CastlingRights
-updateCastlingRights (CastlingRights cr) from to =
-  let
-      -- Bitmasks for clearing rights
-      -- WhiteKingSide = 1, WhiteQueenSide = 2, BlackKingSide = 4, BlackQueenSide = 8
+updateCastlingRights :: forall c. KnownColor c => GS.GameState -> Move c -> GS.GameState
+updateCastlingRights gs m =
+  let c = colorVal @c
+      (from, to) = case m of
+                     QuietMove f t _ -> (f, t)
+                     CaptureMove f t _ _ -> (f, t)
+                     PromotionMove f t _ -> (f, t)
+                     PromotionCaptureMove f t _ _ -> (f, t)
+                     CastlingMove f t -> (f, t)
+                     EnPassantMove f t -> (f, t)
+                     DropMove _ t -> (t, t)
+                     Castling960Move k r -> (k, r)
 
-      -- Clear White Rights (both) if White King Moves (E1)
-      mask1 = case from of
-                Square FileE Rank1 -> complement (castlingWhiteKingSide .|. castlingWhiteQueenSide)
-                Square FileE Rank8 -> complement (castlingBlackKingSide .|. castlingBlackQueenSide)
-                Square FileH Rank1 -> complement castlingWhiteKingSide
-                Square FileA Rank1 -> complement castlingWhiteQueenSide
-                Square FileH Rank8 -> complement castlingBlackKingSide
-                Square FileA Rank8 -> complement castlingBlackQueenSide
-                _ -> 0xFF -- No change
+      -- 1. Remove rights if 'from' or 'to' was a rook (or captured rook)
+      gs1 = GS.removeCastlingRight gs (toSquare from)
+      gs2 = GS.removeCastlingRight gs1 (toSquare to)
 
-      cr1 = cr .&. mask1
+      -- 2. Remove color rights if King moved
+      isKing = case m of
+                 QuietMove _ _ pt -> pt == King
+                 CaptureMove _ _ pt _ -> pt == King
+                 CastlingMove _ _ -> True
+                 Castling960Move _ _ -> True
+                 _ -> False
 
-      -- Check if Rook captured (to)
-      mask2 = case to of
-                Square FileH Rank1 -> complement castlingWhiteKingSide
-                Square FileA Rank1 -> complement castlingWhiteQueenSide
-                Square FileH Rank8 -> complement castlingBlackKingSide
-                Square FileA Rank8 -> complement castlingBlackQueenSide
-                _ -> 0xFF
-
-      cr2 = cr1 .&. mask2
-  in CastlingRights cr2
+      mask = if c == White then complement BB.bbRank1 else complement BB.bbRank8
+  in if isKing
+     then gs2 { GS.castlingRights = GS.castlingRights gs2 .&. mask }
+     else gs2
 
 -- Apply Move Helper (Base Board update)
 applyMoveBase :: forall c. KnownColor c => Move c -> Base.Board -> Base.Board
@@ -318,10 +303,7 @@ applyMoveBase m b =
 setStatus :: SCheckStatus new -> ActiveGame v c old -> ActiveGame v c new
 setStatus s ag = ActiveGame
   { internalBoard = internalBoard ag
-  , castlingRights = castlingRights ag
-  , enPassantTarget = enPassantTarget ag
-  , halfMoveClock = halfMoveClock ag
-  , fullMoveNumber = fullMoveNumber ag
+  , gameState = gameState ag
   , variantState = variantState ag
   , checkStatus = s
   }
@@ -342,7 +324,8 @@ genericApplyMove m ag =
                        DropMove _ t -> (t, t)
                        Castling960Move _ _ -> error "Castling960Move not supported in genericApplyMove"
 
-        newCR = updateCastlingRights (castlingRights ag) from to
+        gs = gameState ag
+        gs3 = updateCastlingRights gs m
 
         isPawn = case m of
                    QuietMove _ _ pt -> pt == Pawn
@@ -354,7 +337,10 @@ genericApplyMove m ag =
                    _ -> False
 
         newEP = case m of
-                  QuietMove f t _ -> if isPawn && isDoublePush f t then Just (getFile f) else Nothing
+                  QuietMove f t _ ->
+                    if isPawn && isDoublePush f t
+                    then Just (toSquare (Square (getFile f) (epRank (colorVal @(Opposite c)))))
+                    else Nothing
                   _ -> Nothing
 
         isCapture = case m of
@@ -363,15 +349,20 @@ genericApplyMove m ag =
                       EnPassantMove _ _ -> True
                       _ -> False
 
-        newHMC = if isPawn || isCapture then 0 else halfMoveClock ag + 1
-        newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
+        newHMC = if isPawn || isCapture then 0 else GS.halfmoveClock gs + 1
+        newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
+
+        newGS = gs3
+          { GS.turn = toColor (colorVal @(Opposite c))
+          , GS.epSquare = newEP
+          , GS.halfmoveClock = newHMC
+          , GS.fullmoveNumber = newFMN
+          , GS.zobristHash = 0 -- Reset hash as we don't track it incrementally yet
+          }
 
         nextAg = ActiveGame
           { internalBoard = internalB'
-          , castlingRights = newCR
-          , enPassantTarget = newEP
-          , halfMoveClock = newHMC
-          , fullMoveNumber = newFMN
+          , gameState = newGS
           , variantState = variantState ag
           , checkStatus = SUnchecked
           }

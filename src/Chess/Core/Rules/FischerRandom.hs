@@ -44,52 +44,22 @@ fischerRandomGameFromFEN s = do
 
       frState = FischerRandomState whiteRooks blackRooks
 
-      -- Map to Core.CastlingRights
-      -- We need to know King position to distinguish K-side vs Q-side
-      wKing = MG.kingSquare baseBoard T.White
-      bKing = MG.kingSquare baseBoard T.Black
-
-      -- Helper to determine rights
-      getRights kingSq rooksBB =
-        let kFile = case kingSq of Just (T.Square i) -> i `mod` 8; Nothing -> 4
-            rooks = BB.scanForward rooksBB
-            hasKSide = any (\i -> (i `mod` 8) > kFile) rooks
-            hasQSide = any (\i -> (i `mod` 8) < kFile) rooks
-        in (hasKSide, hasQSide)
-
-      (wK, wQ) = getRights wKing whiteRooks
-      (bK, bQ) = getRights bKing blackRooks
-
-      crVal = (if wK then castlingWhiteKingSide else 0) .|.
-              (if wQ then castlingWhiteQueenSide else 0) .|.
-              (if bK then castlingBlackKingSide else 0) .|.
-              (if bQ then castlingBlackQueenSide else 0)
-
-      cr = CastlingRights crVal
-
-      ep = case GS.epSquare gs of
-             Nothing -> Nothing
-             Just sq -> Just (getFile (fromBaseSquare sq))
-
-      hmc = GS.halfmoveClock gs
-      fmn = GS.fullmoveNumber gs
-
       checked = Val.isCheck baseBoard gs
 
       -- Check for moves using 960 generator
       -- We need to construct a temp ActiveGame to call generateMoves
       hasMoves = case c of
-        White -> not (null (generateMoves (ActiveGame baseBoard cr ep hmc fmn frState SSafe :: ActiveGame 'FischerRandom 'White 'Safe)))
-        Black -> not (null (generateMoves (ActiveGame baseBoard cr ep hmc fmn frState SSafe :: ActiveGame 'FischerRandom 'Black 'Safe)))
+        White -> not (null (generateMoves (ActiveGame baseBoard gs frState SSafe :: ActiveGame 'FischerRandom 'White 'Safe)))
+        Black -> not (null (generateMoves (ActiveGame baseBoard gs frState SSafe :: ActiveGame 'FischerRandom 'Black 'Safe)))
 
   if hasMoves
     then case c of
       White -> if checked
-               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn frState SChecked :: ActiveGame 'FischerRandom 'White 'Checked)
-               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn frState SSafe    :: ActiveGame 'FischerRandom 'White 'Safe)
+               then return $ InProgressGame (ActiveGame baseBoard gs frState SChecked :: ActiveGame 'FischerRandom 'White 'Checked)
+               else return $ InProgressGame (ActiveGame baseBoard gs frState SSafe    :: ActiveGame 'FischerRandom 'White 'Safe)
       Black -> if checked
-               then return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn frState SChecked :: ActiveGame 'FischerRandom 'Black 'Checked)
-               else return $ InProgressGame (ActiveGame baseBoard cr ep hmc fmn frState SSafe    :: ActiveGame 'FischerRandom 'Black 'Safe)
+               then return $ InProgressGame (ActiveGame baseBoard gs frState SChecked :: ActiveGame 'FischerRandom 'Black 'Checked)
+               else return $ InProgressGame (ActiveGame baseBoard gs frState SSafe    :: ActiveGame 'FischerRandom 'Black 'Safe)
     else Nothing
 
 instance ChessVariant 'FischerRandom where
@@ -114,17 +84,7 @@ instance ChessVariant 'FischerRandom where
                    Just sq -> sq
                    Nothing -> T.Square 0
 
-        cr = castlingRights ag
-
-        -- Check KingSide
-        canK = case c of
-                 White -> testBit ((\(CastlingRights x) -> x) cr) 0
-                 Black -> testBit ((\(CastlingRights x) -> x) cr) 2
-
-        -- Check QueenSide
-        canQ = case c of
-                 White -> testBit ((\(CastlingRights x) -> x) cr) 1
-                 Black -> testBit ((\(CastlingRights x) -> x) cr) 3
+        currentRights = GS.castlingRights gs
 
         kFile = T.squareFile kingSq
         kRank = T.squareRank kingSq
@@ -136,8 +96,10 @@ instance ChessVariant 'FischerRandom where
             let rFile = T.squareFile rSq
                 rRank = T.squareRank rSq
                 isKSide = rFile > kFile
-                allowed = if isKSide then canK else canQ
-            in if allowed && rRank == kRank
+
+                hasRight = testBit currentRights (T.unSquare rSq)
+
+            in if hasRight && rRank == kRank
                then if isCastlingValid baseBoard (toColor c) kingSq rSq isKSide
                     then [Castling960Move (fromSquare kingSq) (fromSquare rSq)]
                     else []
@@ -162,26 +124,45 @@ instance ChessVariant 'FischerRandom where
                        DropMove _ t -> (t, t)
                        Castling960Move f _ -> (f, f)
 
-        newCR = case m of
-                  Castling960Move _ _ ->
-                     let mask = if c == White
-                                then complement (castlingWhiteKingSide .|. castlingWhiteQueenSide)
-                                else complement (castlingBlackKingSide .|. castlingBlackQueenSide)
-                         (CastlingRights old) = castlingRights ag
-                     in CastlingRights (old .&. mask)
-                  _ ->
-                     updateCastlingRights960 (castlingRights ag) (variantState ag) internalB from to c
+        gs = gameState ag
+        gsUpdated = updateCastlingRights gs m
+
+        isPawn = case m of
+                   QuietMove _ _ pt -> pt == Pawn
+                   CaptureMove _ _ pt _ -> pt == Pawn
+                   EnPassantMove _ _ -> True
+                   PromotionMove _ _ _ -> True
+                   PromotionCaptureMove _ _ _ _ -> True
+                   DropMove pt _ -> pt == Pawn
+                   _ -> False
 
         newEP = case m of
-                  QuietMove f t pt -> if pt == Pawn && isDoublePush f t then Just (getFile f) else Nothing
+                  QuietMove f t _ ->
+                    if isPawn && isDoublePush f t
+                    then Just (toSquare (Square (getFile f) (epRank (colorVal @(Opposite c)))))
+                    else Nothing
                   _ -> Nothing
 
-        newHMC = halfMoveClock ag + 1
-        newFMN = fullMoveNumber ag + (if c == Black then 1 else 0)
+        isCapture = case m of
+                      CaptureMove {} -> True
+                      PromotionCaptureMove {} -> True
+                      EnPassantMove _ _ -> True
+                      _ -> False
+
+        newHMC = if isPawn || isCapture then 0 else GS.halfmoveClock gs + 1
+        newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
+
+        newGS = gsUpdated
+          { GS.turn = toColor (colorVal @(Opposite c))
+          , GS.epSquare = newEP
+          , GS.halfmoveClock = newHMC
+          , GS.fullmoveNumber = newFMN
+          , GS.zobristHash = 0
+          }
 
         frState = variantState ag
 
-        nextAg = ActiveGame internalB' newCR newEP newHMC newFMN frState SUnchecked
+        nextAg = ActiveGame internalB' newGS frState SUnchecked
 
     in Transition nextAg
 
@@ -230,53 +211,3 @@ isCastlingValid b c kSq rSq isKSide =
 
     in all isEmpty checkSquares && all isSafe safeCheckSquares
 
--- Custom updateCastlingRights for 960
-updateCastlingRights960 :: CastlingRights -> FischerRandomState -> Base.Board -> Square -> Square -> Color -> CastlingRights
-updateCastlingRights960 (CastlingRights cr) state b from to c =
-    let
-        whiteRooks = whiteRookFiles state
-        blackRooks = blackRookFiles state
-
-        -- Check if a square corresponds to a rook with rights
-        isRook s cc = testBit (if cc == White then whiteRooks else blackRooks) (T.unSquare (toSquare s))
-
-        -- King positions (before move)
-        wKing = MG.kingSquare b T.White
-        bKing = MG.kingSquare b T.Black
-
-        myKing = if c == White then wKing else bKing
-        oppKing = if c == White then bKing else wKing
-
-        -- Helper to clear bit
-        clearSide kSq rSq maskK maskQ rights =
-             case kSq of
-               Just k ->
-                 let kFile = T.squareFile k
-                     rFile = T.squareFile (toSquare rSq)
-                 in if rFile > kFile then rights .&. complement maskK
-                    else if rFile < kFile then rights .&. complement maskQ
-                    else rights
-               Nothing -> rights
-
-        -- Update logic
-        cr1 = if T.pieceType (T.Piece (toColor c) T.King) == T.King && (case Base.pieceAt b (toSquare from) of Just p -> T.pieceType p == T.King; _ -> False)
-              then
-                 if c == White
-                 then cr .&. complement (castlingWhiteKingSide .|. castlingWhiteQueenSide)
-                 else cr .&. complement (castlingBlackKingSide .|. castlingBlackQueenSide)
-              else cr
-
-        cr2 = if isRook from c
-              then if c == White
-                   then clearSide wKing from castlingWhiteKingSide castlingWhiteQueenSide cr1
-                   else clearSide bKing from castlingBlackKingSide castlingBlackQueenSide cr1
-              else cr1
-
-        oppC = if c == White then Black else White
-        cr3 = if isRook to oppC
-              then if c == White
-                   then clearSide bKing to castlingBlackKingSide castlingBlackQueenSide cr2
-                   else clearSide wKing to castlingWhiteKingSide castlingWhiteQueenSide cr2
-              else cr2
-
-    in CastlingRights cr3
