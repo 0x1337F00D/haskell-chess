@@ -330,7 +330,9 @@ alphaBeta ctx vBoard tt lastMove depth alpha beta canNull nodes = do
 
             let newVBoard = applyLegalMove vBoard lm
 
-            let extension = if inCheck then depthOne else depthZero
+            -- Calculate check extension based on the NEW board state (after move)
+            let givesCheck = isCheck (getBoard newVBoard)
+            let extension = if givesCheck then depthOne else depthZero
             let nextDepth = (decDepth d) `plusDepth` extension
 
             -- PVS
@@ -341,7 +343,8 @@ alphaBeta ctx vBoard tt lastMove depth alpha beta canNull nodes = do
                      else do
                          -- Late Move Reduction?
                          -- If quiet, depth > 2, not checking, etc.
-                         let lmr = if d >= mkDepth 3 && not isCap && not isProm && index >= 2 && not inCheck
+                         -- Do not reduce moves that give check!
+                         let lmr = if d >= mkDepth 3 && not isCap && not isProm && index >= 2 && not inCheck && not givesCheck
                                    then
                                        let dIdx = min 63 (unDepth d)
                                            mIdx = min 63 index
