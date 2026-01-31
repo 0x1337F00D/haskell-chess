@@ -449,11 +449,15 @@ pawnCaptures b gs =
     pawns = pieceBitboard b c Pawn
     enemy = occupiedBy b (oppositeColor c)
 
-    mkCap from dest =
+    mkCapList from dest rest =
         let capPt = findPieceType b (oppositeColor c) dest
         in if unSquare dest >= 56 || unSquare dest <= 7
-           then [ GenPromotionCapture from dest p capPt | p <- [Queen, Rook, Bishop, Knight] ]
-           else [ GenCapture from dest Pawn capPt ]
+           then
+                GenPromotionCapture from dest Queen capPt :
+                GenPromotionCapture from dest Rook capPt :
+                GenPromotionCapture from dest Bishop capPt :
+                GenPromotionCapture from dest Knight capPt : rest
+           else GenCapture from dest Pawn capPt : rest
 
     whitePawnCaptures =
         [ m
@@ -464,14 +468,6 @@ pawnCaptures b gs =
 
     genWhiteCaptures i from =
         let
-            capLeftMoves =
-                if (i `mod` 8) /= 0
-                then let to7 = i + 7 in if testBit enemy to7 then mkCap from (Square to7) else []
-                else []
-            capRightMoves =
-                if (i `mod` 8) /= 7
-                then let to9 = i + 9 in if testBit enemy to9 then mkCap from (Square to9) else []
-                else []
             epMoves = case epSquare gs of
                 Nothing -> []
                 Just ep ->
@@ -479,7 +475,18 @@ pawnCaptures b gs =
                     in if (i + 7) == epIdx && (i `mod` 8) /= 0 then [GenEnPassant from ep]
                        else if (i + 9) == epIdx && (i `mod` 8) /= 7 then [GenEnPassant from ep]
                        else []
-        in capLeftMoves ++ capRightMoves ++ epMoves
+
+            capRightMoves =
+                if (i `mod` 8) /= 7
+                then let to9 = i + 9 in if testBit enemy to9 then mkCapList from (Square to9) epMoves else epMoves
+                else epMoves
+
+            capLeftMoves =
+                if (i `mod` 8) /= 0
+                then let to7 = i + 7 in if testBit enemy to7 then mkCapList from (Square to7) capRightMoves else capRightMoves
+                else capRightMoves
+
+        in capLeftMoves
 
     blackPawnCaptures =
         [ m
@@ -490,14 +497,6 @@ pawnCaptures b gs =
 
     genBlackCaptures i from =
         let
-            capLeftMoves =
-                if (i `mod` 8) /= 0
-                then let to9 = i - 9 in if testBit enemy to9 then mkCap from (Square to9) else []
-                else []
-            capRightMoves =
-                if (i `mod` 8) /= 7
-                then let to7 = i - 7 in if testBit enemy to7 then mkCap from (Square to7) else []
-                else []
             epMoves = case epSquare gs of
                 Nothing -> []
                 Just ep ->
@@ -505,7 +504,18 @@ pawnCaptures b gs =
                     in if (i - 9) == epIdx && (i `mod` 8) /= 0 then [GenEnPassant from ep]
                        else if (i - 7) == epIdx && (i `mod` 8) /= 7 then [GenEnPassant from ep]
                        else []
-        in capLeftMoves ++ capRightMoves ++ epMoves
+
+            capRightMoves =
+                if (i `mod` 8) /= 7
+                then let to7 = i - 7 in if testBit enemy to7 then mkCapList from (Square to7) epMoves else epMoves
+                else epMoves
+
+            capLeftMoves =
+                if (i `mod` 8) /= 0
+                then let to9 = i - 9 in if testBit enemy to9 then mkCapList from (Square to9) capRightMoves else capRightMoves
+                else capRightMoves
+
+        in capLeftMoves
 
 castlingMoves :: Board -> GameState -> [GenMove]
 castlingMoves b gs = ks ++ qs
