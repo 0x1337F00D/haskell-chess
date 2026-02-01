@@ -3,6 +3,7 @@ module Chess.Engine.Search (search) where
 
 import Data.Maybe (fromMaybe, isJust)
 import Data.List (sortOn, foldl', partition)
+import Data.Bits (popCount)
 import Data.IORef (IORef, newIORef, readIORef, modifyIORef')
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar, getNumCapabilities, newMVar, modifyMVar)
 import qualified Data.Vector.Mutable as VM
@@ -14,6 +15,7 @@ import Chess.Board (Board(..), applyMove, isCheck, uci, GenMove(..)
                    , ValidatedBoard, LegalMove, trustBoard, getBoard, getGenMove
                    , legalMovesValidated, captureMovesValidated, legalQuietsValidated, legalPromotionsValidated
                    , applyLegalMove, isCapture, isPromotion, toGenMove, isLegalMove, mkLegalMove)
+import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
 import Chess.Engine.Evaluation (evaluate)
 import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
@@ -229,6 +231,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta canNull nodes = do
             let r = if depth > mkDepth 6 then mkDepth 3 else mkDepth 2
             let doNmp = canNull && not inCheck && depth >= r && beta < mateValue
                         && staticEval >= beta -- NMP Verification
+                        && popCount (Base.occupiedTotal (pieces board)) > 5 -- Endgame protection
 
             nmpResult <- if doNmp
                          then do
@@ -336,27 +339,31 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta canNull nodes = do
         let isQuiet = not isCap && not isProm
         let dVal = unDepth d
 
+        let gm = getGenMove lm
+        let m = getMove gm
+
+        let newVBoard = applyLegalMove vBoard lm
+
+        -- Calculate check extension based on the NEW board state (after move)
+        let givesCheck = isCheck (getBoard newVBoard)
+
         -- Move-based Pruning (Quiet only)
-        let pruneQuiet = if isQuiet && not inCheck
+        -- Delayed to allow checking givesCheck
+        let pruneQuiet = if isQuiet && not inCheck && not givesCheck
                          then
                              let lmpCount = 3 + dVal * dVal
                                  doLMP = dVal < 8 && dVal >= 3 && index > lmpCount
 
                                  fpMargin = 100 * dVal
-                                 doFutility = dVal < 7 && dVal >= 2 && abs bestScore < mateValue && abs a < mateValue && staticEval + fpMargin <= a
+                                 -- Guard: Disable futility pruning for the first 11 quiet moves (index > 10)
+                                 doFutility = index > 10 && dVal < 7 && dVal >= 2 && abs bestScore < mateValue && abs a < mateValue && staticEval + fpMargin <= a
+                                              && popCount (Base.occupiedTotal (pieces (getBoard vBoard))) > 5 -- Endgame protection
                              in doLMP || doFutility
                          else False
 
         if pruneQuiet
         then searchStage lms (index + 1) inCheck staticEval a b d flag bestScore bestM True -- Skip move
         else do
-            let gm = getGenMove lm
-            let m = getMove gm
-
-            let newVBoard = applyLegalMove vBoard lm
-
-            -- Calculate check extension based on the NEW board state (after move)
-            let givesCheck = isCheck (getBoard newVBoard)
             -- Check Extension: Only extend if we are in check (recapture/escape) or if we give check (attacking)
             -- Restrict extensions to avoid explosion: only extend if depth < 2 * maxDepth? No.
             -- For now, disable "givesCheck" extension to fix performance explosion in KiwiPete,
@@ -390,6 +397,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta canNull nodes = do
                          -- Late Move Reduction
                          -- If quiet, depth >= 3, not checking, etc.
                          let lmr = if d >= mkDepth 3 && not isCap && not isProm && index >= 2 && not inCheck && not givesCheck
+                                      && popCount (Base.occupiedTotal (pieces (getBoard vBoard))) > 5 -- Endgame protection
                                    then
                                        let dIdx = min 63 (unDepth d)
                                            mIdx = min 63 index

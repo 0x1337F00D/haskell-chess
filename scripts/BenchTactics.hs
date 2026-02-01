@@ -35,7 +35,7 @@ main = do
     -- newTT takes an Int. If it's bits, 20 = 1M entries.
     tt <- newTT 20
 
-    let depth = 8 -- Enough for Fine #70
+    let depth = 12 -- Enough for Fine #70
 
     results <- forM cases $ \tc -> do
         runCase tt depth tc

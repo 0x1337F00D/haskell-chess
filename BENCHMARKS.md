@@ -2,49 +2,43 @@
 
 Date: 2026-02-01
 
-## Optimization Verification: Bolt (Inline Bitboards)
+## Feature Verification: Tactical Fixes & Stockfish Bench
 
-**Changes**: Added `{-# INLINE #-}` pragmas to sliding piece attack generators in `Chess.Bitboard`.
+**Changes**:
+- Added "Endgame Protection" guards to NMP, LMR, and Futility Pruning (disabled if piece count <= 5).
+- Protected checking moves from being pruned (logic moved after `applyMove`).
+- Increased search depth for tactical verification.
 
-### 1. Core Performance (Perft)
-- **Start Position (Depth 5)**: 6,234,356 NPS (approx 6.23M)
-- **KiwiPete (Depth 4)**: 6,293,815 NPS (approx 6.29M)
-
-**Analysis**:
-- slight improvement/stable compared to previous (5.95M).
+### 1. Tactical Suite (BenchTactics)
+- **Fool's Mate**: Pass
+- **Scholar's Mate**: Pass
+- **Fine #70 (Depth 12)**: Fail (Found `h1h2`, Expected `h1g1`).
+  - *Note*: Despite extensive pruning guards, the engine prefers `h1h2` (+2.16) over `h1g1`. This suggests a Quiescence Search limitation (quiet mate not seen) or subtle evaluation bias. The search finds `h1g1` at depth 7 but discards it at depth 8.
 
 ### 2. Search Performance (KiwiPete Depth 6)
-- **Nodes**: 209,944
-- **Time**: 0.276s
-- **NPS**: ~760,000 NPS (approx 0.76M)
+- **Nodes**: 281,693 (Increased from 209k)
+- **Time**: 0.35s
+- **NPS**: ~0.80M
+- **Analysis**: Node count increased by ~35% due to safety guards (protecting checks and endgames). This is an acceptable trade-off for correctness.
 
-**Analysis**:
-- Search node count remains low (~0.21M), confirming pruning effectiveness.
-- Time is excellent (<0.3s).
-
-### 3. Tactical Suite (BenchTactics)
-- **Fool's Mate (Depth 8)**: Pass (1.65M nodes)
-- **Scholar's Mate (Depth 8)**: Pass (0.83M nodes)
-- **Fine #70 (Depth 8)**: Fail (Found `h1h2`, Expected `h1g1`)
-
-### 4. Self-Play (BenchElo)
-- **Config**: 10 games, 2 concurrent, Depth 5
-- **Score**: 5.0 - 5.0 (50%)
-- **Elo Difference**: 0.00
-- **Conclusion**: No regression in playing strength.
+### 3. Strength Benchmark vs Stockfish
+- **Configuration**:
+  - **Haskell Chess**: Depth 5
+  - **Stockfish 18**: Depth 1
+  - **Games**: 10
+- **Result**: 10 - 0 (Haskell Wins)
+- **Elo Difference**: +800
+- **Conclusion**: The engine is playing legal and reasonably strong chess, easily defeating Stockfish restricted to depth 1.
 
 ## Historical Results
 
+### Date: 2026-02-01 (Bolt Optimization)
+- **Core NPS**: ~6.29M
+- **Search (Depth 6)**: 209k nodes, 0.28s
+
 ### Date: 2026-01-30
+- **Core NPS**: ~5.95M
+- **Search (Depth 6)**: 1.5M nodes, 1.28s
 
-#### Core NPS (Perft)
-- **Start Position (Depth 5)**: 6,234,103 NPS
-- **KiwiPete (Depth 4)**: 5,946,324 NPS
-
-#### Search NPS (KiwiPete Depth 6)
-- **Nodes**: 1,556,000
-- **Time**: 1.278s
-- **NPS**: 1.22M
-
-### Conclusion
-The engine is becoming significantly faster and more efficient. Node counts for depth 6 have dropped from ~1.5M to ~0.2M due to recent pruning/extensions optimizations. The "Bolt" inline optimization maintains high core NPS and playing strength.
+## Conclusion
+The engine has undergone significant optimization (Search nodes reduced by ~80% from baseline). While `Fine #70` remains elusive (likely due to QSearch limitations), the engine demonstrates strong tactical awareness (solving basic mates) and competitive play against a restricted reference engine.
