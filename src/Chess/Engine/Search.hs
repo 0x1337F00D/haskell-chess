@@ -224,7 +224,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta canNull nodes = do
 
         -- Checkmate/Stalemate detection if no moves (handled later) or depth <= 0
         if isZeroDepth depth
-        then quiescence vBoard tt alpha beta nodes
+        then quiescence vBoard tt alpha beta nodes depth
         else do
             -- 3. Null Move Pruning
             -- R=2 if depth > 6 else R=2? Usually R=2.
@@ -542,8 +542,8 @@ scoreHistory ctx lm = do
         _ -> return 0
 
 -- | Quiescence Search.
-quiescence :: ValidatedBoard -> TT -> Int -> Int -> IORef Int -> IO Int
-quiescence vBoard tt alpha beta nodes = do
+quiescence :: ValidatedBoard -> TT -> Int -> Int -> IORef Int -> Depth -> IO Int
+quiescence vBoard tt alpha beta nodes depth = do
     modifyIORef' nodes (+1)
     let board = getBoard vBoard
 
@@ -551,35 +551,63 @@ quiescence vBoard tt alpha beta nodes = do
     let hash = GS.zobristHash (state board)
     ttEntry <- probeTT tt hash
 
-    -- Use cached eval if available (depth 0 is convention for static eval in this context,
-    -- or we check specifically for TTEval flag)
-    let staticEval = case ttEntry of
-            Just (_, s, _, TTEval) -> Just s
-            _ -> Nothing
+    let inCheck = isCheck board
 
-    standPat <- case staticEval of
-        Just s -> return s
-        Nothing -> do
-            let s = evaluate vBoard
-            -- Store static eval in TT
-            storeTT tt hash depthZero s TTEval nullMove
-            return s
-
-    if standPat >= beta
-    then return beta
+    if inCheck
+    then do
+        -- If in check, we must search all evasions (legal moves)
+        let evasions = legalMovesValidated vBoard
+        if null evasions
+        then return (-mateValue) -- Checkmate (depth handled by stepScore in caller?) No, we are in QS.
+                                 -- We assume minimal distance.
+        else do
+            let sortedMoves = orderGenMoves vBoard evasions Nothing
+            -- Search evasions. No stand-pat logic.
+            go sortedMoves alpha
     else do
-        let a = max alpha standPat
-        let caps = captureMovesValidated vBoard
-        let proms = legalPromotionsValidated vBoard
-        let allMoves = caps ++ proms
-        let sortedMoves = orderGenMoves vBoard allMoves Nothing
+        -- Not in check: Standard QSearch
+        -- Use cached eval if available
+        let staticEval = case ttEntry of
+                Just (_, s, _, TTEval) -> Just s
+                _ -> Nothing
 
-        go sortedMoves a
+        standPat <- case staticEval of
+            Just s -> return s
+            Nothing -> do
+                let s = evaluate vBoard
+                -- Store static eval in TT
+                storeTT tt hash depthZero s TTEval nullMove
+                return s
+
+        if standPat >= beta
+        then return beta
+        else do
+            let a = max alpha standPat
+            let caps = captureMovesValidated vBoard
+            let proms = legalPromotionsValidated vBoard
+
+            -- Quiet Checks (Extension +1 ply equivalent logic)
+            -- Only generate if depth > -1
+            quietChecks <- if unDepth depth > -1
+                           then do
+                               let quiets = legalQuietsValidated vBoard
+                               return $ filter (givesCheck vBoard) quiets
+                           else return []
+
+            let allMoves = caps ++ proms ++ quietChecks
+            let sortedMoves = orderGenMoves vBoard allMoves Nothing
+
+            go sortedMoves a
   where
+    givesCheck vb lm =
+        let newVBoard = applyLegalMove vb lm
+        in isCheck (getBoard newVBoard)
+
     go [] a = return a
     go (lm:lms) a = do
         score <- do
-            s <- quiescence (applyLegalMove vBoard lm) tt (-beta) (-a) nodes
+            -- Decrement depth for recursion
+            s <- quiescence (applyLegalMove vBoard lm) tt (-beta) (-a) nodes (decDepth depth)
             return (-s)
         if score >= beta
         then return beta

@@ -2,7 +2,7 @@
 module Chess.Engine.Evaluation (evaluate) where
 
 import qualified Data.Vector.Unboxed as U
-import Data.Bits (countTrailingZeros, clearBit, popCount)
+import Data.Bits (countTrailingZeros, clearBit, popCount, (.&.))
 
 import Chess.Types
 import Chess.Bitboard
@@ -102,7 +102,61 @@ evaluate vBoard =
         !mgScore = mgMat + mgPST
         !egScore = egMat + egPST
 
-        !finalScore = ((mgScore * clampedPhase) + (egScore * (totalPhase - clampedPhase))) `div` totalPhase
+        -- King Safety Term (Minimal: Open Files)
+        -- Penalty for King on open/semi-open files (no own pawns)
+        -- Apply to both MG and EG (or just MG? King safety matters always but more in MG.
+        -- Prompt says "Minimal King Safety... Option A... moves onto open files".
+        -- Let's apply a constant penalty.
+        !wKingSq = countTrailingZeros (Base.whiteKings b)
+        !bKingSq = countTrailingZeros (Base.blackKings b)
+
+        -- Safe lookup of file mask
+        !wFileMask = bbFiles !! (wKingSq `mod` 8)
+        !bFileMask = bbFiles !! (bKingSq `mod` 8)
+
+        -- Penalty if NO own pawns on file
+        !wPenalty = if (Base.whitePawns b .&. wFileMask) == 0 then 10 else 0
+        !bPenalty = if (Base.blackPawns b .&. bFileMask) == 0 then 10 else 0
+
+        -- Subtract penalty from own score (so Add Opponent Penalty - Own Penalty)
+        -- mgScore is White Relative? No, mgMat is (White - Black).
+        -- So + (bPenalty - wPenalty)
+        !safetyAdj = bPenalty - wPenalty
+
+        -- Mop-Up Evaluation (Endgame only)
+        -- Encourages driving enemy king to corner and moving own king close.
+        -- Only apply if we are winning (material advantage)?
+        -- Or just apply symmetrically.
+        -- Dist Center: 0 (Center) to 6 (Corner) (Chebyshev distance * 2 approximately?)
+        -- Center is 3.5, 3.5.
+        -- Dist(sq) = abs(rank - 3.5) + abs(file - 3.5) (Manhattan) -> Range 0 to 8?
+        -- Let's use Manhattan distance from center * 10 for Enemy.
+        -- And -Manhattan distance between kings * 4.
+
+        !wKRank = wKingSq `div` 8
+        !wKFile = wKingSq `mod` 8
+        !bKRank = bKingSq `div` 8
+        !bKFile = bKingSq `mod` 8
+
+        !wDistCenter = abs (wKRank * 2 - 7) + abs (wKFile * 2 - 7) -- Scaled by 2 to avoid floats
+        !bDistCenter = abs (bKRank * 2 - 7) + abs (bKFile * 2 - 7)
+
+        !distKings = abs (wKRank - bKRank) + abs (wKFile - bKFile)
+
+        -- White perspective MopUp
+        -- We want Black King far from center (bDistCenter High).
+        -- We want Kings close (distKings Low).
+        !wMopUp = 5 * bDistCenter - 2 * distKings
+
+        -- Black perspective MopUp
+        !bMopUp = 5 * wDistCenter - 2 * distKings
+
+        !mopUpAdj = wMopUp - bMopUp
+
+        -- Apply MopUp only in Endgame (weighted by phase)
+        !egScoreTotal = egScore + safetyAdj + mopUpAdj
+
+        !finalScore = (((mgScore + safetyAdj) * clampedPhase) + (egScoreTotal * (totalPhase - clampedPhase))) `div` totalPhase
     in if turn gs == White then finalScore else -finalScore
 
 evalPSTO :: Bitboard -> U.Vector Score -> Score
