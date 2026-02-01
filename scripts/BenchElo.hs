@@ -194,6 +194,12 @@ parseArgs args (c1, d1) (c2, d2) g conc = case args of
     ("--depth":dStr:rest) ->
         let d = read dStr
         in parseArgs rest (c1, d) (c2, d) g conc
+    ("--depth1":dStr:rest) ->
+        let d = read dStr
+        in parseArgs rest (c1, d) (c2, d2) g conc
+    ("--depth2":dStr:rest) ->
+        let d = read dStr
+        in parseArgs rest (c1, d1) (c2, d) g conc
     ("--games":gStr:rest) ->
         let g' = read gStr
         in parseArgs rest (c1, d1) (c2, d2) g' conc
