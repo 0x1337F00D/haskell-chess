@@ -396,7 +396,10 @@ generateRay (Square i) df dr = go (f+df) (r+dr) 0
       | otherwise = go (cf+df) (cr+dr) (setBit acc (cr*8 + cf))
 
 -- | Get attacks for a sliding piece in a specific direction.
+-- Marked INLINE to allow constant folding of 'dirIdx' when called from bishopAttacks/rookAttacks.
+-- This removes runtime checks and allows fusion of bitwise operations.
 getRayAttacks :: Square -> Int -> Bitboard -> Bitboard
+{-# INLINE getRayAttacks #-}
 getRayAttacks (Square sq) dirIdx occ =
     let mask = bbRays `U.unsafeIndex` (sq * 8 + dirIdx)
         blockers = mask .&. occ
@@ -410,6 +413,7 @@ getRayAttacks (Square sq) dirIdx occ =
 
 -- | Generate bishop attacks (diagonal).
 bishopAttacks :: Square -> Bitboard -> Bitboard
+{-# INLINE bishopAttacks #-}
 bishopAttacks sq occ =
     getRayAttacks sq 4 occ .|.
     getRayAttacks sq 5 occ .|.
@@ -418,6 +422,7 @@ bishopAttacks sq occ =
 
 -- | Generate rook attacks (orthogonal).
 rookAttacks :: Square -> Bitboard -> Bitboard
+{-# INLINE rookAttacks #-}
 rookAttacks sq occ =
     getRayAttacks sq 0 occ .|.
     getRayAttacks sq 1 occ .|.
