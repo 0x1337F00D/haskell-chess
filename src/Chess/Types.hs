@@ -1,14 +1,24 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Chess.Types where
 
 import Control.Exception (Exception)
 
 import Data.Char (toLower, chr, ord)
-import Data.Word (Word64)
+import Data.Word (Word64, Word16)
 import Data.Bits
+import Data.Vector.Unboxed (Unbox)
+import qualified Data.Vector.Generic as G
+import qualified Data.Vector.Generic.Mutable as GM
+import qualified Data.Vector.Unboxed as U
+import Foreign.Storable (Storable)
 
 -- | Color of a chess piece or side to move.
 data Color = White | Black
@@ -378,18 +388,79 @@ fromSymbol ch = do
 
 -- | Representation of a move. Standard move connects two squares and optional promotion.
 -- Null move is a special case. Drop moves are used in Crazyhouse.
-data Move
-    = Move
-      { mFrom :: !Square
-      , mTo   :: !Square
-      , mProm :: !(Maybe PieceType)
-      }
-    | DropMove
-      { mDropPiece :: !PieceType
-      , mTo        :: !Square
-      }
-    | NullMove
-    deriving (Eq, Ord, Show)
+-- Refactored to be a bit-packed Word16 for performance.
+newtype Move = MkMove Word16
+  deriving newtype (Eq, Ord, Storable)
+
+instance Show Move where
+    show (Move f t p) = "Move {mFrom = " ++ show f ++ ", mTo = " ++ show t ++ ", mProm = " ++ show p ++ "}"
+    show (DropMove p t) = "DropMove {mDropPiece = " ++ show p ++ ", mTo = " ++ show t ++ "}"
+    show NullMove = "NullMove"
+
+-- Helper types for ViewPatterns
+data MoveView
+    = StandardView Square Square (Maybe PieceType)
+    | DropView PieceType Square
+    | NullView
+
+unpackMove :: Move -> MoveView
+unpackMove (MkMove w)
+    | w == 0 = NullView
+    | testBit w 15 =
+        let t = (w `shiftR` 6) .&. 0x3F
+            p = (w `shiftR` 12) .&. 0x7
+            pt = toEnum (fromIntegral p)
+        in DropView pt (Square (fromIntegral t))
+    | otherwise =
+        let f = w .&. 0x3F
+            t = (w `shiftR` 6) .&. 0x3F
+            p = (w `shiftR` 12) .&. 0x7
+            prom = case p of
+                     1 -> Just Knight
+                     2 -> Just Bishop
+                     3 -> Just Rook
+                     4 -> Just Queen
+                     _ -> Nothing
+        in StandardView (Square (fromIntegral f)) (Square (fromIntegral t)) prom
+
+packStandard :: Square -> Square -> Maybe PieceType -> Move
+packStandard (Square f) (Square t) p = MkMove $
+    let pVal :: Int
+        pVal = case p of
+                 Nothing -> 0
+                 Just Knight -> 1
+                 Just Bishop -> 2
+                 Just Rook   -> 3
+                 Just Queen  -> 4
+                 Just _      -> 0
+        val = (fromIntegral f) .|.
+              ((fromIntegral t) `shiftL` 6) .|.
+              ((fromIntegral pVal) `shiftL` 12)
+    in val
+
+packDrop :: PieceType -> Square -> Move
+packDrop pt (Square t) = MkMove $
+    let pVal = fromEnum pt
+        val = (fromIntegral t) `shiftL` 6 .|.
+              ((fromIntegral pVal) `shiftL` 12) .|.
+              (1 `shiftL` 15)
+    in val
+
+-- | Pattern Synonyms to emulate the original ADT.
+
+pattern Move :: Square -> Square -> Maybe PieceType -> Move
+pattern Move f t p <- (unpackMove -> StandardView f t p)
+  where Move f t p = packStandard f t p
+
+pattern DropMove :: PieceType -> Square -> Move
+pattern DropMove p t <- (unpackMove -> DropView p t)
+  where DropMove p t = packDrop p t
+
+pattern NullMove :: Move
+pattern NullMove <- (unpackMove -> NullView)
+  where NullMove = MkMove 0
+
+{-# COMPLETE Move, DropMove, NullMove #-}
 
 -- | The null move (does nothing).
 nullMove :: Move
@@ -414,3 +485,52 @@ toSquare NullMove       = Nothing
 promotion :: Move -> Maybe PieceType
 promotion (Move _ _ p) = p
 promotion _            = Nothing
+
+-- | Record selectors (emulated)
+
+mFrom :: Move -> Square
+mFrom (Move f _ _) = f
+mFrom _ = error "mFrom: partial"
+
+mTo :: Move -> Square
+mTo (Move _ t _) = t
+mTo (DropMove _ t) = t
+mTo _ = error "mTo: partial"
+
+mProm :: Move -> Maybe PieceType
+mProm (Move _ _ p) = p
+mProm _ = Nothing
+
+mDropPiece :: Move -> PieceType
+mDropPiece (DropMove p _) = p
+mDropPiece _ = error "mDropPiece: partial"
+
+-- | Manual Unbox Instance
+instance Unbox Move
+
+newtype instance U.MVector s Move = MV_Move (U.MVector s Word16)
+newtype instance U.Vector Move    = V_Move  (U.Vector    Word16)
+
+instance GM.MVector U.MVector Move where
+  basicLength (MV_Move v) = GM.basicLength v
+  basicUnsafeSlice i n (MV_Move v) = MV_Move (GM.basicUnsafeSlice i n v)
+  basicOverlaps (MV_Move v1) (MV_Move v2) = GM.basicOverlaps v1 v2
+  basicUnsafeNew n = MV_Move <$> GM.basicUnsafeNew n
+  basicInitialize (MV_Move v) = GM.basicInitialize v
+  basicUnsafeReplicate n x = MV_Move <$> GM.basicUnsafeReplicate n (case x of MkMove w -> w)
+  basicUnsafeRead (MV_Move v) i = MkMove <$> GM.basicUnsafeRead v i
+  basicUnsafeWrite (MV_Move v) i (MkMove x) = GM.basicUnsafeWrite v i x
+  basicClear (MV_Move v) = GM.basicClear v
+  basicSet (MV_Move v) (MkMove x) = GM.basicSet v x
+  basicUnsafeCopy (MV_Move v1) (MV_Move v2) = GM.basicUnsafeCopy v1 v2
+  basicUnsafeMove (MV_Move v1) (MV_Move v2) = GM.basicUnsafeMove v1 v2
+  basicUnsafeGrow (MV_Move v) n = MV_Move <$> GM.basicUnsafeGrow v n
+
+instance G.Vector U.Vector Move where
+  basicUnsafeFreeze (MV_Move v) = V_Move <$> G.basicUnsafeFreeze v
+  basicUnsafeThaw (V_Move v) = MV_Move <$> G.basicUnsafeThaw v
+  basicLength (V_Move v) = G.basicLength v
+  basicUnsafeSlice i n (V_Move v) = V_Move (G.basicUnsafeSlice i n v)
+  basicUnsafeIndexM (V_Move v) i = MkMove <$> G.basicUnsafeIndexM v i
+  basicUnsafeCopy (MV_Move mv) (V_Move v) = G.basicUnsafeCopy mv v
+  elemseq _ (MkMove w) z = G.elemseq (undefined :: U.Vector Word16) w z

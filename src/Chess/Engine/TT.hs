@@ -32,59 +32,11 @@ newTT sizeBits = do
 clearTT :: TT -> IO ()
 clearTT (TT v _) = UM.set v 0
 
--- | Pack Move into 16 bits.
--- Standard: 0 (1 bit) | Prom (3 bits) | To (6 bits) | From (6 bits) -> 16 bits
--- Drop:     1 (1 bit) | Piece (3 bits) | To (6 bits) | Unused (6 bits) -> 16 bits
--- Note: Prom needs to encode Nothing (0) + 4 types (Knight, Bishop, Rook, Queen).
--- We can map: 0=None, 1=Knight, 2=Bishop, 3=Rook, 4=Queen.
--- 3 bits is enough (0-7).
-packMove :: Move -> Word16
-packMove (Move (Square f) (Square t) p) =
-    let pVal :: Int
-        pVal = case p of
-                 Nothing -> 0
-                 Just Knight -> 1
-                 Just Bishop -> 2
-                 Just Rook   -> 3
-                 Just Queen  -> 4
-                 Just _      -> 0 -- King/Pawn promotion impossible
-        val = (fromIntegral f) .|.
-              ((fromIntegral t) `shiftL` 6) .|.
-              ((fromIntegral pVal) `shiftL` 12)
-    in val
-packMove (DropMove pt (Square t)) =
-    let pVal = fromEnum pt -- 0-5
-        val = (fromIntegral t) `shiftL` 6 .|.
-              ((fromIntegral pVal) `shiftL` 12) .|.
-              (1 `shiftL` 15) -- Set Drop bit
-    in val
-packMove NullMove = 0 -- Should not store NullMove usually
-
-unpackMove :: Word16 -> Move
-unpackMove w =
-    if testBit w 15
-    then -- Drop Move
-        let t = (w `shiftR` 6) .&. 0x3F
-            p = (w `shiftR` 12) .&. 0x7
-            pt = toEnum (fromIntegral p)
-        in DropMove pt (Square (fromIntegral t))
-    else -- Standard Move
-        let f = w .&. 0x3F
-            t = (w `shiftR` 6) .&. 0x3F
-            p = (w `shiftR` 12) .&. 0x7
-            prom = case p of
-                     1 -> Just Knight
-                     2 -> Just Bishop
-                     3 -> Just Rook
-                     4 -> Just Queen
-                     _ -> Nothing
-        in Move (Square (fromIntegral f)) (Square (fromIntegral t)) prom
-
 -- | Pack Data into 64 bits.
 -- Move (16) | Score (16) | Depth (8) | Flag (2) | Age (8) | Unused (14)
 packData :: Move -> Int -> Depth -> TTFlag -> Int -> Word64
-packData m score depth flag age =
-    let mW = fromIntegral (packMove m) :: Word64
+packData (MkMove w) score depth flag age =
+    let mW = fromIntegral w :: Word64
         sW = fromIntegral (score + 32768) :: Word64 -- Bias to make positive
         dW = fromIntegral (unDepth depth) :: Word64
         fW = fromIntegral (fromEnum flag) :: Word64
@@ -97,7 +49,7 @@ packData m score depth flag age =
 
 unpackData :: Word64 -> (Move, Int, Depth, TTFlag, Int)
 unpackData w =
-    let m = unpackMove (fromIntegral (w .&. 0xFFFF))
+    let m = MkMove (fromIntegral (w .&. 0xFFFF))
         s = fromIntegral ((w `shiftR` 16) .&. 0xFFFF) - 32768
         d = Depth (fromIntegral ((w `shiftR` 32) .&. 0xFF))
         f = toEnum (fromIntegral ((w `shiftR` 40) .&. 0x3))
