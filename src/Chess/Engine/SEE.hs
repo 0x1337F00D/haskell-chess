@@ -29,7 +29,7 @@ attackersTo b sq occ =
 -- | SEE Implementation.
 see :: Board -> Move -> Int
 see _ NullMove = 0
-see _ (DropMove {}) = 0
+see _ (DropMove _ _) = 0
 see board move =
     let
         from = mFrom move

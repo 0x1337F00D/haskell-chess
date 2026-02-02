@@ -49,9 +49,9 @@ lmrTable = U.generate (64 * 64) gen
 
 -- | Search Context
 data SearchContext = SearchContext
-    { ctxKillers :: !(VM.IOVector Move) -- 2 killers per ply * maxDepth
+    { ctxKillers :: !(UM.IOVector Move) -- 2 killers per ply * maxDepth
     , ctxHistory :: !(UM.IOVector Int)  -- 64*64 = 4096
-    , ctxCounterMove :: !(VM.IOVector Move) -- 64*64 = 4096
+    , ctxCounterMove :: !(UM.IOVector Move) -- 64*64 = 4096
     , ctxMaxDepth :: !Int
     }
 
@@ -63,11 +63,11 @@ search board tt maxDepthInt = do
 
     -- Initialize Search Context
     -- Killers: 2 per ply. Let's assume max depth 128. Size = 128 * 2 = 256.
-    killers <- VM.replicate 256 nullMove
+    killers <- UM.replicate 256 nullMove
     -- History: 64 * 64 = 4096.
     historyVec <- UM.replicate 4096 0
     -- Counter Moves: 64 * 64 = 4096.
-    counterMove <- VM.replicate 4096 nullMove
+    counterMove <- UM.replicate 4096 nullMove
     let ctx = SearchContext killers historyVec counterMove 128
 
     let vBoard = trustBoard board
@@ -444,10 +444,10 @@ updateKillers ctx depth m = do
     if ply >= 0 && ply < ctxMaxDepth ctx then do
         let k1Idx = ply * 2
         let k2Idx = ply * 2 + 1
-        k1 <- VM.unsafeRead (ctxKillers ctx) k1Idx
+        k1 <- UM.unsafeRead (ctxKillers ctx) k1Idx
         if m /= k1 then do
-            VM.unsafeWrite (ctxKillers ctx) k2Idx k1
-            VM.unsafeWrite (ctxKillers ctx) k1Idx m
+            UM.unsafeWrite (ctxKillers ctx) k2Idx k1
+            UM.unsafeWrite (ctxKillers ctx) k1Idx m
         else return ()
     else return ()
 
@@ -457,8 +457,8 @@ getKillers ctx depth = do
     if ply >= 0 && ply < ctxMaxDepth ctx then do
         let k1Idx = ply * 2
         let k2Idx = ply * 2 + 1
-        k1 <- VM.unsafeRead (ctxKillers ctx) k1Idx
-        k2 <- VM.unsafeRead (ctxKillers ctx) k2Idx
+        k1 <- UM.unsafeRead (ctxKillers ctx) k1Idx
+        k2 <- UM.unsafeRead (ctxKillers ctx) k2Idx
         return $ filter (/= nullMove) [k1, k2]
     else return []
 
@@ -477,7 +477,7 @@ updateCounterMove ctx (Just prevM) m = do
     if isNullMove prevM then return () else do
         let idx = moveToIndex prevM
         if idx >= 0 && idx < 4096 then
-            VM.unsafeWrite (ctxCounterMove ctx) idx m
+            UM.unsafeWrite (ctxCounterMove ctx) idx m
         else return ()
 
 getCounterMove :: SearchContext -> Maybe Move -> IO (Maybe Move)
@@ -486,7 +486,7 @@ getCounterMove ctx (Just prevM) = do
     if isNullMove prevM then return Nothing else do
         let idx = moveToIndex prevM
         if idx >= 0 && idx < 4096 then do
-            m <- VM.unsafeRead (ctxCounterMove ctx) idx
+            m <- UM.unsafeRead (ctxCounterMove ctx) idx
             if isNullMove m then return Nothing else return (Just m)
         else return Nothing
 

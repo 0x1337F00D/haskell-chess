@@ -1,14 +1,22 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module Chess.Types where
 
 import Control.Exception (Exception)
 
 import Data.Char (toLower, chr, ord)
-import Data.Word (Word64)
+import Data.Word (Word64, Word16)
 import Data.Bits
+import qualified Data.Vector.Unboxed as U
+import qualified Data.Vector.Generic as G
+import qualified Data.Vector.Generic.Mutable as GM
+import qualified Data.Vector.Unboxed.Mutable as UM
+import Data.Coerce (coerce)
 
 -- | Color of a chess piece or side to move.
 data Color = White | Black
@@ -378,20 +386,158 @@ fromSymbol ch = do
 
 -- | Representation of a move. Standard move connects two squares and optional promotion.
 -- Null move is a special case. Drop moves are used in Crazyhouse.
-data Move
-    = Move
-      { mFrom :: !Square
-      , mTo   :: !Square
-      , mProm :: !(Maybe PieceType)
-      }
-    | DropMove
-      { mDropPiece :: !PieceType
-      , mTo        :: !Square
-      }
-    | NullMove
-    deriving (Eq, Ord, Show)
+--
+-- Bit Packing Layout (16 bits):
+-- Bits 0-5: To Square (0-63)
+-- Bits 6-11: From Square (0-63) (Unused/Zero in DropMove)
+-- Bits 12-14: Promotion / Piece Type
+--    Standard Move: 0=None, 1=Knight, 2=Bishop, 3=Rook, 4=Queen, 5=King, 6=Pawn
+--    Drop Move: 0=Pawn, 1=Knight, 2=Bishop, 3=Rook, 4=Queen, 5=King
+-- Bit 15: Drop Flag (0=Standard, 1=Drop)
+--
+-- NullMove is represented as 0.
+newtype Move = MkMove Word16
+    deriving stock (Eq, Ord)
 
--- | The null move (does nothing).
+-- Manual Unbox Instance
+newtype instance U.MVector s Move = MV_Move (U.MVector s Word16)
+newtype instance U.Vector Move = V_Move (U.Vector Word16)
+
+instance U.Unbox Move
+
+instance GM.MVector U.MVector Move where
+  basicLength (MV_Move v) = GM.basicLength v
+  {-# INLINE basicLength #-}
+  basicUnsafeSlice i n (MV_Move v) = MV_Move $ GM.basicUnsafeSlice i n v
+  {-# INLINE basicUnsafeSlice #-}
+  basicOverlaps (MV_Move v1) (MV_Move v2) = GM.basicOverlaps v1 v2
+  {-# INLINE basicOverlaps #-}
+  basicUnsafeNew n = MV_Move <$> GM.basicUnsafeNew n
+  {-# INLINE basicUnsafeNew #-}
+  basicInitialize (MV_Move v) = GM.basicInitialize v
+  {-# INLINE basicInitialize #-}
+  basicUnsafeReplicate n x = MV_Move <$> GM.basicUnsafeReplicate n (coerce x)
+  {-# INLINE basicUnsafeReplicate #-}
+  basicUnsafeRead (MV_Move v) i = coerce <$> GM.basicUnsafeRead v i
+  {-# INLINE basicUnsafeRead #-}
+  basicUnsafeWrite (MV_Move v) i x = GM.basicUnsafeWrite v i (coerce x)
+  {-# INLINE basicUnsafeWrite #-}
+  basicClear (MV_Move v) = GM.basicClear v
+  {-# INLINE basicClear #-}
+  basicSet (MV_Move v) x = GM.basicSet v (coerce x)
+  {-# INLINE basicSet #-}
+  basicUnsafeCopy (MV_Move v1) (MV_Move v2) = GM.basicUnsafeCopy v1 v2
+  {-# INLINE basicUnsafeCopy #-}
+  basicUnsafeMove (MV_Move v1) (MV_Move v2) = GM.basicUnsafeMove v1 v2
+  {-# INLINE basicUnsafeMove #-}
+  basicUnsafeGrow (MV_Move v) n = MV_Move <$> GM.basicUnsafeGrow v n
+  {-# INLINE basicUnsafeGrow #-}
+
+instance G.Vector U.Vector Move where
+  basicUnsafeFreeze (MV_Move v) = V_Move <$> G.basicUnsafeFreeze v
+  {-# INLINE basicUnsafeFreeze #-}
+  basicUnsafeThaw (V_Move v) = MV_Move <$> G.basicUnsafeThaw v
+  {-# INLINE basicUnsafeThaw #-}
+  basicLength (V_Move v) = G.basicLength v
+  {-# INLINE basicLength #-}
+  basicUnsafeSlice i n (V_Move v) = V_Move $ G.basicUnsafeSlice i n v
+  {-# INLINE basicUnsafeSlice #-}
+  basicUnsafeIndexM (V_Move v) i = coerce <$> G.basicUnsafeIndexM v i
+  {-# INLINE basicUnsafeIndexM #-}
+  basicUnsafeCopy (MV_Move mv) (V_Move v) = G.basicUnsafeCopy mv v
+  {-# INLINE basicUnsafeCopy #-}
+  elemseq _ = seq
+  {-# INLINE elemseq #-}
+
+instance Show Move where
+    show (Move f t p) = "Move {mFrom = " ++ show f ++ ", mTo = " ++ show t ++ ", mProm = " ++ show p ++ "}"
+    show (DropMove p t) = "DropMove {mDropPiece = " ++ show p ++ ", mTo = " ++ show t ++ "}"
+    show NullMove = "NullMove"
+
+-- | Pattern Synonyms to match existing API
+pattern Move :: Square -> Square -> Maybe PieceType -> Move
+pattern Move f t p <- (unpackMove -> Just (f, t, p))
+  where Move f t p = packMove f t p
+
+pattern DropMove :: PieceType -> Square -> Move
+pattern DropMove p t <- (unpackDropMove -> Just (p, t))
+  where DropMove p t = packDropMove p t
+
+pattern NullMove :: Move
+pattern NullMove <- MkMove 0
+  where NullMove = MkMove 0
+
+{-# COMPLETE Move, DropMove, NullMove #-}
+
+-- Accessors
+mFrom :: Move -> Square
+mFrom (Move f _ _) = f
+mFrom _ = error "mFrom called on non-standard move"
+
+mTo :: Move -> Square
+mTo (Move _ t _) = t
+mTo (DropMove _ t) = t
+mTo NullMove = error "mTo called on NullMove"
+
+mProm :: Move -> Maybe PieceType
+mProm (Move _ _ p) = p
+mProm _ = Nothing
+
+mDropPiece :: Move -> PieceType
+mDropPiece (DropMove p _) = p
+mDropPiece _ = error "mDropPiece called on non-drop move"
+
+-- Helpers
+unpackMove :: Move -> Maybe (Square, Square, Maybe PieceType)
+unpackMove (MkMove w)
+    | w == 0 = Nothing
+    | testBit w 15 = Nothing -- Drop Move
+    | otherwise =
+        let t = Square (fromIntegral (w .&. 0x3F))
+            f = Square (fromIntegral ((w `shiftR` 6) .&. 0x3F))
+            pVal = (w `shiftR` 12) .&. 0x7
+            p = case pVal of
+                0 -> Nothing
+                1 -> Just Knight
+                2 -> Just Bishop
+                3 -> Just Rook
+                4 -> Just Queen
+                5 -> Just King
+                6 -> Just Pawn
+                _ -> Nothing -- Invalid
+        in Just (f, t, p)
+
+packMove :: Square -> Square -> Maybe PieceType -> Move
+packMove (Square f) (Square t) p =
+    let pVal = case p of
+            Nothing -> 0
+            Just Knight -> 1
+            Just Bishop -> 2
+            Just Rook -> 3
+            Just Queen -> 4
+            Just King -> 5
+            Just Pawn -> 6
+    in MkMove $ (fromIntegral t) .|.
+                (fromIntegral f `shiftL` 6) .|.
+                (pVal `shiftL` 12)
+
+unpackDropMove :: Move -> Maybe (PieceType, Square)
+unpackDropMove (MkMove w)
+    | not (testBit w 15) = Nothing
+    | otherwise =
+        let t = Square (fromIntegral (w .&. 0x3F))
+            pVal = (w `shiftR` 12) .&. 0x7
+            p = toEnum (fromIntegral pVal) -- 0-5
+        in Just (p, t)
+
+packDropMove :: PieceType -> Square -> Move
+packDropMove p (Square t) =
+    let pVal = fromIntegral (fromEnum p)
+    in MkMove $ (fromIntegral t) .|.
+                (pVal `shiftL` 12) .|.
+                (1 `shiftL` 15)
+
+-- Existing Helpers
 nullMove :: Move
 nullMove = NullMove
 
@@ -399,18 +545,15 @@ isNullMove :: Move -> Bool
 isNullMove NullMove = True
 isNullMove _        = False
 
--- | Helper to access fromSquare safely (compatibility/helper)
 fromSquare :: Move -> Maybe Square
 fromSquare (Move f _ _) = Just f
 fromSquare _            = Nothing
 
--- | Helper to access toSquare safely (compatibility/helper)
 toSquare :: Move -> Maybe Square
 toSquare (Move _ t _)   = Just t
 toSquare (DropMove _ t) = Just t
 toSquare NullMove       = Nothing
 
--- | Helper to access promotion safely (compatibility/helper)
 promotion :: Move -> Maybe PieceType
 promotion (Move _ _ p) = p
 promotion _            = Nothing
