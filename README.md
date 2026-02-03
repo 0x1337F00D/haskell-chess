@@ -71,7 +71,7 @@ Comparison of variants supported by PyChess vs haskell-chess:
 | **Racing Kings** | ✅ | ✅ | No check rule implemented. |
 | **Three-Check** | ✅ | ✅ | Win by 3 checks implemented. |
 | **Crazyhouse** | ✅ | ✅ | Drop Moves implemented. |
-| **Chess960** | ✅ | ❌ | Pending (Fischer Random). |
+| **Chess960** | ✅ | ✅ | Implemented (Fischer Random). |
 | **Antichess** | ✅ | ✅ | (Giveaway/Suicide/Losers) Implemented. |
 | **Horde** | ✅ | ✅ | Implemented. |
 
