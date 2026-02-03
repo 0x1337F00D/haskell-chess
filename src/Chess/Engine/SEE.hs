@@ -30,11 +30,8 @@ attackersTo b sq occ =
 see :: Board -> Move -> Int
 see _ NullMove = 0
 see _ (DropMove {}) = 0
-see board move =
+see board (Move from to _) =
     let
-        from = mFrom move
-        to = mTo move
-
         -- Target value
         target = case pieceAt board to of
             Just (Piece _ pt) -> pieceValue pt

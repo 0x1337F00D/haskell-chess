@@ -1,14 +1,25 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Chess.Types where
 
 import Control.Exception (Exception)
+import Control.Monad (liftM)
 
 import Data.Char (toLower, chr, ord)
-import Data.Word (Word64)
+import Data.Word (Word16, Word64)
 import Data.Bits
+import Data.Coerce (coerce)
+import Foreign.Storable (Storable(..))
+
+import qualified Data.Vector.Generic         as G
+import qualified Data.Vector.Generic.Mutable as M
+import qualified Data.Vector.Unboxed         as U
 
 -- | Color of a chess piece or side to move.
 data Color = White | Black
@@ -68,7 +79,7 @@ unicodeSymbol Black King   = '♚'
 -- | Squares represented as integers 0..63 (a1=0).
 newtype Square = Square { unSquare :: Int }
   deriving stock (Eq, Ord)
-  deriving newtype (Enum)
+  deriving newtype (Enum, Num, Real, Integral, Bits, Storable)
 
 instance Show Square where
   show = squareName
@@ -81,18 +92,12 @@ square n
 -- | Halfmove clock for the fifty-move rule (counts half-moves).
 newtype HalfmoveClock = HalfmoveClock { unHalfmoveClock :: Int }
   deriving stock (Eq, Ord)
-  deriving newtype (Enum, Num, Real, Integral)
-
-instance Show HalfmoveClock where
-  show = show . unHalfmoveClock
+  deriving newtype (Enum, Num, Real, Integral, Show)
 
 -- | Fullmove number (increments after Black's move).
 newtype FullmoveNumber = FullmoveNumber { unFullmoveNumber :: Int }
   deriving stock (Eq, Ord)
-  deriving newtype (Enum, Num, Real, Integral)
-
-instance Show FullmoveNumber where
-  show = show . unFullmoveNumber
+  deriving newtype (Enum, Num, Real, Integral, Show)
 
 -- | Search depth measured in plies.
 newtype Depth = Depth { unDepth :: Int }
@@ -376,20 +381,114 @@ fromSymbol ch = do
     let col = if ch `elem` ['a'..'z'] then Black else White
     return (Piece col pt)
 
--- | Representation of a move. Standard move connects two squares and optional promotion.
--- Null move is a special case. Drop moves are used in Crazyhouse.
-data Move
-    = Move
-      { mFrom :: !Square
-      , mTo   :: !Square
-      , mProm :: !(Maybe PieceType)
-      }
-    | DropMove
-      { mDropPiece :: !PieceType
-      , mTo        :: !Square
-      }
-    | NullMove
-    deriving (Eq, Ord, Show)
+-- | Representation of a move (Bit-Packed Word16).
+-- Bits 0-5: From Square (0-63)
+-- Bits 6-11: To Square (0-63)
+-- Bits 12-14: Special Tag
+--             0: Normal / Quiet / Capture
+--             1: Promotion Knight
+--             2: Promotion Bishop
+--             3: Promotion Rook
+--             4: Promotion Queen
+--             5: Drop Move (From = PieceType)
+--             7: Null Move
+-- Bit 15: Unused (or extended flags)
+newtype Move = MkMove Word16
+    deriving stock (Eq, Ord)
+    deriving newtype (Storable)
+
+instance Show Move where
+    show (Move f t p) = "Move " ++ show f ++ " " ++ show t ++ " " ++ show p
+    show (DropMove p t) = "DropMove " ++ show p ++ " " ++ show t
+    show NullMove = "NullMove"
+
+-- | Unboxing instances for Data.Vector.Unboxed
+newtype instance U.MVector s Move = MV_Move (U.MVector s Word16)
+newtype instance U.Vector    Move = V_Move  (U.Vector    Word16)
+
+instance U.Unbox Move
+
+instance M.MVector U.MVector Move where
+  basicLength (MV_Move v) = M.basicLength v
+  basicUnsafeSlice i n (MV_Move v) = MV_Move (M.basicUnsafeSlice i n v)
+  basicOverlaps (MV_Move v1) (MV_Move v2) = M.basicOverlaps v1 v2
+  basicUnsafeNew n = MV_Move `liftM` M.basicUnsafeNew n
+  basicInitialize (MV_Move v) = M.basicInitialize v
+  basicUnsafeReplicate n x = MV_Move `liftM` M.basicUnsafeReplicate n (coerce x)
+  basicUnsafeRead (MV_Move v) i = coerce `liftM` M.basicUnsafeRead v i
+  basicUnsafeWrite (MV_Move v) i x = M.basicUnsafeWrite v i (coerce x)
+  basicClear (MV_Move v) = M.basicClear v
+  basicSet (MV_Move v) x = M.basicSet v (coerce x)
+  basicUnsafeCopy (MV_Move v1) (MV_Move v2) = M.basicUnsafeCopy v1 v2
+  basicUnsafeMove (MV_Move v1) (MV_Move v2) = M.basicUnsafeMove v1 v2
+  basicUnsafeGrow (MV_Move v) n = MV_Move `liftM` M.basicUnsafeGrow v n
+
+instance G.Vector U.Vector Move where
+  basicUnsafeFreeze (MV_Move v) = V_Move `liftM` G.basicUnsafeFreeze v
+  basicUnsafeThaw (V_Move v) = MV_Move `liftM` G.basicUnsafeThaw v
+  basicLength (V_Move v) = G.basicLength v
+  basicUnsafeSlice i n (V_Move v) = V_Move (G.basicUnsafeSlice i n v)
+  basicUnsafeIndexM (V_Move v) i = coerce `liftM` G.basicUnsafeIndexM v i
+  basicUnsafeCopy (MV_Move mv) (V_Move v) = G.basicUnsafeCopy mv v
+  elemseq _ = seq
+
+-- | Construct a standard move.
+pattern Move :: Square -> Square -> Maybe PieceType -> Move
+pattern Move f t p <- (unpackMove -> Just (f, t, p))
+  where Move f t p = mkMove f t p
+
+-- | Construct a drop move.
+pattern DropMove :: PieceType -> Square -> Move
+pattern DropMove pt t <- (unpackDrop -> Just (pt, t))
+  where DropMove pt t = mkDrop pt t
+
+-- | Construct a null move.
+pattern NullMove :: Move
+pattern NullMove <- (unpackNull -> True)
+  where NullMove = mkNull
+
+{-# COMPLETE Move, DropMove, NullMove #-}
+
+mkMove :: Square -> Square -> Maybe PieceType -> Move
+mkMove (Square f) (Square t) p =
+    let special = case p of
+                    Nothing -> 0
+                    Just Knight -> 1
+                    Just Bishop -> 2
+                    Just Rook -> 3
+                    Just Queen -> 4
+                    Just _ -> 0
+    in MkMove $ fromIntegral f .|. (fromIntegral t `shiftL` 6) .|. (special `shiftL` 12)
+
+unpackMove :: Move -> Maybe (Square, Square, Maybe PieceType)
+unpackMove (MkMove w) =
+    let special = (w `shiftR` 12) .&. 0x7
+    in if special == 5 || special == 7 then Nothing -- Drop or Null
+       else Just (Square (fromIntegral (w .&. 0x3F)),
+                  Square (fromIntegral ((w `shiftR` 6) .&. 0x3F)),
+                  case special of
+                    1 -> Just Knight
+                    2 -> Just Bishop
+                    3 -> Just Rook
+                    4 -> Just Queen
+                    _ -> Nothing)
+
+mkDrop :: PieceType -> Square -> Move
+mkDrop pt (Square t) =
+    MkMove $ fromIntegral (fromEnum pt) .|. (fromIntegral t `shiftL` 6) .|. (5 `shiftL` 12)
+
+unpackDrop :: Move -> Maybe (PieceType, Square)
+unpackDrop (MkMove w) =
+    let special = (w `shiftR` 12) .&. 0x7
+    in if special == 5
+       then Just (toEnum (fromIntegral (w .&. 0x3F)), Square (fromIntegral ((w `shiftR` 6) .&. 0x3F)))
+       else Nothing
+
+mkNull :: Move
+mkNull = MkMove (7 `shiftL` 12)
+
+unpackNull :: Move -> Bool
+unpackNull (MkMove w) = ((w `shiftR` 12) .&. 0x7) == 7
 
 -- | The null move (does nothing).
 nullMove :: Move
