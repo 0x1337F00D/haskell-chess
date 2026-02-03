@@ -382,17 +382,19 @@ fromSymbol ch = do
     return (Piece col pt)
 
 -- | Representation of a move (Bit-Packed Word16).
--- Bits 0-5: From Square (0-63)
--- Bits 6-11: To Square (0-63)
--- Bits 12-14: Special Tag
---             0: Normal / Quiet / Capture
---             1: Promotion Knight
---             2: Promotion Bishop
---             3: Promotion Rook
---             4: Promotion Queen
---             5: Drop Move (From = PieceType)
---             7: Null Move
--- Bit 15: Unused (or extended flags)
+-- Bits 0-5: To Square (0-63)
+-- Bits 6-11: From Square (0-63)
+-- Bits 12-14: Promotion/Piece Type
+--             Standard (Bit 15=0):
+--               0: Normal / Quiet / Capture
+--               1: Promotion Knight
+--               2: Promotion Bishop
+--               3: Promotion Rook
+--               4: Promotion Queen
+--               7: Null Move
+--             Drop (Bit 15=1):
+--               0-5: Piece Type being dropped (Pawn..King)
+-- Bit 15: Flag (0=Standard, 1=Drop)
 newtype Move = MkMove Word16
     deriving stock (Eq, Ord)
     deriving newtype (Storable)
@@ -451,22 +453,23 @@ pattern NullMove <- (unpackNull -> True)
 
 mkMove :: Square -> Square -> Maybe PieceType -> Move
 mkMove (Square f) (Square t) p =
-    let special = case p of
+    let prom = case p of
                     Nothing -> 0
                     Just Knight -> 1
                     Just Bishop -> 2
                     Just Rook -> 3
                     Just Queen -> 4
                     Just _ -> 0
-    in MkMove $ fromIntegral f .|. (fromIntegral t `shiftL` 6) .|. (special `shiftL` 12)
+    in MkMove $ fromIntegral t .|. (fromIntegral f `shiftL` 6) .|. (prom `shiftL` 12)
 
 unpackMove :: Move -> Maybe (Square, Square, Maybe PieceType)
 unpackMove (MkMove w) =
-    let special = (w `shiftR` 12) .&. 0x7
-    in if special == 5 || special == 7 then Nothing -- Drop or Null
-       else Just (Square (fromIntegral (w .&. 0x3F)),
-                  Square (fromIntegral ((w `shiftR` 6) .&. 0x3F)),
-                  case special of
+    let flag = (w `shiftR` 15) .&. 1
+        prom = (w `shiftR` 12) .&. 0x7
+    in if flag == 1 || prom == 7 then Nothing -- Drop or Null
+       else Just (Square (fromIntegral ((w `shiftR` 6) .&. 0x3F)),
+                  Square (fromIntegral (w .&. 0x3F)),
+                  case prom of
                     1 -> Just Knight
                     2 -> Just Bishop
                     3 -> Just Rook
@@ -475,20 +478,24 @@ unpackMove (MkMove w) =
 
 mkDrop :: PieceType -> Square -> Move
 mkDrop pt (Square t) =
-    MkMove $ fromIntegral (fromEnum pt) .|. (fromIntegral t `shiftL` 6) .|. (5 `shiftL` 12)
+    MkMove $ fromIntegral t .|. (fromIntegral (fromEnum pt) `shiftL` 12) .|. (1 `shiftL` 15)
 
 unpackDrop :: Move -> Maybe (PieceType, Square)
 unpackDrop (MkMove w) =
-    let special = (w `shiftR` 12) .&. 0x7
-    in if special == 5
-       then Just (toEnum (fromIntegral (w .&. 0x3F)), Square (fromIntegral ((w `shiftR` 6) .&. 0x3F)))
+    let flag = (w `shiftR` 15) .&. 1
+        ptVal = (w `shiftR` 12) .&. 0x7
+    in if flag == 1
+       then Just (toEnum (fromIntegral ptVal), Square (fromIntegral (w .&. 0x3F)))
        else Nothing
 
 mkNull :: Move
 mkNull = MkMove (7 `shiftL` 12)
 
 unpackNull :: Move -> Bool
-unpackNull (MkMove w) = ((w `shiftR` 12) .&. 0x7) == 7
+unpackNull (MkMove w) =
+    let flag = (w `shiftR` 15) .&. 1
+        prom = (w `shiftR` 12) .&. 0x7
+    in flag == 0 && prom == 7
 
 -- | The null move (does nothing).
 nullMove :: Move
