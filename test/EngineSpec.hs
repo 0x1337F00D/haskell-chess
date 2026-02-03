@@ -13,6 +13,18 @@ spec = describe "Engine" $ do
     it "evaluates initial board to 0" $ do
       evaluate (trustBoard initialBoard) `shouldBe` 0
 
+    it "gives advantage to white for extra pawn" $ do
+      -- Remove black pawn at a7
+      let fenStr = "rnbqkbnr/1ppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+          board = fromJust $ parseFen fenStr
+      evaluate (trustBoard board) `shouldSatisfy` (> 40)
+
+    it "gives advantage for material in endgame" $ do
+      -- White King, Rook vs Black King
+      let fenStr = "8/8/8/8/8/8/4R3/k6K w - - 0 1"
+          board = fromJust $ parseFen fenStr
+      evaluate (trustBoard board) `shouldSatisfy` (> 300)
+
   describe "Search" $ do
     it "finds simple mate in 1" $ do
       -- Fool's mate pattern
