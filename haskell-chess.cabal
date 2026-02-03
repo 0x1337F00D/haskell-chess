@@ -98,6 +98,11 @@ library
                     , Chess.Core.Fen
                     , Chess.Engine.Evaluation
                     , Chess.Engine.Search
+                    , Chess.Engine.Search.Types
+                    , Chess.Engine.Search.Pruning
+                    , Chess.Engine.Search.Ordering
+                    , Chess.Engine.Search.Quiescence
+                    , Chess.Engine.Search.AlphaBeta
                     , Chess.Engine.TT
                     , Chess.Engine.Uci
                     , Chess.Engine.SEE
