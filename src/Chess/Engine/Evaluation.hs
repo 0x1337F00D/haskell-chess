@@ -2,7 +2,7 @@
 module Chess.Engine.Evaluation (evaluate) where
 
 import qualified Data.Vector.Unboxed as U
-import Data.Bits (countTrailingZeros, clearBit, popCount, (.&.))
+import Data.Bits (countTrailingZeros, clearBit, popCount, (.&.), (.|.), shiftL, shiftR)
 
 import Chess.Types
 import Chess.Bitboard
@@ -12,6 +12,14 @@ import Chess.Board (Board(..), ValidatedBoard, getBoard)
 
 -- | Evaluation score in centipawns.
 type Score = Int
+
+-- | Packed Score (MG in upper 32 bits, EG in lower 32 bits).
+type PackedScore = Int
+
+-- | Pack two scores into one 64-bit integer (assuming 64-bit Int).
+-- We bias EG by +65536 to ensure it is positive and doesn't carry into MG.
+packScore :: Score -> Score -> PackedScore
+packScore mg eg = (mg `shiftL` 32) .|. ((eg + 65536) .&. 0xFFFFFFFF)
 
 -- | Tapered Evaluation Parameters
 totalPhase :: Int
@@ -73,31 +81,26 @@ evaluate vBoard =
 
         -- PST Scores
         -- Computed strict and inline to avoid thunks/allocations
-        !mgPST = evalPSTO (Base.whitePawns b)   mgPawnTable   +
-                 evalPSTO (Base.whiteKnights b) mgKnightTable +
-                 evalPSTO (Base.whiteBishops b) mgBishopTable +
-                 evalPSTO (Base.whiteRooks b)   mgRookTable   +
-                 evalPSTO (Base.whiteQueens b)  mgQueenTable  +
-                 evalPSTO (Base.whiteKings b)   mgKingTable   -
-                 (evalPSTO (Base.blackPawns b)   mgPawnTableFlip   +
-                  evalPSTO (Base.blackKnights b) mgKnightTableFlip +
-                  evalPSTO (Base.blackBishops b) mgBishopTableFlip +
-                  evalPSTO (Base.blackRooks b)   mgRookTableFlip   +
-                  evalPSTO (Base.blackQueens b)  mgQueenTableFlip  +
-                  evalPSTO (Base.blackKings b)   mgKingTableFlip)
+        !wPacked = evalPacked (Base.whitePawns b)   packedPawnTable   +
+                   evalPacked (Base.whiteKnights b) packedKnightTable +
+                   evalPacked (Base.whiteBishops b) packedBishopTable +
+                   evalPacked (Base.whiteRooks b)   packedRookTable   +
+                   evalPacked (Base.whiteQueens b)  packedQueenTable  +
+                   evalPacked (Base.whiteKings b)   packedKingTable
 
-        !egPST = evalPSTO (Base.whitePawns b)   egPawnTable   +
-                 evalPSTO (Base.whiteKnights b) egKnightTable +
-                 evalPSTO (Base.whiteBishops b) egBishopTable +
-                 evalPSTO (Base.whiteRooks b)   egRookTable   +
-                 evalPSTO (Base.whiteQueens b)  egQueenTable  +
-                 evalPSTO (Base.whiteKings b)   egKingTable   -
-                 (evalPSTO (Base.blackPawns b)   egPawnTableFlip   +
-                  evalPSTO (Base.blackKnights b) egKnightTableFlip +
-                  evalPSTO (Base.blackBishops b) egBishopTableFlip +
-                  evalPSTO (Base.blackRooks b)   egRookTableFlip   +
-                  evalPSTO (Base.blackQueens b)  egQueenTableFlip  +
-                  evalPSTO (Base.blackKings b)   egKingTableFlip)
+        !bPacked = evalPacked (Base.blackPawns b)   packedPawnTableFlip   +
+                   evalPacked (Base.blackKnights b) packedKnightTableFlip +
+                   evalPacked (Base.blackBishops b) packedBishopTableFlip +
+                   evalPacked (Base.blackRooks b)   packedRookTableFlip   +
+                   evalPacked (Base.blackQueens b)  packedQueenTableFlip  +
+                   evalPacked (Base.blackKings b)   packedKingTableFlip
+
+        !wCount = wp + wn + wb + wr + wq + wk
+        !bCount = bp + bn + bb + br + bq + bk
+
+        !mgPST = (wPacked `shiftR` 32) - (bPacked `shiftR` 32)
+        !egPST = ((wPacked .&. 0xFFFFFFFF) - wCount * 65536) -
+                 ((bPacked .&. 0xFFFFFFFF) - bCount * 65536)
 
         !mgScore = mgMat + mgPST
         !egScore = egMat + egPST
@@ -159,16 +162,16 @@ evaluate vBoard =
         !finalScore = (((mgScore + safetyAdj) * clampedPhase) + (egScoreTotal * (totalPhase - clampedPhase))) `div` totalPhase
     in if turn gs == White then finalScore else -finalScore
 
-evalPSTO :: Bitboard -> U.Vector Score -> Score
-{-# INLINE evalPSTO #-}
-evalPSTO bb table = go bb 0
+evalPacked :: Bitboard -> U.Vector PackedScore -> PackedScore
+{-# INLINE evalPacked #-}
+evalPacked bb table = go bb 0
   where
-    go :: Bitboard -> Int -> Int
+    go :: Bitboard -> PackedScore -> PackedScore
     go 0 !acc = acc
     go b !acc =
         let i = countTrailingZeros b
-            !score = table `U.unsafeIndex` i
-        in go (clearBit b i) (acc + score)
+            !packed = table `U.unsafeIndex` i
+        in go (clearBit b i) (acc + packed)
 
 -- | Flip a PSTO table for Black (mirror ranks).
 -- Transforms a White table to Black table.
@@ -317,35 +320,19 @@ rawEgKingTable = U.fromList
     , -53, -34, -21, -11, -28, -14, -24, -43
     ]
 
--- Definitions of actual tables (White = flip raw, Black = raw)
-mgPawnTable, mgKnightTable, mgBishopTable, mgRookTable, mgQueenTable, mgKingTable :: U.Vector Score
-mgPawnTable   = flipTable rawMgPawnTable
-mgKnightTable = flipTable rawMgKnightTable
-mgBishopTable = flipTable rawMgBishopTable
-mgRookTable   = flipTable rawMgRookTable
-mgQueenTable  = flipTable rawMgQueenTable
-mgKingTable   = flipTable rawMgKingTable
+-- Packed Tables (White = flip raw, Black = raw)
+packedPawnTable, packedKnightTable, packedBishopTable, packedRookTable, packedQueenTable, packedKingTable :: U.Vector PackedScore
+packedPawnTable   = U.zipWith packScore (flipTable rawMgPawnTable) (flipTable rawEgPawnTable)
+packedKnightTable = U.zipWith packScore (flipTable rawMgKnightTable) (flipTable rawEgKnightTable)
+packedBishopTable = U.zipWith packScore (flipTable rawMgBishopTable) (flipTable rawEgBishopTable)
+packedRookTable   = U.zipWith packScore (flipTable rawMgRookTable) (flipTable rawEgRookTable)
+packedQueenTable  = U.zipWith packScore (flipTable rawMgQueenTable) (flipTable rawEgQueenTable)
+packedKingTable   = U.zipWith packScore (flipTable rawMgKingTable) (flipTable rawEgKingTable)
 
-egPawnTable, egKnightTable, egBishopTable, egRookTable, egQueenTable, egKingTable :: U.Vector Score
-egPawnTable   = flipTable rawEgPawnTable
-egKnightTable = flipTable rawEgKnightTable
-egBishopTable = flipTable rawEgBishopTable
-egRookTable   = flipTable rawEgRookTable
-egQueenTable  = flipTable rawEgQueenTable
-egKingTable   = flipTable rawEgKingTable
-
-mgPawnTableFlip, mgKnightTableFlip, mgBishopTableFlip, mgRookTableFlip, mgQueenTableFlip, mgKingTableFlip :: U.Vector Score
-mgPawnTableFlip   = rawMgPawnTable
-mgKnightTableFlip = rawMgKnightTable
-mgBishopTableFlip = rawMgBishopTable
-mgRookTableFlip   = rawMgRookTable
-mgQueenTableFlip  = rawMgQueenTable
-mgKingTableFlip   = rawMgKingTable
-
-egPawnTableFlip, egKnightTableFlip, egBishopTableFlip, egRookTableFlip, egQueenTableFlip, egKingTableFlip :: U.Vector Score
-egPawnTableFlip   = rawEgPawnTable
-egKnightTableFlip = rawEgKnightTable
-egBishopTableFlip = rawEgBishopTable
-egRookTableFlip   = rawEgRookTable
-egQueenTableFlip  = rawEgQueenTable
-egKingTableFlip   = rawEgKingTable
+packedPawnTableFlip, packedKnightTableFlip, packedBishopTableFlip, packedRookTableFlip, packedQueenTableFlip, packedKingTableFlip :: U.Vector PackedScore
+packedPawnTableFlip   = U.zipWith packScore rawMgPawnTable   rawEgPawnTable
+packedKnightTableFlip = U.zipWith packScore rawMgKnightTable rawEgKnightTable
+packedBishopTableFlip = U.zipWith packScore rawMgBishopTable rawEgBishopTable
+packedRookTableFlip   = U.zipWith packScore rawMgRookTable   rawEgRookTable
+packedQueenTableFlip  = U.zipWith packScore rawMgQueenTable  rawEgQueenTable
+packedKingTableFlip   = U.zipWith packScore rawMgKingTable   rawEgKingTable
