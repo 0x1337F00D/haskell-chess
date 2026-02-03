@@ -1,7 +1,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 module Chess.Board.Base where
 
-import Data.Bits ((.|.), (.&.), testBit, setBit, clearBit, xor, shiftL)
+import Data.Bits ((.|.), (.&.), testBit, setBit, clearBit, xor, shiftL, countTrailingZeros, countLeadingZeros)
 
 import Chess.Types
 import Chess.Bitboard
@@ -377,3 +377,59 @@ unsafeMovePiece b from to c pt =
         black = if c == Black then occupiedBlack b `xor` mask else occupiedBlack b
         total = occupiedTotal b `xor` mask
     in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total }
+
+-- Attackers ------------------------------------------------------------------
+
+-- | Returns a bitboard of all pieces attacking a square.
+-- Uses the provided occupancy bitboard for sliding attacks.
+{-# INLINE attackersTo #-}
+attackersTo :: Board -> Square -> Bitboard -> Bitboard
+attackersTo b sq occ =
+    (pawnAttacks Black sq .&. whitePawns b) .|.
+    (pawnAttacks White sq .&. blackPawns b) .|.
+    (knightAttacks sq .&. (whiteKnights b .|. blackKnights b)) .|.
+    (kingAttacks sq .&. (whiteKings b .|. blackKings b)) .|.
+    (bishopAttacks sq occ .&. (whiteDiagonal b .|. blackDiagonal b)) .|.
+    (rookAttacks sq occ .&. (whiteOrthogonal b .|. blackOrthogonal b))
+
+-- | Get X-Ray attacker behind a piece.
+{-# INLINE getXRayAttacker #-}
+getXRayAttacker :: Board -> Square -> Square -> Bitboard -> Bitboard
+getXRayAttacker b sq from occ =
+    let r = ray sq from
+        blockers = r .&. occ
+    in if blockers == 0 then 0
+       else
+         let fromI = unSquare from
+             sqI = unSquare sq
+             diff = fromI - sqI
+             attackerSq = if diff > 0
+                          then Square (countTrailingZeros blockers)
+                          else Square (63 - countLeadingZeros blockers)
+         in case pieceAt b attackerSq of
+              Nothing -> 0
+              Just (Piece _ pt) ->
+                  if isSlider pt && compatible pt sq from
+                  then bbFromSquare attackerSq
+                  else 0
+
+-- | Check if a piece type is a slider.
+{-# INLINE isSlider #-}
+isSlider :: PieceType -> Bool
+isSlider Bishop = True
+isSlider Rook = True
+isSlider Queen = True
+isSlider _ = False
+
+-- | Check if a piece type can attack along the ray between two squares.
+{-# INLINE compatible #-}
+compatible :: PieceType -> Square -> Square -> Bool
+compatible pt sq from =
+    let sameRank = squareRank sq == squareRank from
+        sameFile = squareFile sq == squareFile from
+        sameDiag = abs (squareFile sq - squareFile from) == abs (squareRank sq - squareRank from)
+    in case pt of
+        Rook -> sameRank || sameFile
+        Bishop -> sameDiag
+        Queen -> sameRank || sameFile || sameDiag
+        _ -> False

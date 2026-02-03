@@ -105,26 +105,14 @@ evaluate vBoard =
         !mgScore = mgMat + mgPST
         !egScore = egMat + egPST
 
-        -- King Safety Term (Minimal: Open Files)
-        -- Penalty for King on open/semi-open files (no own pawns)
-        -- Apply to both MG and EG (or just MG? King safety matters always but more in MG.
-        -- Prompt says "Minimal King Safety... Option A... moves onto open files".
-        -- Let's apply a constant penalty.
+        -- King Safety Term (Threat-Based)
         !wKingSq = countTrailingZeros (Base.whiteKings b)
         !bKingSq = countTrailingZeros (Base.blackKings b)
 
-        -- Safe lookup of file mask
-        !wFileMask = bbFiles !! (wKingSq `mod` 8)
-        !bFileMask = bbFiles !! (bKingSq `mod` 8)
+        !wSafety = kingSafety b White (Square wKingSq)
+        !bSafety = kingSafety b Black (Square bKingSq)
 
-        -- Penalty if NO own pawns on file
-        !wPenalty = if (Base.whitePawns b .&. wFileMask) == 0 then 10 else 0
-        !bPenalty = if (Base.blackPawns b .&. bFileMask) == 0 then 10 else 0
-
-        -- Subtract penalty from own score (so Add Opponent Penalty - Own Penalty)
-        -- mgScore is White Relative? No, mgMat is (White - Black).
-        -- So + (bPenalty - wPenalty)
-        !safetyAdj = bPenalty - wPenalty
+        !safetyAdj = bSafety - wSafety
 
         -- Mop-Up Evaluation (Endgame only)
         -- Encourages driving enemy king to corner and moving own king close.
@@ -336,3 +324,46 @@ packedBishopTableFlip = U.zipWith packScore rawMgBishopTable rawEgBishopTable
 packedRookTableFlip   = U.zipWith packScore rawMgRookTable   rawEgRookTable
 packedQueenTableFlip  = U.zipWith packScore rawMgQueenTable  rawEgQueenTable
 packedKingTableFlip   = U.zipWith packScore rawMgKingTable   rawEgKingTable
+
+-- | King Safety Table (Quadratic)
+-- Indexed by attack units.
+safetyTable :: U.Vector Score
+safetyTable = U.generate 100 $ \i ->
+    if i == 0 then 0
+    else (i * i * 3) `div` 4 + 5
+
+-- | Calculate King Safety Penalty
+kingSafety :: Base.Board -> Color -> Square -> Score
+kingSafety b us kSq =
+    let them = if us == White then Black else White
+        zone = kingAttacks kSq
+        occ = Base.occupied b
+
+        -- Enemy pieces
+        enemyKnights = Base.pieceBitboard b them Knight
+        enemyBishops = Base.pieceBitboard b them Bishop
+        enemyRooks   = Base.pieceBitboard b them Rook
+        enemyQueens  = Base.pieceBitboard b them Queen
+
+        countAttacks :: Bitboard -> (Square -> Bitboard) -> Int -> Int
+        countAttacks 0 _ _ = 0
+        countAttacks bb attacksFn units = go bb 0
+          where
+            go 0 !acc = acc
+            go pieces !acc =
+                let i = countTrailingZeros pieces
+                    sq = Square i
+                    atts = attacksFn sq
+                    -- Count how many squares in the king zone are attacked
+                    hits = popCount (atts .&. zone)
+                in go (clearBit pieces i) (acc + hits * units)
+
+        -- Accumulate attack units
+        !vN = countAttacks enemyKnights knightAttacks 2
+        !vB = countAttacks enemyBishops (\s -> bishopAttacks s occ) 2
+        !vR = countAttacks enemyRooks   (\s -> rookAttacks s occ) 3
+        !vQ = countAttacks enemyQueens  (\s -> bishopAttacks s occ .|. rookAttacks s occ) 5
+
+        !totalUnits = vN + vB + vR + vQ
+
+    in if totalUnits == 0 then 0 else safetyTable U.! (min 99 totalUnits)
