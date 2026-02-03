@@ -176,17 +176,14 @@ parseSan b gs str =
         c = turn gs
 
         -- Helper to check legality of a Move (converting to GenMove first)
-        checkLegal m =
-            let from = mFrom m
-                to = mTo m
-                p = pieceAt b from
+        checkLegal m@(Move from to promo) =
+            let p = pieceAt b from
                 pt = maybe Pawn pieceType p
 
                 isEp = pt == Pawn && isEpCapture b gs m
                 isCastling = pt == King && abs (unSquare from - unSquare to) == 2
 
                 capturedPt = fmap pieceType (pieceAt b to)
-                promo = mProm m
 
                 gm = if isCastling then GenCastling from to
                      else case promo of
