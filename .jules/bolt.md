@@ -29,3 +29,7 @@
 ## 2026-01-31 – [Manual Record Fusion vs Straight-line Updates]
 **Learning:** Attempted to fuse 'remove piece' and 'move piece' operations in 'applyMoveBoardFast' to reduce 'Board' allocations. The resulting function required complex conditional dispatch (12 checks) to construct the record in one go. This proved *slower* (Time doubled) and increased allocation slightly (intermediates?), compared to the original sequential updates. Straight-line updates with simple logic are often better optimized by GHC.
 **Action:** Avoid manual fusion of record updates if it introduces significant branching. Trust GHC to optimize sequential updates or accept the small allocation cost for simpler control flow.
+
+## 2026-02-01 – [Bit-Packed GenMove]
+**Learning:** `GenMove` (sum type with 6 constructors) was a major source of allocation (~1.6GB) in move generation. Replaced it with a bit-packed `newtype GenMove = MkGenMove Word64` using `PatternSynonyms`. This reduces heap object size significantly (5 words -> 2 words) and enables `Unboxed Vector` storage. However, observed ~15% regression in raw perft NPS due to bitwise packing/unpacking overhead in tight loops.
+**Action:** Use bit-packing for data that is stored in bulk (like Move lists), but be aware of the CPU cost of unpacking. Essential for enabling `Unbox` instances to remove list structure overhead in future steps.

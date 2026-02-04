@@ -1,7 +1,48 @@
 {-# LANGUAGE PatternSynonyms #-}
-module Chess.Board.MoveGen where
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ViewPatterns #-}
+
+module Chess.Board.MoveGen
+  ( GenMove(MkGenMove, GenQuiet, GenCapture, GenEnPassant, GenCastling, GenPromotion, GenPromotionCapture)
+  , genMoveToMove
+  , pseudoLegalMoves
+  , legalMoves
+  , legalGenMoves
+  , pseudoLegalCaptures
+  , legalCaptures
+  , legalGenCaptures
+  , pseudoLegalQuiets
+  , legalGenQuiets
+  , pseudoLegalPromotions
+  , legalGenPromotions
+  , isLegal
+  , isLegalMove
+  , toGenMove
+  , applyMoveBoardFast
+  , movePieceFast
+  , applyMoveBoard
+  , kingSquare
+  , pieceMoves
+  , pieceCaptures
+  , pieceQuiets
+  , pawnMoves
+  , pawnQuiets
+  , pawnPromotions
+  , pawnCaptures
+  , castlingMoves
+  ) where
 
 import Data.Bits
+import Data.Word (Word64)
+import Foreign.Storable (Storable(..))
+import qualified Data.Vector.Generic         as G
+import qualified Data.Vector.Generic.Mutable as M
+import qualified Data.Vector.Unboxed         as U
+import Data.Coerce (coerce)
+import Control.Monad (liftM)
 
 import Chess.Types
 import Chess.Bitboard
@@ -10,14 +51,212 @@ import Chess.Board.GameState
 
 -- | A move coupled with explicit semantics.
 -- Replaces the previous product type (Move, PieceType, MoveTag) with a categorical Sum Type.
-data GenMove
-  = GenQuiet !Square !Square !PieceType
-  | GenCapture !Square !Square !PieceType !PieceType -- ^ from, to, moving, captured
-  | GenEnPassant !Square !Square                     -- ^ from, to (moving=Pawn, captured=Pawn)
-  | GenCastling !Square !Square                      -- ^ from, to (moving=King)
-  | GenPromotion !Square !Square !PieceType          -- ^ from, to, promotion (moving=Pawn)
-  | GenPromotionCapture !Square !Square !PieceType !PieceType -- ^ from, to, promo, captured (moving=Pawn)
-  deriving (Eq, Show)
+-- Bit-packed Word64 representation to avoid allocation overhead.
+newtype GenMove = MkGenMove Word64
+  deriving stock (Eq)
+  deriving newtype (Storable)
+
+-- | Unboxing instances for Data.Vector.Unboxed
+newtype instance U.MVector s GenMove = MV_GenMove (U.MVector s Word64)
+newtype instance U.Vector    GenMove = V_GenMove  (U.Vector    Word64)
+
+instance U.Unbox GenMove
+
+instance M.MVector U.MVector GenMove where
+  basicLength (MV_GenMove v) = M.basicLength v
+  basicUnsafeSlice i n (MV_GenMove v) = MV_GenMove (M.basicUnsafeSlice i n v)
+  basicOverlaps (MV_GenMove v1) (MV_GenMove v2) = M.basicOverlaps v1 v2
+  basicUnsafeNew n = MV_GenMove `liftM` M.basicUnsafeNew n
+  basicInitialize (MV_GenMove v) = M.basicInitialize v
+  basicUnsafeReplicate n x = MV_GenMove `liftM` M.basicUnsafeReplicate n (coerce x)
+  basicUnsafeRead (MV_GenMove v) i = coerce `liftM` M.basicUnsafeRead v i
+  basicUnsafeWrite (MV_GenMove v) i x = M.basicUnsafeWrite v i (coerce x)
+  basicClear (MV_GenMove v) = M.basicClear v
+  basicSet (MV_GenMove v) x = M.basicSet v (coerce x)
+  basicUnsafeCopy (MV_GenMove v1) (MV_GenMove v2) = M.basicUnsafeCopy v1 v2
+  basicUnsafeMove (MV_GenMove v1) (MV_GenMove v2) = M.basicUnsafeMove v1 v2
+  basicUnsafeGrow (MV_GenMove v) n = MV_GenMove `liftM` M.basicUnsafeGrow v n
+
+instance G.Vector U.Vector GenMove where
+  basicUnsafeFreeze (MV_GenMove v) = V_GenMove `liftM` G.basicUnsafeFreeze v
+  basicUnsafeThaw (V_GenMove v) = MV_GenMove `liftM` G.basicUnsafeThaw v
+  basicLength (V_GenMove v) = G.basicLength v
+  basicUnsafeSlice i n (V_GenMove v) = V_GenMove (G.basicUnsafeSlice i n v)
+  basicUnsafeIndexM (V_GenMove v) i = coerce `liftM` G.basicUnsafeIndexM v i
+  basicUnsafeCopy (MV_GenMove mv) (V_GenMove v) = G.basicUnsafeCopy mv v
+  elemseq _ = seq
+
+-- | Pattern synonyms for GenMove
+pattern GenQuiet :: Square -> Square -> PieceType -> GenMove
+pattern GenQuiet f t p <- (unpackQuiet -> Just (f, t, p))
+  where GenQuiet f t p = mkQuiet f t p
+
+pattern GenCapture :: Square -> Square -> PieceType -> PieceType -> GenMove
+pattern GenCapture f t p cap <- (unpackCapture -> Just (f, t, p, cap))
+  where GenCapture f t p cap = mkCapture f t p cap
+
+pattern GenEnPassant :: Square -> Square -> GenMove
+pattern GenEnPassant f t <- (unpackEnPassant -> Just (f, t))
+  where GenEnPassant f t = mkEnPassant f t
+
+pattern GenCastling :: Square -> Square -> GenMove
+pattern GenCastling f t <- (unpackCastling -> Just (f, t))
+  where GenCastling f t = mkCastling f t
+
+pattern GenPromotion :: Square -> Square -> PieceType -> GenMove
+pattern GenPromotion f t p <- (unpackPromotion -> Just (f, t, p))
+  where GenPromotion f t p = mkPromotion f t p
+
+pattern GenPromotionCapture :: Square -> Square -> PieceType -> PieceType -> GenMove
+pattern GenPromotionCapture f t p cap <- (unpackPromotionCapture -> Just (f, t, p, cap))
+  where GenPromotionCapture f t p cap = mkPromotionCapture f t p cap
+
+{-# COMPLETE GenQuiet, GenCapture, GenEnPassant, GenCastling, GenPromotion, GenPromotionCapture #-}
+
+instance Show GenMove where
+  showsPrec d (GenQuiet f t p) = showParen (d > 10) $
+    showString "GenQuiet " . showsPrec 11 f . showString " " . showsPrec 11 t . showString " " . showsPrec 11 p
+  showsPrec d (GenCapture f t p c) = showParen (d > 10) $
+    showString "GenCapture " . showsPrec 11 f . showString " " . showsPrec 11 t . showString " " . showsPrec 11 p . showString " " . showsPrec 11 c
+  showsPrec d (GenEnPassant f t) = showParen (d > 10) $
+    showString "GenEnPassant " . showsPrec 11 f . showString " " . showsPrec 11 t
+  showsPrec d (GenCastling f t) = showParen (d > 10) $
+    showString "GenCastling " . showsPrec 11 f . showString " " . showsPrec 11 t
+  showsPrec d (GenPromotion f t p) = showParen (d > 10) $
+    showString "GenPromotion " . showsPrec 11 f . showString " " . showsPrec 11 t . showString " " . showsPrec 11 p
+  showsPrec d (GenPromotionCapture f t p c) = showParen (d > 10) $
+    showString "GenPromotionCapture " . showsPrec 11 f . showString " " . showsPrec 11 t . showString " " . showsPrec 11 p . showString " " . showsPrec 11 c
+
+-- Bit Packing Constants
+-- 0-5: To (6)
+-- 6-11: From (6)
+-- 12-14: Move Type (3)
+-- 15-17: Moving Piece (3)
+-- 18-20: Captured Piece (3)
+-- 21-23: Promotion Piece (3)
+
+typeMask, toMask, fromMask, pieceMask :: Word64
+toMask = 0x3F
+fromMask = 0x3F
+typeMask = 0x7
+pieceMask = 0x7
+
+shiftFrom, shiftType, shiftMoving, shiftCaptured, shiftPromo :: Int
+shiftFrom = 6
+shiftType = 12
+shiftMoving = 15
+shiftCaptured = 18
+shiftPromo = 21
+
+typeQuiet, typeCapture, typeEP, typeCastling, typePromo, typePromoCap :: Word64
+typeQuiet = 0
+typeCapture = 1
+typeEP = 2
+typeCastling = 3
+typePromo = 4
+typePromoCap = 5
+
+{-# INLINE mkQuiet #-}
+mkQuiet :: Square -> Square -> PieceType -> GenMove
+mkQuiet f t p = MkGenMove $
+    (fromIntegral (unSquare t) .&. toMask) .|.
+    ((fromIntegral (unSquare f) .&. fromMask) `shiftL` shiftFrom) .|.
+    (typeQuiet `shiftL` shiftType) .|.
+    ((fromIntegral (fromEnum p) .&. pieceMask) `shiftL` shiftMoving)
+
+{-# INLINE mkCapture #-}
+mkCapture :: Square -> Square -> PieceType -> PieceType -> GenMove
+mkCapture f t p cap = MkGenMove $
+    (fromIntegral (unSquare t) .&. toMask) .|.
+    ((fromIntegral (unSquare f) .&. fromMask) `shiftL` shiftFrom) .|.
+    (typeCapture `shiftL` shiftType) .|.
+    ((fromIntegral (fromEnum p) .&. pieceMask) `shiftL` shiftMoving) .|.
+    ((fromIntegral (fromEnum cap) .&. pieceMask) `shiftL` shiftCaptured)
+
+{-# INLINE mkEnPassant #-}
+mkEnPassant :: Square -> Square -> GenMove
+mkEnPassant f t = MkGenMove $
+    (fromIntegral (unSquare t) .&. toMask) .|.
+    ((fromIntegral (unSquare f) .&. fromMask) `shiftL` shiftFrom) .|.
+    (typeEP `shiftL` shiftType)
+
+{-# INLINE mkCastling #-}
+mkCastling :: Square -> Square -> GenMove
+mkCastling f t = MkGenMove $
+    (fromIntegral (unSquare t) .&. toMask) .|.
+    ((fromIntegral (unSquare f) .&. fromMask) `shiftL` shiftFrom) .|.
+    (typeCastling `shiftL` shiftType)
+
+{-# INLINE mkPromotion #-}
+mkPromotion :: Square -> Square -> PieceType -> GenMove
+mkPromotion f t p = MkGenMove $
+    (fromIntegral (unSquare t) .&. toMask) .|.
+    ((fromIntegral (unSquare f) .&. fromMask) `shiftL` shiftFrom) .|.
+    (typePromo `shiftL` shiftType) .|.
+    ((fromIntegral (fromEnum p) .&. pieceMask) `shiftL` shiftPromo)
+
+{-# INLINE mkPromotionCapture #-}
+mkPromotionCapture :: Square -> Square -> PieceType -> PieceType -> GenMove
+mkPromotionCapture f t p cap = MkGenMove $
+    (fromIntegral (unSquare t) .&. toMask) .|.
+    ((fromIntegral (unSquare f) .&. fromMask) `shiftL` shiftFrom) .|.
+    (typePromoCap `shiftL` shiftType) .|.
+    ((fromIntegral (fromEnum p) .&. pieceMask) `shiftL` shiftPromo) .|.
+    ((fromIntegral (fromEnum cap) .&. pieceMask) `shiftL` shiftCaptured)
+
+{-# INLINE unpackQuiet #-}
+unpackQuiet :: GenMove -> Maybe (Square, Square, PieceType)
+unpackQuiet (MkGenMove w) =
+    if ((w `shiftR` shiftType) .&. typeMask) == typeQuiet
+    then Just ( Square (fromIntegral ((w `shiftR` shiftFrom) .&. fromMask))
+              , Square (fromIntegral (w .&. toMask))
+              , toEnum (fromIntegral ((w `shiftR` shiftMoving) .&. pieceMask)))
+    else Nothing
+
+{-# INLINE unpackCapture #-}
+unpackCapture :: GenMove -> Maybe (Square, Square, PieceType, PieceType)
+unpackCapture (MkGenMove w) =
+    if ((w `shiftR` shiftType) .&. typeMask) == typeCapture
+    then Just ( Square (fromIntegral ((w `shiftR` shiftFrom) .&. fromMask))
+              , Square (fromIntegral (w .&. toMask))
+              , toEnum (fromIntegral ((w `shiftR` shiftMoving) .&. pieceMask))
+              , toEnum (fromIntegral ((w `shiftR` shiftCaptured) .&. pieceMask)))
+    else Nothing
+
+{-# INLINE unpackEnPassant #-}
+unpackEnPassant :: GenMove -> Maybe (Square, Square)
+unpackEnPassant (MkGenMove w) =
+    if ((w `shiftR` shiftType) .&. typeMask) == typeEP
+    then Just ( Square (fromIntegral ((w `shiftR` shiftFrom) .&. fromMask))
+              , Square (fromIntegral (w .&. toMask)))
+    else Nothing
+
+{-# INLINE unpackCastling #-}
+unpackCastling :: GenMove -> Maybe (Square, Square)
+unpackCastling (MkGenMove w) =
+    if ((w `shiftR` shiftType) .&. typeMask) == typeCastling
+    then Just ( Square (fromIntegral ((w `shiftR` shiftFrom) .&. fromMask))
+              , Square (fromIntegral (w .&. toMask)))
+    else Nothing
+
+{-# INLINE unpackPromotion #-}
+unpackPromotion :: GenMove -> Maybe (Square, Square, PieceType)
+unpackPromotion (MkGenMove w) =
+    if ((w `shiftR` shiftType) .&. typeMask) == typePromo
+    then Just ( Square (fromIntegral ((w `shiftR` shiftFrom) .&. fromMask))
+              , Square (fromIntegral (w .&. toMask))
+              , toEnum (fromIntegral ((w `shiftR` shiftPromo) .&. pieceMask)))
+    else Nothing
+
+{-# INLINE unpackPromotionCapture #-}
+unpackPromotionCapture :: GenMove -> Maybe (Square, Square, PieceType, PieceType)
+unpackPromotionCapture (MkGenMove w) =
+    if ((w `shiftR` shiftType) .&. typeMask) == typePromoCap
+    then Just ( Square (fromIntegral ((w `shiftR` shiftFrom) .&. fromMask))
+              , Square (fromIntegral (w .&. toMask))
+              , toEnum (fromIntegral ((w `shiftR` shiftPromo) .&. pieceMask))
+              , toEnum (fromIntegral ((w `shiftR` shiftCaptured) .&. pieceMask)))
+    else Nothing
 
 -- | Convert a GenMove back to a standard Move.
 genMoveToMove :: GenMove -> Move
