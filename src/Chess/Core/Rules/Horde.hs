@@ -96,7 +96,7 @@ instance ChessVariant 'Horde where
         gs = toGameState ag
         c = colorVal @c
 
-        baseMoves = MG.legalGenMoves baseBoard gs
+        baseMoves = MG.legalGenMovesList baseBoard gs
 
         -- Custom White Pawn Moves (Rank 1 double push)
         whiteExtraMoves = if c == White

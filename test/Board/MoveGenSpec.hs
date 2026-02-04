@@ -4,13 +4,14 @@ import Test.Hspec
 import Chess.Types
 import qualified Chess.Board.Fen as Fen
 import qualified Chess.Board.MoveGen as MoveGen
+import qualified Data.Vector.Unboxed as U
 
 spec :: Spec
 spec = do
   describe "Board.MoveGen" $ do
     it "generates 20 moves for starting position" $ do
       let (Just (b, gs)) = Fen.parseFen startingFEN
-      let moves = MoveGen.pseudoLegalMoves b gs
+      let moves = U.toList $ MoveGen.pseudoLegalMoves b gs
       length moves `shouldBe` 20
       let legal = MoveGen.legalMoves b gs
       length legal `shouldBe` 20
@@ -19,7 +20,7 @@ spec = do
        -- Position where white can castle kingside and queenside
        let fenStr = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"
        let (Just (b, gs)) = Fen.parseFen fenStr
-       let moves = map MoveGen.genMoveToMove $ MoveGen.pseudoLegalMoves b gs
+       let moves = map MoveGen.genMoveToMove $ U.toList $ MoveGen.pseudoLegalMoves b gs
        -- Check if O-O and O-O-O are in moves
        let castlingK = Move E1 G1 Nothing
        let castlingQ = Move E1 C1 Nothing

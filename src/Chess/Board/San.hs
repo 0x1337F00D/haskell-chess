@@ -9,7 +9,7 @@ import Chess.Types
 import Chess.Bitboard (bbFromSquare, pattern BB_A1, pattern BB_H1, pattern BB_A8, pattern BB_H8, scanForward, pawnAttacks)
 import Chess.Board.Base
 import Chess.Board.GameState
-import Chess.Board.MoveGen (isLegal, applyMoveBoard, GenMove(..))
+import Chess.Board.MoveGen (isLegal, applyMoveBoard, GenMove(..), pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture)
 import Chess.Board.Validation (isCheck, isCheckmate)
 
 -- | Convert a move to Standard Algebraic Notation (SAN).

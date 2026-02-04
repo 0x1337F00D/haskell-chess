@@ -8,6 +8,7 @@ module Chess.Board
   , applyGenMove
   , legalMoves
   , legalGenMoves
+  , legalGenMovesVector
   , pseudoLegalMoves
   , captureMoves
   , captureGenMoves
@@ -49,10 +50,17 @@ module Chess.Board
     -- * Re-exports
   , module Chess.Types
   , MoveGen.GenMove(..)
+  , pattern MoveGen.GenQuiet
+  , pattern MoveGen.GenCapture
+  , pattern MoveGen.GenEnPassant
+  , pattern MoveGen.GenCastling
+  , pattern MoveGen.GenPromotion
+  , pattern MoveGen.GenPromotionCapture
   ) where
 
 import Data.Bits (testBit, xor)
 import Data.Word (Word64)
+import qualified Data.Vector.Unboxed as U
 
 import Chess.Types
 import qualified Chess.Board.Base as Base
@@ -232,11 +240,15 @@ legalMoves (Board b gs _) = MoveGen.legalMoves b gs
 
 -- | Generate all legal moves preserving piece info.
 legalGenMoves :: Board -> [MoveGen.GenMove]
-legalGenMoves (Board b gs _) = MoveGen.legalGenMoves b gs
+legalGenMoves (Board b gs _) = U.toList $ MoveGen.legalGenMoves b gs
+
+-- | Generate all legal moves as an unboxed vector.
+legalGenMovesVector :: Board -> U.Vector MoveGen.GenMove
+legalGenMovesVector (Board b gs _) = MoveGen.legalGenMoves b gs
 
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> [Move]
-pseudoLegalMoves (Board b gs _) = map MoveGen.genMoveToMove $ MoveGen.pseudoLegalMoves b gs
+pseudoLegalMoves (Board b gs _) = map MoveGen.genMoveToMove $ U.toList $ MoveGen.pseudoLegalMoves b gs
 
 -- | Generate all legal capture moves.
 captureMoves :: Board -> [Move]
@@ -244,23 +256,23 @@ captureMoves (Board b gs _) = MoveGen.legalCaptures b gs
 
 -- | Generate all legal capture moves preserving piece info.
 captureGenMoves :: Board -> [MoveGen.GenMove]
-captureGenMoves (Board b gs _) = MoveGen.legalGenCaptures b gs
+captureGenMoves (Board b gs _) = U.toList $ MoveGen.legalGenCaptures b gs
 
 -- | Generate all legal quiet moves preserving piece info.
 legalGenQuiets :: Board -> [MoveGen.GenMove]
-legalGenQuiets (Board b gs _) = MoveGen.legalGenQuiets b gs
+legalGenQuiets (Board b gs _) = U.toList $ MoveGen.legalGenQuiets b gs
 
 -- | Generate all legal promotion moves preserving piece info.
 legalGenPromotions :: Board -> [MoveGen.GenMove]
-legalGenPromotions (Board b gs _) = MoveGen.legalGenPromotions b gs
+legalGenPromotions (Board b gs _) = U.toList $ MoveGen.legalGenPromotions b gs
 
 -- | Generate all pseudo-legal quiet moves.
 pseudoLegalQuiets :: Board -> [Move]
-pseudoLegalQuiets (Board b gs _) = map MoveGen.genMoveToMove $ MoveGen.pseudoLegalQuiets b gs
+pseudoLegalQuiets (Board b gs _) = map MoveGen.genMoveToMove $ U.toList $ MoveGen.pseudoLegalQuiets b gs
 
 -- | Generate all pseudo-legal promotion moves.
 pseudoLegalPromotions :: Board -> [Move]
-pseudoLegalPromotions (Board b gs _) = map MoveGen.genMoveToMove $ MoveGen.pseudoLegalPromotions b gs
+pseudoLegalPromotions (Board b gs _) = map MoveGen.genMoveToMove $ U.toList $ MoveGen.pseudoLegalPromotions b gs
 
 -- | Check if the side to move is in check.
 isCheck :: Board -> Bool

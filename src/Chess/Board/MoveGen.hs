@@ -1,23 +1,164 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ViewPatterns #-}
+
 module Chess.Board.MoveGen where
 
 import Data.Bits
+import Data.Word (Word64)
+import Foreign.Storable (Storable)
+import Control.Monad (liftM)
+import Data.Coerce (coerce)
+
+import qualified Data.Vector.Generic         as G
+import qualified Data.Vector.Generic.Mutable as M
+import qualified Data.Vector.Unboxed         as U
 
 import Chess.Types
 import Chess.Bitboard
 import Chess.Board.Base
 import Chess.Board.GameState
 
--- | A move coupled with explicit semantics.
--- Replaces the previous product type (Move, PieceType, MoveTag) with a categorical Sum Type.
-data GenMove
-  = GenQuiet !Square !Square !PieceType
-  | GenCapture !Square !Square !PieceType !PieceType -- ^ from, to, moving, captured
-  | GenEnPassant !Square !Square                     -- ^ from, to (moving=Pawn, captured=Pawn)
-  | GenCastling !Square !Square                      -- ^ from, to (moving=King)
-  | GenPromotion !Square !Square !PieceType          -- ^ from, to, promotion (moving=Pawn)
-  | GenPromotionCapture !Square !Square !PieceType !PieceType -- ^ from, to, promo, captured (moving=Pawn)
-  deriving (Eq, Show)
+-- | A move coupled with explicit semantics, packed into a Word64.
+-- Layout:
+-- Bits 0-5: From Square
+-- Bits 6-11: To Square
+-- Bits 12-14: Tag
+--    0: Quiet (Moving)
+--    1: Capture (Moving, Captured)
+--    2: EnPassant
+--    3: Castling
+--    4: Promotion (Promo)
+--    5: PromotionCapture (Promo, Captured)
+-- Bits 15-17: Piece 1 (Moving for Quiet/Cap, Promo for Prom/PromCap)
+-- Bits 18-20: Piece 2 (Captured for Cap/PromCap)
+newtype GenMove = MkGenMove Word64
+  deriving (Eq, Ord)
+  deriving newtype (Show, Storable)
+
+-- Unbox Instances
+newtype instance U.MVector s GenMove = MV_GenMove (U.MVector s Word64)
+newtype instance U.Vector    GenMove = V_GenMove  (U.Vector    Word64)
+
+instance U.Unbox GenMove
+
+instance M.MVector U.MVector GenMove where
+  basicLength (MV_GenMove v) = M.basicLength v
+  basicUnsafeSlice i n (MV_GenMove v) = MV_GenMove (M.basicUnsafeSlice i n v)
+  basicOverlaps (MV_GenMove v1) (MV_GenMove v2) = M.basicOverlaps v1 v2
+  basicUnsafeNew n = MV_GenMove `liftM` M.basicUnsafeNew n
+  basicInitialize (MV_GenMove v) = M.basicInitialize v
+  basicUnsafeReplicate n x = MV_GenMove `liftM` M.basicUnsafeReplicate n (coerce x)
+  basicUnsafeRead (MV_GenMove v) i = coerce `liftM` M.basicUnsafeRead v i
+  basicUnsafeWrite (MV_GenMove v) i x = M.basicUnsafeWrite v i (coerce x)
+  basicClear (MV_GenMove v) = M.basicClear v
+  basicSet (MV_GenMove v) x = M.basicSet v (coerce x)
+  basicUnsafeCopy (MV_GenMove v1) (MV_GenMove v2) = M.basicUnsafeCopy v1 v2
+  basicUnsafeMove (MV_GenMove v1) (MV_GenMove v2) = M.basicUnsafeMove v1 v2
+  basicUnsafeGrow (MV_GenMove v) n = MV_GenMove `liftM` M.basicUnsafeGrow v n
+
+instance G.Vector U.Vector GenMove where
+  basicUnsafeFreeze (MV_GenMove v) = V_GenMove `liftM` G.basicUnsafeFreeze v
+  basicUnsafeThaw (V_GenMove v) = MV_GenMove `liftM` G.basicUnsafeThaw v
+  basicLength (V_GenMove v) = G.basicLength v
+  basicUnsafeSlice i n (V_GenMove v) = V_GenMove (G.basicUnsafeSlice i n v)
+  basicUnsafeIndexM (V_GenMove v) i = coerce `liftM` G.basicUnsafeIndexM v i
+  basicUnsafeCopy (MV_GenMove mv) (V_GenMove v) = G.basicUnsafeCopy mv v
+  elemseq _ = seq
+
+-- Pattern Synonyms
+
+pattern GenQuiet :: Square -> Square -> PieceType -> GenMove
+pattern GenQuiet f t p <- (unpackQuiet -> Just (f, t, p))
+  where GenQuiet f t p = mkQuiet f t p
+
+pattern GenCapture :: Square -> Square -> PieceType -> PieceType -> GenMove
+pattern GenCapture f t p c <- (unpackCapture -> Just (f, t, p, c))
+  where GenCapture f t p c = mkCapture f t p c
+
+pattern GenEnPassant :: Square -> Square -> GenMove
+pattern GenEnPassant f t <- (unpackEnPassant -> Just (f, t))
+  where GenEnPassant f t = mkEnPassant f t
+
+pattern GenCastling :: Square -> Square -> GenMove
+pattern GenCastling f t <- (unpackCastling -> Just (f, t))
+  where GenCastling f t = mkCastling f t
+
+pattern GenPromotion :: Square -> Square -> PieceType -> GenMove
+pattern GenPromotion f t p <- (unpackPromotion -> Just (f, t, p))
+  where GenPromotion f t p = mkPromotion f t p
+
+pattern GenPromotionCapture :: Square -> Square -> PieceType -> PieceType -> GenMove
+pattern GenPromotionCapture f t p c <- (unpackPromotionCapture -> Just (f, t, p, c))
+  where GenPromotionCapture f t p c = mkPromotionCapture f t p c
+
+{-# COMPLETE GenQuiet, GenCapture, GenEnPassant, GenCastling, GenPromotion, GenPromotionCapture #-}
+
+-- Helpers for packing/unpacking
+
+mkQuiet :: Square -> Square -> PieceType -> GenMove
+mkQuiet (Square f) (Square t) p = MkGenMove $
+    fromIntegral f .|. (fromIntegral t `shiftL` 6) .|. (0 `shiftL` 12) .|. (fromIntegral (fromEnum p) `shiftL` 15)
+
+unpackQuiet :: GenMove -> Maybe (Square, Square, PieceType)
+unpackQuiet (MkGenMove w) =
+    if (w `shiftR` 12) .&. 0x7 == 0
+    then Just (Square (fromIntegral (w .&. 0x3F)), Square (fromIntegral ((w `shiftR` 6) .&. 0x3F)), toEnum (fromIntegral ((w `shiftR` 15) .&. 0x7)))
+    else Nothing
+
+mkCapture :: Square -> Square -> PieceType -> PieceType -> GenMove
+mkCapture (Square f) (Square t) p c = MkGenMove $
+    fromIntegral f .|. (fromIntegral t `shiftL` 6) .|. (1 `shiftL` 12) .|. (fromIntegral (fromEnum p) `shiftL` 15) .|. (fromIntegral (fromEnum c) `shiftL` 18)
+
+unpackCapture :: GenMove -> Maybe (Square, Square, PieceType, PieceType)
+unpackCapture (MkGenMove w) =
+    if (w `shiftR` 12) .&. 0x7 == 1
+    then Just (Square (fromIntegral (w .&. 0x3F)), Square (fromIntegral ((w `shiftR` 6) .&. 0x3F)), toEnum (fromIntegral ((w `shiftR` 15) .&. 0x7)), toEnum (fromIntegral ((w `shiftR` 18) .&. 0x7)))
+    else Nothing
+
+mkEnPassant :: Square -> Square -> GenMove
+mkEnPassant (Square f) (Square t) = MkGenMove $
+    fromIntegral f .|. (fromIntegral t `shiftL` 6) .|. (2 `shiftL` 12)
+
+unpackEnPassant :: GenMove -> Maybe (Square, Square)
+unpackEnPassant (MkGenMove w) =
+    if (w `shiftR` 12) .&. 0x7 == 2
+    then Just (Square (fromIntegral (w .&. 0x3F)), Square (fromIntegral ((w `shiftR` 6) .&. 0x3F)))
+    else Nothing
+
+mkCastling :: Square -> Square -> GenMove
+mkCastling (Square f) (Square t) = MkGenMove $
+    fromIntegral f .|. (fromIntegral t `shiftL` 6) .|. (3 `shiftL` 12)
+
+unpackCastling :: GenMove -> Maybe (Square, Square)
+unpackCastling (MkGenMove w) =
+    if (w `shiftR` 12) .&. 0x7 == 3
+    then Just (Square (fromIntegral (w .&. 0x3F)), Square (fromIntegral ((w `shiftR` 6) .&. 0x3F)))
+    else Nothing
+
+mkPromotion :: Square -> Square -> PieceType -> GenMove
+mkPromotion (Square f) (Square t) p = MkGenMove $
+    fromIntegral f .|. (fromIntegral t `shiftL` 6) .|. (4 `shiftL` 12) .|. (fromIntegral (fromEnum p) `shiftL` 15)
+
+unpackPromotion :: GenMove -> Maybe (Square, Square, PieceType)
+unpackPromotion (MkGenMove w) =
+    if (w `shiftR` 12) .&. 0x7 == 4
+    then Just (Square (fromIntegral (w .&. 0x3F)), Square (fromIntegral ((w `shiftR` 6) .&. 0x3F)), toEnum (fromIntegral ((w `shiftR` 15) .&. 0x7)))
+    else Nothing
+
+mkPromotionCapture :: Square -> Square -> PieceType -> PieceType -> GenMove
+mkPromotionCapture (Square f) (Square t) p c = MkGenMove $
+    fromIntegral f .|. (fromIntegral t `shiftL` 6) .|. (5 `shiftL` 12) .|. (fromIntegral (fromEnum p) `shiftL` 15) .|. (fromIntegral (fromEnum c) `shiftL` 18)
+
+unpackPromotionCapture :: GenMove -> Maybe (Square, Square, PieceType, PieceType)
+unpackPromotionCapture (MkGenMove w) =
+    if (w `shiftR` 12) .&. 0x7 == 5
+    then Just (Square (fromIntegral (w .&. 0x3F)), Square (fromIntegral ((w `shiftR` 6) .&. 0x3F)), toEnum (fromIntegral ((w `shiftR` 15) .&. 0x7)), toEnum (fromIntegral ((w `shiftR` 18) .&. 0x7)))
+    else Nothing
 
 -- | Convert a GenMove back to a standard Move.
 genMoveToMove :: GenMove -> Move
@@ -28,11 +169,8 @@ genMoveToMove (GenCastling f t) = Move f t Nothing
 genMoveToMove (GenPromotion f t p) = Move f t (Just p)
 genMoveToMove (GenPromotionCapture f t p _) = Move f t (Just p)
 
--- | Generate all pseudo-legal moves for the side to move.
--- Pseudo-legal means moves that follow piece movement rules and capture rules,
--- but do not necessarily respect the rule that the king must not be in check.
--- Optimized with basic parallelism.
-pseudoLegalMoves :: Board -> GameState -> [GenMove]
+-- | Generate all pseudo-legal moves.
+pseudoLegalMoves :: Board -> GameState -> U.Vector GenMove
 pseudoLegalMoves b gs =
     let pm = pawnMoves b gs
         nm = pieceMoves b gs Knight
@@ -42,20 +180,19 @@ pseudoLegalMoves b gs =
         km = pieceMoves b gs King
         cm = castlingMoves b gs
 
-    in pm ++ nm ++ bm ++ rm ++ qm ++ km ++ cm
+    in U.concat [pm, nm, bm, rm, qm, km, cm]
 
 -- | Generate all legal moves.
--- Filters pseudo-legal moves to ensure the king is not left in check.
 legalMoves :: Board -> GameState -> [Move]
-legalMoves b gs = map genMoveToMove $ filter (isLegal b gs) (pseudoLegalMoves b gs)
+legalMoves b gs = U.toList $ U.map genMoveToMove $ U.filter (isLegal b gs) (pseudoLegalMoves b gs)
 
--- | Generate all legal moves returning GenMove (preserving piece info).
-legalGenMoves :: Board -> GameState -> [GenMove]
-legalGenMoves b gs = filter (isLegal b gs) (pseudoLegalMoves b gs)
+-- | Generate all legal moves returning GenMove.
+legalGenMoves :: Board -> GameState -> U.Vector GenMove
+legalGenMoves b gs = U.filter (isLegal b gs) (pseudoLegalMoves b gs)
 
 -- | Generate all pseudo-legal capture moves.
-pseudoLegalCaptures :: Board -> GameState -> [GenMove]
-pseudoLegalCaptures b gs = concat
+pseudoLegalCaptures :: Board -> GameState -> U.Vector GenMove
+pseudoLegalCaptures b gs = U.concat
     [ pawnCaptures b gs
     , pieceCaptures b gs Knight
     , pieceCaptures b gs Bishop
@@ -66,15 +203,15 @@ pseudoLegalCaptures b gs = concat
 
 -- | Generate all legal capture moves.
 legalCaptures :: Board -> GameState -> [Move]
-legalCaptures b gs = map genMoveToMove $ filter (isLegal b gs) (pseudoLegalCaptures b gs)
+legalCaptures b gs = U.toList $ U.map genMoveToMove $ U.filter (isLegal b gs) (pseudoLegalCaptures b gs)
 
 -- | Generate all legal capture moves returning GenMove.
-legalGenCaptures :: Board -> GameState -> [GenMove]
-legalGenCaptures b gs = filter (isLegal b gs) (pseudoLegalCaptures b gs)
+legalGenCaptures :: Board -> GameState -> U.Vector GenMove
+legalGenCaptures b gs = U.filter (isLegal b gs) (pseudoLegalCaptures b gs)
 
--- | Generate all pseudo-legal quiet moves (pushes, quiets, castling).
-pseudoLegalQuiets :: Board -> GameState -> [GenMove]
-pseudoLegalQuiets b gs = concat
+-- | Generate all pseudo-legal quiet moves.
+pseudoLegalQuiets :: Board -> GameState -> U.Vector GenMove
+pseudoLegalQuiets b gs = U.concat
     [ pawnQuiets b gs
     , pieceQuiets b gs Knight
     , pieceQuiets b gs Bishop
@@ -85,26 +222,25 @@ pseudoLegalQuiets b gs = concat
     ]
 
 -- | Generate all legal quiet moves returning GenMove.
-legalGenQuiets :: Board -> GameState -> [GenMove]
-legalGenQuiets b gs = filter (isLegal b gs) (pseudoLegalQuiets b gs)
+legalGenQuiets :: Board -> GameState -> U.Vector GenMove
+legalGenQuiets b gs = U.filter (isLegal b gs) (pseudoLegalQuiets b gs)
 
--- | Generate all pseudo-legal promotion moves (quiet only).
-pseudoLegalPromotions :: Board -> GameState -> [GenMove]
+-- | Generate all pseudo-legal promotion moves.
+pseudoLegalPromotions :: Board -> GameState -> U.Vector GenMove
 pseudoLegalPromotions b gs = pawnPromotions b gs
 
 -- | Generate all legal promotion moves returning GenMove.
-legalGenPromotions :: Board -> GameState -> [GenMove]
-legalGenPromotions b gs = filter (isLegal b gs) (pseudoLegalPromotions b gs)
+legalGenPromotions :: Board -> GameState -> U.Vector GenMove
+legalGenPromotions b gs = U.filter (isLegal b gs) (pseudoLegalPromotions b gs)
 
--- | Check if a move is legal (does not leave own king in check).
--- Note: This function assumes the move is pseudo-legal.
+-- | Check if a move is legal.
 isLegal :: Board -> GameState -> GenMove -> Bool
 isLegal b gs gm =
     let c = turn gs
         b' = applyMoveBoardFast b gs gm
         kingSq = kingSquare b' c
     in case kingSq of
-        Nothing -> False -- Should not happen if king exists
+        Nothing -> False
         Just k -> not (isAttackedBy b' (oppositeColor c) k) && castlingSafe b gs gm
 
     where
@@ -113,9 +249,7 @@ isLegal b gs gm =
                 let c = turn gs
                     step = (unSquare t - unSquare f) `div` 2
                     mid = Square (unSquare f + step)
-                    -- Check if current square is attacked (can't castle out of check)
                     startAttacked = isAttackedBy b (oppositeColor c) f
-                    -- Check if passed square is attacked (can't castle through check)
                     midAttacked = isAttackedBy b (oppositeColor c) mid
                 in not startAttacked && not midAttacked
          castlingSafe _ _ _ = True
@@ -153,11 +287,11 @@ toGenMove b gs (Move from to promo) =
                       else
                           let dest = unSquare to
                           in if pt == Pawn && (dest >= 56 || dest <= 7)
-                             then Nothing -- Missing promotion
+                             then Nothing
                              else Just (GenQuiet from to pt)
 toGenMove _ _ _ = Nothing
 
--- | Faster version of applyMoveBoard that avoids pieceAt lookups by using provided piece info.
+-- | Faster version of applyMoveBoard that avoids pieceAt lookups.
 applyMoveBoardFast :: Board -> GameState -> GenMove -> Board
 applyMoveBoardFast b gs gm =
     case gm of
@@ -192,8 +326,6 @@ applyMoveBoardFast b gs gm =
                 b2 = unsafeRemovePiece b1 to (oppositeColor c) capPt
             in unsafePutPiece b2 to (Piece c promoPt)
 
--- | Optimized movePiece that assumes capture handling is done or not needed (target empty).
--- It only updates the bitboards for the moving piece.
 movePieceFast :: Board -> Square -> Square -> Color -> PieceType -> Board
 movePieceFast b from to c pt =
     let fromI = unSquare from
@@ -228,62 +360,23 @@ movePieceFast b from to c pt =
 
     in b2 { occupiedWhite = whiteOcc, occupiedBlack = blackOcc, occupiedTotal = totalOcc }
 
--- | Apply a move to the board (without updating game state like counters).
--- Handles en passant capture removal and castling rook moves.
--- It now constructs a GenMove and delegates to applyMoveBoardFast.
-applyMoveBoard :: Board -> GameState -> Move -> Board
-applyMoveBoard b gs m@(Move from to promo) =
-    let c = turn gs
-        fromI = unSquare from
-    in if not (testBit (occupiedBy b c) fromI)
-       then b
-       else
-           let pt = findPieceType b c from
-               toI = unSquare to
-               isCapture = testBit (occupiedTotal b) toI
-
-               gm = case promo of
-                   Just ppt ->
-                       if isCapture
-                       then
-                           let capPt = findPieceType b (oppositeColor c) to
-                           in GenPromotionCapture from to ppt capPt
-                       else GenPromotion from to ppt
-                   Nothing ->
-                       if isCapture
-                       then
-                           let capPt = findPieceType b (oppositeColor c) to
-                           in GenCapture from to pt capPt
-                       else
-                          if pt == Pawn && squareFile from /= squareFile to
-                          then GenEnPassant from to
-                          else if pt == King && abs (unSquare from - unSquare to) == 2
-                          then GenCastling from to
-                          else GenQuiet from to pt
-
-           in applyMoveBoardFast b gs gm
-applyMoveBoard b _ NullMove = b
-applyMoveBoard b _ _ = b
-
--- Helper to determine rook move for castling
 castlingRookMove :: Square -> Square -> (Square, Square)
 castlingRookMove kingFrom kingTo
-    | kingTo > kingFrom = (H1 `relativeTo` kingFrom, F1 `relativeTo` kingFrom) -- Kingside
-    | otherwise         = (A1 `relativeTo` kingFrom, D1 `relativeTo` kingFrom) -- Queenside
+    | kingTo > kingFrom = (H1 `relativeTo` kingFrom, F1 `relativeTo` kingFrom)
+    | otherwise         = (A1 `relativeTo` kingFrom, D1 `relativeTo` kingFrom)
   where
     relativeTo (Square i) (Square k) =
         let rankOffset = (k `div` 8) * 8
             fileOffset = i `mod` 8
         in Square (rankOffset + fileOffset)
 
--- | Get the square of the king of a given color.
 kingSquare :: Board -> Color -> Maybe Square
 kingSquare b c = fmap Square (lsb (pieceBitboard b c King))
 
--- Move Generators ------------------------------------------------------------
+-- Move Generators using Vector construction
 
-pieceMoves :: Board -> GameState -> PieceType -> [GenMove]
-pieceMoves b gs pt = flatMapBitboard genMoves bb
+pieceMoves :: Board -> GameState -> PieceType -> U.Vector GenMove
+pieceMoves b gs pt = U.fromList $ flatMapBitboard genMoves bb
   where
     c = turn gs
     bb = pieceBitboard b c pt
@@ -307,8 +400,8 @@ pieceMoves b gs pt = flatMapBitboard genMoves bb
 
         in mapBitboard mkMove valid
 
-pieceCaptures :: Board -> GameState -> PieceType -> [GenMove]
-pieceCaptures b gs pt = flatMapBitboard genMoves bb
+pieceCaptures :: Board -> GameState -> PieceType -> U.Vector GenMove
+pieceCaptures b gs pt = U.fromList $ flatMapBitboard genMoves bb
   where
     c = turn gs
     bb = pieceBitboard b c pt
@@ -323,15 +416,13 @@ pieceCaptures b gs pt = flatMapBitboard genMoves bb
                     King   -> kingAttacks from
                     _      -> 0
 
-            -- Only squares occupied by enemy
             valid = att .&. occupiedBy b (oppositeColor c)
-
             mkMove to = GenCapture from to pt (findPieceType b (oppositeColor c) to)
 
         in mapBitboard mkMove valid
 
-pieceQuiets :: Board -> GameState -> PieceType -> [GenMove]
-pieceQuiets b gs pt = flatMapBitboard genMoves bb
+pieceQuiets :: Board -> GameState -> PieceType -> U.Vector GenMove
+pieceQuiets b gs pt = U.fromList $ flatMapBitboard genMoves bb
   where
     c = turn gs
     bb = pieceBitboard b c pt
@@ -346,17 +437,16 @@ pieceQuiets b gs pt = flatMapBitboard genMoves bb
                     King   -> kingAttacks from
                     _      -> 0
 
-            valid = att .&. complement (occupiedTotal b) -- Only empty squares
+            valid = att .&. complement (occupiedTotal b)
             mkMove to = GenQuiet from to pt
 
         in mapBitboard mkMove valid
 
-pawnMoves :: Board -> GameState -> [GenMove]
-pawnMoves b gs =
-    pawnQuiets b gs ++ pawnCaptures b gs ++ pawnPromotions b gs
+pawnMoves :: Board -> GameState -> U.Vector GenMove
+pawnMoves b gs = U.concat [pawnQuiets b gs, pawnCaptures b gs, pawnPromotions b gs]
 
-pawnQuiets :: Board -> GameState -> [GenMove]
-pawnQuiets b gs =
+pawnQuiets :: Board -> GameState -> U.Vector GenMove
+pawnQuiets b gs = U.fromList $
     if c == White then whitePawnQuiets else blackPawnQuiets
   where
     c = turn gs
@@ -374,12 +464,11 @@ pawnQuiets b gs =
         let to8 = i + 8
         in if not (testBit occ to8)
            then
-               if to8 >= 56 -- Promotion (Rank 8) - Handled in Proms
-               then []
+               if to8 >= 56 then []
                else
                    let moves = [GenQuiet from (Square to8) Pawn]
                        to16 = i + 16
-                   in if i >= 8 && i <= 15 -- Rank 2
+                   in if i >= 8 && i <= 15
                          && not (testBit occ to16)
                       then moves ++ [GenQuiet from (Square to16) Pawn]
                       else moves
@@ -396,19 +485,18 @@ pawnQuiets b gs =
         let to8 = i - 8
         in if not (testBit occ to8)
            then
-               if to8 <= 7 -- Promotion (Rank 1) - Handled in Proms
-               then []
+               if to8 <= 7 then []
                else
                    let moves = [GenQuiet from (Square to8) Pawn]
                        to16 = i - 16
-                   in if i >= 48 && i <= 55 -- Rank 7
+                   in if i >= 48 && i <= 55
                          && not (testBit occ to16)
                       then moves ++ [GenQuiet from (Square to16) Pawn]
                       else moves
            else []
 
-pawnPromotions :: Board -> GameState -> [GenMove]
-pawnPromotions b gs =
+pawnPromotions :: Board -> GameState -> U.Vector GenMove
+pawnPromotions b gs = U.fromList $
     if c == White then whitePawnPromotions else blackPawnPromotions
   where
     c = turn gs
@@ -424,7 +512,7 @@ pawnPromotions b gs =
 
     genWhitePromotions i from =
         let to8 = i + 8
-        in if not (testBit occ to8) && to8 >= 56 -- Rank 8
+        in if not (testBit occ to8) && to8 >= 56
            then [ GenPromotion from (Square to8) p | p <- [Queen, Rook, Bishop, Knight] ]
            else []
 
@@ -437,12 +525,12 @@ pawnPromotions b gs =
 
     genBlackPromotions i from =
         let to8 = i - 8
-        in if not (testBit occ to8) && to8 <= 7 -- Rank 1
+        in if not (testBit occ to8) && to8 <= 7
            then [ GenPromotion from (Square to8) p | p <- [Queen, Rook, Bishop, Knight] ]
            else []
 
-pawnCaptures :: Board -> GameState -> [GenMove]
-pawnCaptures b gs =
+pawnCaptures :: Board -> GameState -> U.Vector GenMove
+pawnCaptures b gs = U.fromList $
     if c == White then whitePawnCaptures else blackPawnCaptures
   where
     c = turn gs
@@ -517,8 +605,8 @@ pawnCaptures b gs =
 
         in capLeftMoves
 
-castlingMoves :: Board -> GameState -> [GenMove]
-castlingMoves b gs = ks ++ qs
+castlingMoves :: Board -> GameState -> U.Vector GenMove
+castlingMoves b gs = U.fromList (ks ++ qs)
   where
     c = turn gs
     ks = if canCastleKingside gs c && kingsideClear then [mkCastlingMove True] else []
@@ -542,3 +630,31 @@ castlingMoves b gs = ks ++ qs
             c1 = Square (rank * 8 + 2)
             b1 = Square (rank * 8 + 1)
         in not (testBit (occupiedTotal b) (unSquare d1)) && not (testBit (occupiedTotal b) (unSquare c1)) && not (testBit (occupiedTotal b) (unSquare b1))
+
+-- | Apply a move to the board (without updating game state like counters).
+applyMoveBoard :: Board -> GameState -> Move -> Board
+applyMoveBoard b gs m =
+    case toGenMove b gs m of
+        Just gm -> applyMoveBoardFast b gs gm
+        Nothing -> b
+
+-- List Adapters for Core
+{-# INLINE pseudoLegalMovesList #-}
+pseudoLegalMovesList :: Board -> GameState -> [GenMove]
+pseudoLegalMovesList b gs = U.toList (pseudoLegalMoves b gs)
+
+{-# INLINE legalGenMovesList #-}
+legalGenMovesList :: Board -> GameState -> [GenMove]
+legalGenMovesList b gs = U.toList (legalGenMoves b gs)
+
+{-# INLINE pawnMovesList #-}
+pawnMovesList :: Board -> GameState -> [GenMove]
+pawnMovesList b gs = U.toList (pawnMoves b gs)
+
+{-# INLINE pieceMovesList #-}
+pieceMovesList :: Board -> GameState -> PieceType -> [GenMove]
+pieceMovesList b gs pt = U.toList (pieceMoves b gs pt)
+
+{-# INLINE castlingMovesList #-}
+castlingMovesList :: Board -> GameState -> [GenMove]
+castlingMovesList b gs = U.toList (castlingMoves b gs)

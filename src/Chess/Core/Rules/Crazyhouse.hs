@@ -110,7 +110,7 @@ instance ChessVariant 'Crazyhouse where
         gs = toGameState ag
         c = colorVal @c
 
-        baseMoves = MG.legalGenMoves baseBoard gs
+        baseMoves = MG.legalGenMovesList baseBoard gs
         standardMoves = map toCoreMove baseMoves
 
         (CrazyhouseState wPocket bPocket _) = variantState ag

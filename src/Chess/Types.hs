@@ -81,6 +81,36 @@ newtype Square = Square { unSquare :: Int }
   deriving stock (Eq, Ord)
   deriving newtype (Enum, Num, Real, Integral, Bits, Storable)
 
+-- | Unboxing instances for Data.Vector.Unboxed
+newtype instance U.MVector s Square = MV_Square (U.MVector s Int)
+newtype instance U.Vector    Square = V_Square  (U.Vector    Int)
+
+instance U.Unbox Square
+
+instance M.MVector U.MVector Square where
+  basicLength (MV_Square v) = M.basicLength v
+  basicUnsafeSlice i n (MV_Square v) = MV_Square (M.basicUnsafeSlice i n v)
+  basicOverlaps (MV_Square v1) (MV_Square v2) = M.basicOverlaps v1 v2
+  basicUnsafeNew n = MV_Square `liftM` M.basicUnsafeNew n
+  basicInitialize (MV_Square v) = M.basicInitialize v
+  basicUnsafeReplicate n x = MV_Square `liftM` M.basicUnsafeReplicate n (coerce x)
+  basicUnsafeRead (MV_Square v) i = coerce `liftM` M.basicUnsafeRead v i
+  basicUnsafeWrite (MV_Square v) i x = M.basicUnsafeWrite v i (coerce x)
+  basicClear (MV_Square v) = M.basicClear v
+  basicSet (MV_Square v) x = M.basicSet v (coerce x)
+  basicUnsafeCopy (MV_Square v1) (MV_Square v2) = M.basicUnsafeCopy v1 v2
+  basicUnsafeMove (MV_Square v1) (MV_Square v2) = M.basicUnsafeMove v1 v2
+  basicUnsafeGrow (MV_Square v) n = MV_Square `liftM` M.basicUnsafeGrow v n
+
+instance G.Vector U.Vector Square where
+  basicUnsafeFreeze (MV_Square v) = V_Square `liftM` G.basicUnsafeFreeze v
+  basicUnsafeThaw (V_Square v) = MV_Square `liftM` G.basicUnsafeThaw v
+  basicLength (V_Square v) = G.basicLength v
+  basicUnsafeSlice i n (V_Square v) = V_Square (G.basicUnsafeSlice i n v)
+  basicUnsafeIndexM (V_Square v) i = coerce `liftM` G.basicUnsafeIndexM v i
+  basicUnsafeCopy (MV_Square mv) (V_Square v) = G.basicUnsafeCopy mv v
+  elemseq _ = seq
+
 instance Show Square where
   show = squareName
 
