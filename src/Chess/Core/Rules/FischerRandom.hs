@@ -68,7 +68,7 @@ instance ChessVariant 'FischerRandom where
         gs = toGameState ag
         c = colorVal @c
 
-        baseMoves = MG.legalGenMoves baseBoard gs
+        baseMoves = MG.legalGenMovesList baseBoard gs
         standardMoves = map toCoreMove baseMoves
         -- Filter out standard CastlingMoves
         nonCastlingMoves = filter (not . isStandardCastling) standardMoves

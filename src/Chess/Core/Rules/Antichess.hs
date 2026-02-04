@@ -43,7 +43,7 @@ instance ChessVariant 'Antichess where
 
         -- Generate all pseudo-legal moves.
         -- In Antichess, King safety is ignored, so pseudo-legal moves are effectively legal.
-        pseudos = MG.pseudoLegalMoves baseBoard gs
+        pseudos = MG.pseudoLegalMovesList baseBoard gs
 
         -- 1. Filter out Castling moves (Standard MG might generate them if rights exist)
         isCastling (MG.GenCastling _ _) = True
@@ -97,7 +97,7 @@ instance ChessVariant 'Antichess where
             -- We can't use Val.hasLegalMoves because it assumes Standard rules (checks).
             -- We need to replicate Antichess move generation logic for opponent.
 
-            oppPseudos = MG.pseudoLegalMoves baseBoard (toGameState nextAg)
+            oppPseudos = MG.pseudoLegalMovesList baseBoard (toGameState nextAg)
             oppHasMoves = not (null oppPseudos)
 
             opponentStalemated = not oppHasMoves

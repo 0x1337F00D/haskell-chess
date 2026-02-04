@@ -2,6 +2,7 @@ module Chess.Board.Validation where
 
 import Data.Bits ((.|.))
 import Data.Word (Word64)
+import qualified Data.Vector.Unboxed as U
 import Chess.Types
 import Chess.Bitboard
 import Chess.Board.Base
@@ -18,7 +19,7 @@ isCheck b gs =
 
 -- | Check if the side to move has any legal moves.
 hasLegalMoves :: Board -> GameState -> Bool
-hasLegalMoves b gs = any (isLegal b gs) (pseudoLegalMoves b gs)
+hasLegalMoves b gs = U.any (isLegal b gs) (pseudoLegalMoves b gs)
 
 -- | Check if the side to move is checkmated.
 isCheckmate :: Board -> GameState -> Bool

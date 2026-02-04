@@ -207,6 +207,7 @@ test-suite haskell-chess-test
         binary >= 0.8,
         directory >= 1.3
         , async
+        , vector >= 0.13
 
 executable bench-search
     import:           warnings

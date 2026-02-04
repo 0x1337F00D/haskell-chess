@@ -28,7 +28,7 @@ instance ChessVariant 'ThreeCheck where
   generateMoves (ag :: ActiveGame 'ThreeCheck c s) =
     let baseBoard = internalBoard ag
         gs = toGameState ag
-        baseMoves = MG.legalGenMoves baseBoard gs
+        baseMoves = MG.legalGenMovesList baseBoard gs
     in map toCoreMove baseMoves
 
   applyMove (m :: Move c) (ag :: ActiveGame 'ThreeCheck c s) =

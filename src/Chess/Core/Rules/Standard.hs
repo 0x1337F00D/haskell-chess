@@ -73,15 +73,15 @@ instance ChessVariant 'Standard where
              SChecked ->
                  -- If in check, castling is illegal. Construct pseudo-legal moves excluding castling.
                  let pseudos = concat
-                        [ MG.pawnMoves baseBoard gs
-                        , MG.pieceMoves baseBoard gs T.Knight
-                        , MG.pieceMoves baseBoard gs T.Bishop
-                        , MG.pieceMoves baseBoard gs T.Rook
-                        , MG.pieceMoves baseBoard gs T.Queen
-                        , MG.pieceMoves baseBoard gs T.King
+                        [ MG.pawnMovesList baseBoard gs
+                        , MG.pieceMovesList baseBoard gs T.Knight
+                        , MG.pieceMovesList baseBoard gs T.Bishop
+                        , MG.pieceMovesList baseBoard gs T.Rook
+                        , MG.pieceMovesList baseBoard gs T.Queen
+                        , MG.pieceMovesList baseBoard gs T.King
                         ]
                  in filter (MG.isLegal baseBoard gs) pseudos
-             _ -> MG.legalGenMoves baseBoard gs
+             _ -> MG.legalGenMovesList baseBoard gs
 
     in map toCoreMove baseMoves
 
