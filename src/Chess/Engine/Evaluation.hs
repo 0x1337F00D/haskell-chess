@@ -1,5 +1,21 @@
 {-# LANGUAGE BangPatterns #-}
-module Chess.Engine.Evaluation (evaluate) where
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
+module Chess.Engine.Evaluation (
+    evaluate,
+    evaluatePos,
+    Evaluate(..),
+    evalMaterial,
+    evalPST,
+    evalKingSafety,
+    evalMopUp,
+    evalPhase,
+    Score,
+    totalPhase
+) where
 
 import qualified Data.Vector.Unboxed as U
 import Data.Bits (countTrailingZeros, clearBit, popCount, (.&.), (.|.), shiftL, shiftR)
@@ -9,12 +25,66 @@ import Chess.Bitboard
 import qualified Chess.Board.Base as Base
 import Chess.Board.GameState (GameState(..))
 import Chess.Board (Board(..), ValidatedBoard, getBoard)
+import Chess.Board.Phase (Phase(..), Position(..))
 
 -- | Evaluation score in centipawns.
 type Score = Int
 
 -- | Packed Score (MG in upper 32 bits, EG in lower 32 bits).
 type PackedScore = Int
+
+-- | Evaluation Typeclass
+class Evaluate (p :: Phase) where
+    evaluatePos :: Position p -> Score
+
+instance Evaluate 'Opening where
+    {-# INLINE evaluatePos #-}
+    evaluatePos (Position vBoard) =
+        let (Board b gs _) = getBoard vBoard
+            clampedPhase = evalPhase b
+            (mgMat, egMat) = evalMaterial b
+            (mgPST, egPST) = evalPST b
+            mgScore = mgMat + mgPST
+            egScore = egMat + egPST
+            (wSafety, bSafety) = evalKingSafety b
+            safetyAdj = bSafety - wSafety
+            -- No MopUp in Opening
+            egScoreTotal = egScore + safetyAdj
+            finalScore = (((mgScore + safetyAdj) * clampedPhase) + (egScoreTotal * (totalPhase - clampedPhase))) `div` totalPhase
+        in if turn gs == White then finalScore else -finalScore
+
+instance Evaluate 'Middlegame where
+    {-# INLINE evaluatePos #-}
+    evaluatePos (Position vBoard) =
+        let (Board b gs _) = getBoard vBoard
+            clampedPhase = evalPhase b
+            (mgMat, egMat) = evalMaterial b
+            (mgPST, egPST) = evalPST b
+            mgScore = mgMat + mgPST
+            egScore = egMat + egPST
+            (wSafety, bSafety) = evalKingSafety b
+            safetyAdj = bSafety - wSafety
+            -- No MopUp in Middlegame
+            egScoreTotal = egScore + safetyAdj
+            finalScore = (((mgScore + safetyAdj) * clampedPhase) + (egScoreTotal * (totalPhase - clampedPhase))) `div` totalPhase
+        in if turn gs == White then finalScore else -finalScore
+
+instance Evaluate 'Endgame where
+    {-# INLINE evaluatePos #-}
+    evaluatePos (Position vBoard) =
+        let (Board b gs _) = getBoard vBoard
+            clampedPhase = evalPhase b
+            (mgMat, egMat) = evalMaterial b
+            (mgPST, egPST) = evalPST b
+            mgScore = mgMat + mgPST
+            egScore = egMat + egPST
+            (wSafety, bSafety) = evalKingSafety b
+            safetyAdj = bSafety - wSafety
+            -- MopUp in Endgame
+            mopUpAdj = evalMopUp b
+            egScoreTotal = egScore + safetyAdj + mopUpAdj
+            finalScore = (((mgScore + safetyAdj) * clampedPhase) + (egScoreTotal * (totalPhase - clampedPhase))) `div` totalPhase
+        in if turn gs == White then finalScore else -finalScore
 
 -- | Pack two scores into one 64-bit integer (assuming 64-bit Int).
 -- We bias EG by +65536 to ensure it is positive and doesn't carry into MG.
@@ -47,41 +117,45 @@ egValueBishop = 297
 egValueRook   = 512
 egValueQueen  = 936
 
--- | Evaluate the board position from the perspective of the side to move.
--- Now takes ValidatedBoard to ensure only legal states are evaluated.
--- Inlined evalTerms to avoid tuple allocation and enable better optimization.
-evaluate :: ValidatedBoard -> Score
-evaluate vBoard =
-    let (Board b gs _) = getBoard vBoard
+-- | Calculate the phase of the game (0 = Endgame, 24 = Start).
+evalPhase :: Base.Board -> Int
+evalPhase b =
+    let wn = popCount (Base.whiteKnights b)
+        wb = popCount (Base.whiteBishops b)
+        wr = popCount (Base.whiteRooks b)
+        wq = popCount (Base.whiteQueens b)
+        bn = popCount (Base.blackKnights b)
+        bb = popCount (Base.blackBishops b)
+        br = popCount (Base.blackRooks b)
+        bq = popCount (Base.blackQueens b)
+        phase = wn * phaseKnight + wb * phaseBishop + wr * phaseRook + wq * phaseQueen +
+                bn * phaseKnight + bb * phaseBishop + br * phaseRook + bq * phaseQueen
+    in min totalPhase (max 0 phase)
 
-        -- Material Counts (using popCount directly)
-        !wp = popCount (Base.whitePawns b)
+-- | Calculate Material Scores (MG, EG).
+evalMaterial :: Base.Board -> (Score, Score)
+evalMaterial b =
+    let !wp = popCount (Base.whitePawns b)
         !wn = popCount (Base.whiteKnights b)
         !wb = popCount (Base.whiteBishops b)
         !wr = popCount (Base.whiteRooks b)
         !wq = popCount (Base.whiteQueens b)
-        !wk = popCount (Base.whiteKings b)
         !bp = popCount (Base.blackPawns b)
         !bn = popCount (Base.blackKnights b)
         !bb = popCount (Base.blackBishops b)
         !br = popCount (Base.blackRooks b)
         !bq = popCount (Base.blackQueens b)
-        !bk = popCount (Base.blackKings b)
 
-        -- Phase
-        !phase = wn * phaseKnight + wb * phaseBishop + wr * phaseRook + wq * phaseQueen +
-                 bn * phaseKnight + bb * phaseBishop + br * phaseRook + bq * phaseQueen
-        !clampedPhase = min totalPhase (max 0 phase)
-
-        -- Material Scores
         !mgMat = (wp * mgValuePawn + wn * mgValueKnight + wb * mgValueBishop + wr * mgValueRook + wq * mgValueQueen) -
                  (bp * mgValuePawn + bn * mgValueKnight + bb * mgValueBishop + br * mgValueRook + bq * mgValueQueen)
         !egMat = (wp * egValuePawn + wn * egValueKnight + wb * egValueBishop + wr * egValueRook + wq * egValueQueen) -
                  (bp * egValuePawn + bn * egValueKnight + bb * egValueBishop + br * egValueRook + bq * egValueQueen)
+    in (mgMat, egMat)
 
-        -- PST Scores
-        -- Computed strict and inline to avoid thunks/allocations
-        !wPacked = evalPacked (Base.whitePawns b)   packedPawnTable   +
+-- | Calculate PST Scores (MG, EG).
+evalPST :: Base.Board -> (Score, Score)
+evalPST b =
+    let !wPacked = evalPacked (Base.whitePawns b)   packedPawnTable   +
                    evalPacked (Base.whiteKnights b) packedKnightTable +
                    evalPacked (Base.whiteBishops b) packedBishopTable +
                    evalPacked (Base.whiteRooks b)   packedRookTable   +
@@ -95,59 +169,81 @@ evaluate vBoard =
                    evalPacked (Base.blackQueens b)  packedQueenTableFlip  +
                    evalPacked (Base.blackKings b)   packedKingTableFlip
 
+        !wp = popCount (Base.whitePawns b)
+        !wn = popCount (Base.whiteKnights b)
+        !wb = popCount (Base.whiteBishops b)
+        !wr = popCount (Base.whiteRooks b)
+        !wq = popCount (Base.whiteQueens b)
+        !wk = popCount (Base.whiteKings b)
+        !bp = popCount (Base.blackPawns b)
+        !bn = popCount (Base.blackKnights b)
+        !bb = popCount (Base.blackBishops b)
+        !br = popCount (Base.blackRooks b)
+        !bq = popCount (Base.blackQueens b)
+        !bk = popCount (Base.blackKings b)
+
         !wCount = wp + wn + wb + wr + wq + wk
         !bCount = bp + bn + bb + br + bq + bk
 
         !mgPST = (wPacked `shiftR` 32) - (bPacked `shiftR` 32)
         !egPST = ((wPacked .&. 0xFFFFFFFF) - wCount * 65536) -
                  ((bPacked .&. 0xFFFFFFFF) - bCount * 65536)
+    in (mgPST, egPST)
 
-        !mgScore = mgMat + mgPST
-        !egScore = egMat + egPST
+-- | Calculate King Safety Score (MG bias usually).
+-- Returns (White Safety Penalty, Black Safety Penalty). Positive means penalty (bad for that side).
+-- We return (WSafety, BSafety).
+evalKingSafety :: Base.Board -> (Score, Score)
+evalKingSafety b =
+    let wKingSq = countTrailingZeros (Base.whiteKings b)
+        bKingSq = countTrailingZeros (Base.blackKings b)
+        wSafety = kingSafety b White (Square wKingSq)
+        bSafety = kingSafety b Black (Square bKingSq)
+    in (wSafety, bSafety)
 
-        -- King Safety Term (Threat-Based)
-        !wKingSq = countTrailingZeros (Base.whiteKings b)
-        !bKingSq = countTrailingZeros (Base.blackKings b)
-
-        !wSafety = kingSafety b White (Square wKingSq)
-        !bSafety = kingSafety b Black (Square bKingSq)
-
-        !safetyAdj = bSafety - wSafety
-
-        -- Mop-Up Evaluation (Endgame only)
-        -- Encourages driving enemy king to corner and moving own king close.
-        -- Only apply if we are winning (material advantage)?
-        -- Or just apply symmetrically.
-        -- Dist Center: 0 (Center) to 6 (Corner) (Chebyshev distance * 2 approximately?)
-        -- Center is 3.5, 3.5.
-        -- Dist(sq) = abs(rank - 3.5) + abs(file - 3.5) (Manhattan) -> Range 0 to 8?
-        -- Let's use Manhattan distance from center * 10 for Enemy.
-        -- And -Manhattan distance between kings * 4.
+-- | Calculate MopUp Score (EG bias).
+-- Returns score from White's perspective.
+evalMopUp :: Base.Board -> Score
+evalMopUp b =
+    let wKingSq = countTrailingZeros (Base.whiteKings b)
+        bKingSq = countTrailingZeros (Base.blackKings b)
 
         !wKRank = wKingSq `div` 8
         !wKFile = wKingSq `mod` 8
         !bKRank = bKingSq `div` 8
         !bKFile = bKingSq `mod` 8
 
-        !wDistCenter = abs (wKRank * 2 - 7) + abs (wKFile * 2 - 7) -- Scaled by 2 to avoid floats
+        !wDistCenter = abs (wKRank * 2 - 7) + abs (wKFile * 2 - 7)
         !bDistCenter = abs (bKRank * 2 - 7) + abs (bKFile * 2 - 7)
 
         !distKings = abs (wKRank - bKRank) + abs (wKFile - bKFile)
 
-        -- White perspective MopUp
-        -- We want Black King far from center (bDistCenter High).
-        -- We want Kings close (distKings Low).
         !wMopUp = 5 * bDistCenter - 2 * distKings
-
-        -- Black perspective MopUp
         !bMopUp = 5 * wDistCenter - 2 * distKings
+    in wMopUp - bMopUp
 
-        !mopUpAdj = wMopUp - bMopUp
+-- | Evaluate the board position from the perspective of the side to move.
+-- Now composed of helper functions.
+evaluate :: ValidatedBoard -> Score
+evaluate vBoard =
+    let (Board b gs _) = getBoard vBoard
 
-        -- Apply MopUp only in Endgame (weighted by phase)
-        !egScoreTotal = egScore + safetyAdj + mopUpAdj
+        clampedPhase = evalPhase b
 
-        !finalScore = (((mgScore + safetyAdj) * clampedPhase) + (egScoreTotal * (totalPhase - clampedPhase))) `div` totalPhase
+        (mgMat, egMat) = evalMaterial b
+        (mgPST, egPST) = evalPST b
+
+        mgScore = mgMat + mgPST
+        egScore = egMat + egPST
+
+        (wSafety, bSafety) = evalKingSafety b
+        safetyAdj = bSafety - wSafety
+
+        mopUpAdj = evalMopUp b
+
+        egScoreTotal = egScore + safetyAdj + mopUpAdj
+
+        finalScore = (((mgScore + safetyAdj) * clampedPhase) + (egScoreTotal * (totalPhase - clampedPhase))) `div` totalPhase
     in if turn gs == White then finalScore else -finalScore
 
 evalPacked :: Bitboard -> U.Vector PackedScore -> PackedScore

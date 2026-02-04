@@ -1,8 +1,11 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
 module Chess.Engine.Search.Types where
 
 import qualified Data.Vector.Unboxed.Mutable as UM
 import Chess.Types (Move)
+import Chess.Board.Phase (Phase)
 
 -- | Search Constants
 infinity :: Int
@@ -45,7 +48,7 @@ data SearchResources = SearchResources
 
 -- | Search Context
 -- Immutable state passed down the search tree.
-data SearchContext = SearchContext
+data SearchContext (p :: Phase) = SearchContext
     { scResources     :: !SearchResources
     , scNodeKind      :: !NodeKind
     , scCheckState    :: !CheckState
