@@ -26,11 +26,30 @@ data NodeKind = Root | PV | NonPV
 data CheckState = InCheck | NotInCheck
     deriving (Show, Eq)
 
--- | Search Context
+-- | Search Phase
+data SearchPhase = MainSearch | Quiescence
+    deriving (Show, Eq)
+
+-- | Null Move State
+data NullMoveState = NullMoveAllowed | NullMoveSkipped
+    deriving (Show, Eq)
+
+-- | Search Resources
 -- Contains thread-local mutable data for move ordering and heuristics.
+data SearchResources = SearchResources
+    { resKillers :: !(UM.IOVector Move) -- 2 killers per ply * maxDepth
+    , resHistory :: !(UM.IOVector Int)  -- 64*64 = 4096
+    , resCounterMove :: !(UM.IOVector Move) -- 64*64 = 4096
+    , resMaxDepth :: !Int
+    }
+
+-- | Search Context
+-- Immutable state passed down the search tree.
 data SearchContext = SearchContext
-    { ctxKillers :: !(UM.IOVector Move) -- 2 killers per ply * maxDepth
-    , ctxHistory :: !(UM.IOVector Int)  -- 64*64 = 4096
-    , ctxCounterMove :: !(UM.IOVector Move) -- 64*64 = 4096
-    , ctxMaxDepth :: !Int
+    { scResources     :: !SearchResources
+    , scNodeKind      :: !NodeKind
+    , scCheckState    :: !CheckState
+    , scPhase         :: !SearchPhase
+    , scPly           :: !Int
+    , scNullMoveState :: !NullMoveState
     }

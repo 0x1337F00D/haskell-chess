@@ -8,13 +8,13 @@ import qualified Chess.Board
 import qualified Chess.Board.GameState as GS
 import Chess.Engine.Evaluation (evaluate)
 import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
-import Chess.Engine.Search.Types (mateValue)
+import Chess.Engine.Search.Types (mateValue, SearchContext(..), CheckState(..))
 import Chess.Engine.Search.Ordering (orderGenMoves)
 import Chess.Types (Move, nullMove)
 
 -- | Quiescence Search.
-quiescence :: ValidatedBoard -> TT -> Int -> Int -> IORef Int -> Depth -> IO Int
-quiescence vBoard tt alpha beta nodes depth = do
+quiescence :: SearchContext -> ValidatedBoard -> TT -> Int -> Int -> IORef Int -> Depth -> IO Int
+quiescence ctx vBoard tt alpha beta nodes depth = do
     modifyIORef' nodes (+1)
     let board = getBoard vBoard
 
@@ -22,15 +22,17 @@ quiescence vBoard tt alpha beta nodes depth = do
     let hash = GS.zobristHash (state board)
     ttEntry <- probeTT tt hash
 
-    let inCheck = isCheck board
+    -- Use CheckState from context
+    let inCheck = case scCheckState ctx of
+            InCheck -> True
+            NotInCheck -> False
 
     if inCheck
     then do
         -- If in check, we must search all evasions (legal moves)
         let evasions = legalMovesValidated vBoard
         if null evasions
-        then return (-mateValue) -- Checkmate (depth handled by stepScore in caller?) No, we are in QS.
-                                 -- We assume minimal distance.
+        then return (-mateValue)
         else do
             let sortedMoves = orderGenMoves vBoard evasions Nothing
             -- Search evasions. No stand-pat logic.
@@ -76,9 +78,16 @@ quiescence vBoard tt alpha beta nodes depth = do
 
     go [] a = return a
     go (lm:lms) a = do
+        let newVBoard = applyLegalMove vBoard lm
+
+        -- Calculate CheckState for recursion
+        let newInCheck = isCheck (getBoard newVBoard)
+        let newCheckState = if newInCheck then InCheck else NotInCheck
+        let newCtx = ctx { scCheckState = newCheckState, scPly = scPly ctx + 1 }
+
         score <- do
             -- Decrement depth for recursion
-            s <- quiescence (applyLegalMove vBoard lm) tt (-beta) (-a) nodes (decDepth depth)
+            s <- quiescence newCtx newVBoard tt (-beta) (-a) nodes (decDepth depth)
             return (-s)
         if score >= beta
         then return beta

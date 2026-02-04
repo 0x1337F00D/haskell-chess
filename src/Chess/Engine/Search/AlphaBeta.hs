@@ -29,14 +29,24 @@ search board tt maxDepthInt = do
     let maxDepth = mkDepth maxDepthInt
     nodes <- newIORef 0
 
-    -- Initialize Search Context
+    -- Initialize Search Resources
     -- Killers: 2 per ply. Let's assume max depth 128. Size = 128 * 2 = 256.
     killers <- UM.replicate 256 nullMove
     -- History: 64 * 64 = 4096.
     historyVec <- UM.replicate 4096 0
     -- Counter Moves: 64 * 64 = 4096.
     counterMove <- UM.replicate 4096 nullMove
-    let ctx = SearchContext killers historyVec counterMove 128
+    let resources = SearchResources killers historyVec counterMove 128
+
+    -- Initial Context
+    let ctx = SearchContext
+          { scResources = resources
+          , scNodeKind = Root
+          , scCheckState = NotInCheck -- Will be updated in alphaBetaRoot if needed
+          , scPhase = MainSearch
+          , scPly = 0
+          , scNullMoveState = NullMoveAllowed
+          }
 
     let vBoard = trustBoard board
     let loop depth bestM
@@ -64,7 +74,10 @@ alphaBetaRoot ctx vBoard tt depth nodes = do
     let ttMove = case ttEntry of Just (m, _, _, _) -> Just m; Nothing -> Nothing
 
     let sortedMoves = orderGenMoves vBoard moves ttMove
-    let inCheck = isCheck board
+
+    -- Root Check State (implicit, but we should set it for children)
+    -- Actually alphaBetaRoot iterates moves, each child gets new context.
+    -- We assume Root is legal.
 
     case sortedMoves of
         [] -> return (nullMove, 0) -- Should not happen if game not over
@@ -75,7 +88,15 @@ alphaBetaRoot ctx vBoard tt depth nodes = do
             let givesCheck = isCheck (getBoard newVBoard)
             let newCheckState = if givesCheck then InCheck else NotInCheck
 
-            s <- alphaBeta ctx newVBoard tt (Just m) (decDepth depth) (-infinity) infinity True PV newCheckState nodes
+            -- Root Move Context
+            let nextCtx = ctx
+                  { scNodeKind = PV
+                  , scCheckState = newCheckState
+                  , scPly = scPly ctx + 1
+                  , scNullMoveState = NullMoveAllowed
+                  }
+
+            s <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-infinity) infinity nodes
             let bestMove = getMove gm
             let bestScore = stepScore s
 
@@ -106,8 +127,18 @@ alphaBetaRoot ctx vBoard tt depth nodes = do
                                             let givesCheckWorker = isCheck (getBoard newVBWorker)
                                             let newCSWorker = if givesCheckWorker then InCheck else NotInCheck
 
+                                            -- Worker Context
+                                            -- Use `ctx` (root context) as base, but update ply/check/nodekind
+                                            -- scPly ctx is 0. Next is 1.
+                                            let workerCtx = ctx
+                                                  { scNodeKind = PV
+                                                  , scCheckState = newCSWorker
+                                                  , scPly = scPly ctx + 1
+                                                  , scNullMoveState = NullMoveAllowed
+                                                  }
+
                                             -- search gm
-                                            s <- alphaBeta ctx newVBWorker tt (Just mWorker) (decDepth depth) (-infinity) (-bestScore) True PV newCSWorker localNodes
+                                            s <- alphaBeta workerCtx newVBWorker tt (Just mWorker) (decDepth depth) (-infinity) (-bestScore) localNodes
                                             let searchScore = stepScore s
 
                                             let newBestRes = case bestRes of
@@ -137,10 +168,17 @@ alphaBetaRoot ctx vBoard tt depth nodes = do
         let givesCheck = isCheck (getBoard newVBoard)
         let newCheckState = if givesCheck then InCheck else NotInCheck
 
+        let nextCtx = ctx
+              { scNodeKind = NonPV -- PVS: Late moves are NonPV
+              , scCheckState = newCheckState
+              , scPly = scPly ctx + 1
+              , scNullMoveState = NullMoveAllowed
+              }
+
         -- PVS: Search with null window first if we found a good move
         let newAlpha = max alpha bestScore
         -- NonPV node (null window)
-        s <- alphaBeta ctx newVBoard tt (Just m) (decDepth depth) (-beta) (-newAlpha) True NonPV newCheckState nodes
+        s <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-beta) (-newAlpha) nodes
         let score = stepScore s
 
         if score > bestScore
@@ -165,8 +203,8 @@ mapConcurrently f xs = do
     mapM takeMVar vars
 
 -- | Alpha-Beta Search (Wrapper for Repetition Check)
-alphaBeta :: SearchContext -> ValidatedBoard -> TT -> Maybe Move -> Depth -> Int -> Int -> Bool -> NodeKind -> CheckState -> IORef Int -> IO Int
-alphaBeta ctx vBoard tt lastMove depth alpha beta canNull nodeKind checkState nodes = do
+alphaBeta :: SearchContext -> ValidatedBoard -> TT -> Maybe Move -> Depth -> Int -> Int -> IORef Int -> IO Int
+alphaBeta ctx vBoard tt lastMove depth alpha beta nodes = do
     modifyIORef' nodes (+1)
     let board = getBoard vBoard
     let hash = GS.zobristHash (state board)
@@ -176,13 +214,18 @@ alphaBeta ctx vBoard tt lastMove depth alpha beta canNull nodeKind checkState no
     let isRep = hash `elem` history board
     if isRep && not (isZeroDepth depth)
     then return 0
-    else alphaBetaBody ctx vBoard tt lastMove depth alpha beta canNull nodeKind checkState nodes
+    else alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes
 
 -- | Alpha-Beta Search Body
-alphaBetaBody :: SearchContext -> ValidatedBoard -> TT -> Maybe Move -> Depth -> Int -> Int -> Bool -> NodeKind -> CheckState -> IORef Int -> IO Int
-alphaBetaBody ctx vBoard tt lastMove depth alpha beta canNull nodeKind checkState nodes = do
+alphaBetaBody :: SearchContext -> ValidatedBoard -> TT -> Maybe Move -> Depth -> Int -> Int -> IORef Int -> IO Int
+alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes = do
     let board = getBoard vBoard
     let hash = GS.zobristHash (state board)
+
+    -- Extract context
+    let nodeKind = scNodeKind ctx
+    let checkState = scCheckState ctx
+    let inCheck = case checkState of InCheck -> True; NotInCheck -> False
 
     -- 1. TT Probe
     ttEntry <- probeTT tt hash
@@ -203,17 +246,21 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta canNull nodeKind checkStat
     if ttCutoff && abs ttScore < 15000 -- Don't return mate scores from TT directly to avoid distance issues
     then return ttScore
     else do
-        let inCheck = case checkState of InCheck -> True; NotInCheck -> False
         -- Static Evaluation
         let staticEval = evaluate vBoard
 
         -- Checkmate/Stalemate detection if no moves (handled later) or depth <= 0
         if isZeroDepth depth
-        then quiescence vBoard tt alpha beta nodes depth
+        then do
+             let qsCtx = ctx { scPhase = Quiescence }
+             quiescence qsCtx vBoard tt alpha beta nodes depth
         else do
             -- 3. Null Move Pruning
             -- R=2 if depth > 6 else R=2? Usually R=2.
             let r = if depth > mkDepth 6 then mkDepth 3 else mkDepth 2
+
+            let canNull = scNullMoveState ctx == NullMoveAllowed
+
             let doNmp = canNull && not inCheck && depth >= r && beta < mateValue
                         && staticEval >= beta -- NMP Verification
                         && popCount (Base.occupiedTotal (pieces board)) > 5 -- Endgame protection
@@ -224,14 +271,15 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta canNull nodeKind checkStat
                              let nullVB = trustBoard nullB -- Assuming null move is safe if inCheck is false
                              -- depth - 1 - r
                              let d' = depth `minusDepth` depthOne `minusDepth` r
-                             -- Pass checkState = NotInCheck because null move cannot give check?
-                             -- Actually null move passes turn. If we were not in check, opponent *might* be in check?
-                             -- No, if we make null move, we do nothing. The board doesn't change except turn.
-                             -- So if we were not in check, the opponent (now us) is not in check.
-                             -- Wait, Null Move is giving turn to opponent.
-                             -- Opponent is to move. Are they in check?
-                             -- If we are not in check, and we do nothing, they are not in check.
-                             score <- alphaBeta ctx nullVB tt Nothing d' (-beta) (-beta + 1) False NonPV NotInCheck nodes
+
+                             let nmpCtx = ctx
+                                   { scNullMoveState = NullMoveSkipped
+                                   , scPly = scPly ctx + 1
+                                   , scNodeKind = NonPV
+                                   , scCheckState = NotInCheck -- Null move doesn't give check (we do nothing)
+                                   }
+
+                             score <- alphaBeta nmpCtx nullVB tt Nothing d' (-beta) (-beta + 1) nodes
                              return (if stepScore score >= beta then Just beta else Nothing)
                          else return Nothing
 
@@ -260,7 +308,14 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta canNull nodeKind checkStat
                                         let nextDepth = (decDepth depth) `plusDepth` extension
 
                                         -- PV Node logic: If we are PV, TT move is PV.
-                                        s <- alphaBeta ctx newVBoard tt (Just ttM) nextDepth (-beta) (-alpha) True nodeKind newCheckState nodes
+                                        let nextCtx = ctx
+                                              { scNodeKind = nodeKind
+                                              , scCheckState = newCheckState
+                                              , scPly = scPly ctx + 1
+                                              , scNullMoveState = NullMoveAllowed
+                                              }
+
+                                        s <- alphaBeta nextCtx newVBoard tt (Just ttM) nextDepth (-beta) (-alpha) nodes
                                         let score = stepScore s
 
                                         if score >= beta
@@ -344,8 +399,10 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta canNull nodeKind checkStat
 
         -- Move-based Pruning (Quiet only)
         -- Delayed to allow checking givesCheck
-        let pruneQuiet = if isQuiet && not inCheck && not givesCheck
-                         then
+
+        -- Pattern Match Pruning Logic
+        let pruneQuiet = case (scNodeKind ctx, scCheckState ctx) of
+                (NonPV, NotInCheck) | isQuiet && not givesCheck ->
                              let lmpCount = 3 + dVal * dVal
                                  doLMP = dVal < 8 && dVal >= 3 && index > lmpCount
 
@@ -354,7 +411,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta canNull nodeKind checkStat
                                  doFutility = index > 10 && dVal < 7 && dVal >= 2 && abs bestScore < mateValue && abs a < mateValue && staticEval + fpMargin <= a
                                               && popCount (Base.occupiedTotal (pieces (getBoard vBoard))) > 5 -- Endgame protection
                              in doLMP || doFutility
-                         else False
+                _ -> False
 
         if pruneQuiet
         then searchStage lms (index + 1) inCheck staticEval a b d flag bestScore bestM True -- Skip move
@@ -363,13 +420,30 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta canNull nodeKind checkStat
             let nextDepth = (decDepth d) `plusDepth` extension
 
             -- PVS
-            score <- if bestScore == -infinity -- First move
+            score <- if bestScore == -infinity -- First move (following TT move)
                      then do
-                         s <- alphaBeta ctx newVBoard tt (Just m) nextDepth (-b) (-a) True nodeKind newCheckState nodes
+                         -- PV Search (preserve nodeKind)
+                         let nextCtx = ctx
+                               { scNodeKind = scNodeKind ctx
+                               , scCheckState = newCheckState
+                               , scPly = scPly ctx + 1
+                               , scNullMoveState = NullMoveAllowed
+                               }
+                         s <- alphaBeta nextCtx newVBoard tt (Just m) nextDepth (-b) (-a) nodes
                          return (stepScore s)
                      else do
                          -- Late Move Reduction
                          -- If quiet, depth >= 3, not checking, etc.
+                         -- Pattern matching guard for LMR?
+                         -- The instruction said "Refactor pruning guards to pattern-match on types".
+                         -- LMR logic is complex.
+                         -- "case (nodeKind, checkState) ... "
+                         -- Let's see if we can use types.
+                         -- LMR is allowed if NonPV? Or PV too?
+                         -- Usually LMR is everywhere for quiets.
+                         -- But checks disable LMR.
+                         -- "not inCheck && not givesCheck".
+
                          let lmr = if d >= mkDepth 3 && not isCap && not isProm && index >= 2 && not inCheck && not givesCheck
                                       && popCount (Base.occupiedTotal (pieces (getBoard vBoard))) > 5 -- Endgame protection
                                    then
@@ -381,12 +455,26 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta canNull nodeKind checkStat
                          let dLMR = nextDepth `minusDepth` lmr
 
                          -- NonPV Search (Null Window)
-                         s <- alphaBeta ctx newVBoard tt (Just m) dLMR (-a - 1) (-a) True NonPV newCheckState nodes
+                         let lmrCtx = ctx
+                               { scNodeKind = NonPV
+                               , scCheckState = newCheckState
+                               , scPly = scPly ctx + 1
+                               , scNullMoveState = NullMoveAllowed
+                               }
+
+                         s <- alphaBeta lmrCtx newVBoard tt (Just m) dLMR (-a - 1) (-a) nodes
                          let scoreLMR = stepScore s
                          if scoreLMR > a && scoreLMR < b
                          then do
                              -- Re-search with full window (PV node potentially)
-                             s2 <- alphaBeta ctx newVBoard tt (Just m) nextDepth (-b) (-a) True nodeKind newCheckState nodes
+                             -- Use original nodeKind (if we are PV node)
+                             let researchCtx = ctx
+                                   { scNodeKind = scNodeKind ctx
+                                   , scCheckState = newCheckState
+                                   , scPly = scPly ctx + 1
+                                   , scNullMoveState = NullMoveAllowed
+                                   }
+                             s2 <- alphaBeta researchCtx newVBoard tt (Just m) nextDepth (-b) (-a) nodes
                              return (stepScore s2)
                          else return scoreLMR
 

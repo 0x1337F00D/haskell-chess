@@ -7,7 +7,7 @@ import qualified Data.Vector.Unboxed.Mutable as UM
 import Chess.Types
 import Chess.Board (ValidatedBoard, LegalMove, GenMove(..), getBoard, pieces, getGenMove)
 import Chess.Engine.SEE (see)
-import Chess.Engine.Search.Types (SearchContext(..))
+import Chess.Engine.Search.Types (SearchContext(..), SearchResources(..))
 
 -- | Move Ordering
 orderGenMoves :: ValidatedBoard -> [LegalMove] -> Maybe Move -> [LegalMove]
@@ -74,53 +74,58 @@ partitionMoves moves = foldr part ([], [], [], []) moves
 
 updateKillers :: SearchContext -> Depth -> Move -> IO ()
 updateKillers ctx depth m = do
-    let ply = ctxMaxDepth ctx - unDepth depth
-    if ply >= 0 && ply < ctxMaxDepth ctx then do
+    let res = scResources ctx
+    let ply = resMaxDepth res - unDepth depth
+    if ply >= 0 && ply < resMaxDepth res then do
         let k1Idx = ply * 2
         let k2Idx = ply * 2 + 1
-        k1 <- UM.unsafeRead (ctxKillers ctx) k1Idx
+        k1 <- UM.unsafeRead (resKillers res) k1Idx
         if m /= k1 then do
-            UM.unsafeWrite (ctxKillers ctx) k2Idx k1
-            UM.unsafeWrite (ctxKillers ctx) k1Idx m
+            UM.unsafeWrite (resKillers res) k2Idx k1
+            UM.unsafeWrite (resKillers res) k1Idx m
         else return ()
     else return ()
 
 getKillers :: SearchContext -> Depth -> IO [Move]
 getKillers ctx depth = do
-    let ply = ctxMaxDepth ctx - unDepth depth
-    if ply >= 0 && ply < ctxMaxDepth ctx then do
+    let res = scResources ctx
+    let ply = resMaxDepth res - unDepth depth
+    if ply >= 0 && ply < resMaxDepth res then do
         let k1Idx = ply * 2
         let k2Idx = ply * 2 + 1
-        k1 <- UM.unsafeRead (ctxKillers ctx) k1Idx
-        k2 <- UM.unsafeRead (ctxKillers ctx) k2Idx
+        k1 <- UM.unsafeRead (resKillers res) k1Idx
+        k2 <- UM.unsafeRead (resKillers res) k2Idx
         return $ filter (/= nullMove) [k1, k2]
     else return []
 
 updateHistory :: SearchContext -> Depth -> Move -> IO ()
 updateHistory ctx depth (Move f t _) = do
+    let res = scResources ctx
     let idx = (unSquare f) * 64 + (unSquare t)
     let d = unDepth depth
     let bonus = d * d
-    v <- UM.unsafeRead (ctxHistory ctx) idx
-    UM.unsafeWrite (ctxHistory ctx) idx (v + bonus)
+    v <- UM.unsafeRead (resHistory res) idx
+    UM.unsafeWrite (resHistory res) idx (v + bonus)
 updateHistory _ _ _ = return ()
 
 updateCounterMove :: SearchContext -> Maybe Move -> Move -> IO ()
 updateCounterMove _ Nothing _ = return ()
 updateCounterMove ctx (Just prevM) m = do
+    let res = scResources ctx
     if isNullMove prevM then return () else do
         let idx = moveToIndex prevM
         if idx >= 0 && idx < 4096 then
-            UM.unsafeWrite (ctxCounterMove ctx) idx m
+            UM.unsafeWrite (resCounterMove res) idx m
         else return ()
 
 getCounterMove :: SearchContext -> Maybe Move -> IO (Maybe Move)
 getCounterMove _ Nothing = return Nothing
 getCounterMove ctx (Just prevM) = do
+    let res = scResources ctx
     if isNullMove prevM then return Nothing else do
         let idx = moveToIndex prevM
         if idx >= 0 && idx < 4096 then do
-            m <- UM.unsafeRead (ctxCounterMove ctx) idx
+            m <- UM.unsafeRead (resCounterMove res) idx
             if isNullMove m then return Nothing else return (Just m)
         else return Nothing
 
@@ -167,10 +172,11 @@ partitionKillers lms ks = foldr part ([], []) lms
 
 scoreHistory :: SearchContext -> LegalMove -> IO Int
 scoreHistory ctx lm = do
+    let res = scResources ctx
     let gm = getGenMove lm
     case gm of
         GenQuiet f t _ -> do
              let idx = (unSquare f) * 64 + (unSquare t)
-             UM.unsafeRead (ctxHistory ctx) idx
+             UM.unsafeRead (resHistory res) idx
         GenCastling _ _ -> return 0
         _ -> return 0
