@@ -32,7 +32,7 @@ instance ChessVariant 'Atomic where
         gs = toGameState ag
         c = colorVal @c
 
-        pseudos = MG.pseudoLegalMoves baseBoard gs
+        pseudos = MG.pseudoLegalMovesList baseBoard gs
 
         isKingCapture :: MG.GenMove -> Bool
         isKingCapture gm =

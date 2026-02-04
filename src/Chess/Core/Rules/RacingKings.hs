@@ -28,7 +28,7 @@ instance ChessVariant 'RacingKings where
   generateMoves (ag :: ActiveGame 'RacingKings c s) =
     let baseBoard = internalBoard ag
         gs = toGameState ag
-        baseMoves = MG.legalGenMoves baseBoard gs
+        baseMoves = MG.legalGenMovesList baseBoard gs
         coreMoves = map toCoreMove baseMoves
         c = colorVal @c
         oppC = opposite c

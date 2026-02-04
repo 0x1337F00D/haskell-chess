@@ -1,11 +1,12 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE PatternSynonyms #-}
 module Chess.Engine.Search.Ordering where
 
 import Data.List (sortOn, partition)
 import qualified Data.Vector.Unboxed.Mutable as UM
 
 import Chess.Types
-import Chess.Board (ValidatedBoard, LegalMove, GenMove(..), getBoard, pieces, getGenMove)
+import Chess.Board (ValidatedBoard, LegalMove, GenMove(..), pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture, getBoard, pieces, getGenMove)
 import Chess.Engine.SEE (see)
 import Chess.Engine.Search.Types (SearchContext(..), SearchResources(..))
 

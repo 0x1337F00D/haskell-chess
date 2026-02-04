@@ -28,7 +28,7 @@ instance ChessVariant 'KingOfTheHill where
   generateMoves (ag :: ActiveGame 'KingOfTheHill c s) =
     let baseBoard = internalBoard ag
         gs = toGameState ag
-        baseMoves = MG.legalGenMoves baseBoard gs
+        baseMoves = MG.legalGenMovesList baseBoard gs
     in map toCoreMove baseMoves
 
   applyMove = genericApplyMove

@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE PatternSynonyms #-}
 module Chess.Engine.Search.AlphaBeta where
 
 import Data.Maybe (fromMaybe, isJust)
@@ -11,6 +12,7 @@ import qualified Data.Vector.Unboxed as U
 
 import Chess.Types
 import Chess.Board (Board(..), applyMove, isCheck, uci, GenMove(..)
+                   , pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture
                    , ValidatedBoard, trustBoard, getBoard, getGenMove
                    , applyLegalMove, isCapture, isPromotion, toGenMove, isLegalMove, mkLegalMove)
 import qualified Chess.Board
