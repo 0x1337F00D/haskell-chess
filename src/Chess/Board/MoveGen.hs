@@ -5,6 +5,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Chess.Board.MoveGen where
 
@@ -376,71 +377,118 @@ kingSquare b c = fmap Square (lsb (pieceBitboard b c King))
 -- Move Generators using Vector construction
 
 pieceMoves :: Board -> GameState -> PieceType -> U.Vector GenMove
-pieceMoves b gs pt = U.fromList $ flatMapBitboard genMoves bb
-  where
-    c = turn gs
-    bb = pieceBitboard b c pt
+pieceMoves b gs pt = U.create $ do
+    let c = turn gs
+    let bb = pieceBitboard b c pt
+    let occ = occupiedTotal b
+    let friends = occupiedBy b c
+    let enemies = occupiedBy b (oppositeColor c)
+    let oppC = oppositeColor c
 
-    genMoves :: Square -> [GenMove]
-    genMoves from =
-        let att = case pt of
-                    Knight -> knightAttacks from
-                    Bishop -> bishopAttacks from (occupiedTotal b)
-                    Rook   -> rookAttacks from (occupiedTotal b)
-                    Queen  -> bishopAttacks from (occupiedTotal b) .|. rookAttacks from (occupiedTotal b)
-                    King   -> kingAttacks from
-                    _      -> 0
+    let getAttacks from = case pt of
+             Knight -> knightAttacks from
+             Bishop -> bishopAttacks from occ
+             Rook   -> rookAttacks from occ
+             Queen  -> bishopAttacks from occ .|. rookAttacks from occ
+             King   -> kingAttacks from
+             _      -> 0
 
-            valid = att .&. complement (occupiedBy b c)
+    -- Pass 1: Count
+    let countMoves acc from = acc + popCount (getAttacks from .&. complement friends)
+    let total = foldBitboard countMoves 0 bb
 
-            mkMove to =
-                if testBit (occupiedTotal b) (unSquare to)
-                then GenCapture from to pt (findPieceType b (oppositeColor c) to)
-                else GenQuiet from to pt
+    mv <- M.unsafeNew total
 
-        in mapBitboard mkMove valid
+    -- Pass 2: Fill
+    let fillAcc !idx from = do
+            let att = getAttacks from
+            let valid = att .&. complement friends
+
+            let writeMove idx2 to = do
+                    let toI = unSquare to
+                    let isCap = testBit enemies toI
+                    let gm = if isCap
+                             then GenCapture from to pt (findPieceType b oppC to)
+                             else GenQuiet from to pt
+                    M.unsafeWrite mv idx2 gm
+                    return (idx2 + 1)
+
+            foldBitboardM writeMove idx valid
+
+    _ <- foldBitboardM fillAcc 0 bb
+    return mv
 
 pieceCaptures :: Board -> GameState -> PieceType -> U.Vector GenMove
-pieceCaptures b gs pt = U.fromList $ flatMapBitboard genMoves bb
-  where
-    c = turn gs
-    bb = pieceBitboard b c pt
+pieceCaptures b gs pt = U.create $ do
+    let c = turn gs
+    let bb = pieceBitboard b c pt
+    let occ = occupiedTotal b
+    let enemies = occupiedBy b (oppositeColor c)
+    let oppC = oppositeColor c
 
-    genMoves :: Square -> [GenMove]
-    genMoves from =
-        let att = case pt of
-                    Knight -> knightAttacks from
-                    Bishop -> bishopAttacks from (occupiedTotal b)
-                    Rook   -> rookAttacks from (occupiedTotal b)
-                    Queen  -> bishopAttacks from (occupiedTotal b) .|. rookAttacks from (occupiedTotal b)
-                    King   -> kingAttacks from
-                    _      -> 0
+    let getAttacks from = case pt of
+             Knight -> knightAttacks from
+             Bishop -> bishopAttacks from occ
+             Rook   -> rookAttacks from occ
+             Queen  -> bishopAttacks from occ .|. rookAttacks from occ
+             King   -> kingAttacks from
+             _      -> 0
 
-            valid = att .&. occupiedBy b (oppositeColor c)
-            mkMove to = GenCapture from to pt (findPieceType b (oppositeColor c) to)
+    -- Pass 1: Count
+    let countMoves acc from = acc + popCount (getAttacks from .&. enemies)
+    let total = foldBitboard countMoves 0 bb
 
-        in mapBitboard mkMove valid
+    mv <- M.unsafeNew total
+
+    -- Pass 2: Fill
+    let fillAcc !idx from = do
+            let att = getAttacks from
+            let valid = att .&. enemies
+
+            let writeMove idx2 to = do
+                    let gm = GenCapture from to pt (findPieceType b oppC to)
+                    M.unsafeWrite mv idx2 gm
+                    return (idx2 + 1)
+
+            foldBitboardM writeMove idx valid
+
+    _ <- foldBitboardM fillAcc 0 bb
+    return mv
 
 pieceQuiets :: Board -> GameState -> PieceType -> U.Vector GenMove
-pieceQuiets b gs pt = U.fromList $ flatMapBitboard genMoves bb
-  where
-    c = turn gs
-    bb = pieceBitboard b c pt
+pieceQuiets b gs pt = U.create $ do
+    let c = turn gs
+    let bb = pieceBitboard b c pt
+    let occ = occupiedTotal b
 
-    genMoves :: Square -> [GenMove]
-    genMoves from =
-        let att = case pt of
-                    Knight -> knightAttacks from
-                    Bishop -> bishopAttacks from (occupiedTotal b)
-                    Rook   -> rookAttacks from (occupiedTotal b)
-                    Queen  -> bishopAttacks from (occupiedTotal b) .|. rookAttacks from (occupiedTotal b)
-                    King   -> kingAttacks from
-                    _      -> 0
+    let getAttacks from = case pt of
+             Knight -> knightAttacks from
+             Bishop -> bishopAttacks from occ
+             Rook   -> rookAttacks from occ
+             Queen  -> bishopAttacks from occ .|. rookAttacks from occ
+             King   -> kingAttacks from
+             _      -> 0
 
-            valid = att .&. complement (occupiedTotal b)
-            mkMove to = GenQuiet from to pt
+    -- Pass 1: Count
+    let countMoves acc from = acc + popCount (getAttacks from .&. complement occ)
+    let total = foldBitboard countMoves 0 bb
 
-        in mapBitboard mkMove valid
+    mv <- M.unsafeNew total
+
+    -- Pass 2: Fill
+    let fillAcc !idx from = do
+            let att = getAttacks from
+            let valid = att .&. complement occ
+
+            let writeMove idx2 to = do
+                    let gm = GenQuiet from to pt
+                    M.unsafeWrite mv idx2 gm
+                    return (idx2 + 1)
+
+            foldBitboardM writeMove idx valid
+
+    _ <- foldBitboardM fillAcc 0 bb
+    return mv
 
 pawnMoves :: Board -> GameState -> U.Vector GenMove
 pawnMoves b gs = U.concat [pawnQuiets b gs, pawnCaptures b gs, pawnPromotions b gs]
