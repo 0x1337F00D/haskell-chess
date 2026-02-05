@@ -1,4 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE BangPatterns #-}
 module Chess.Bitboard where
 
 import Data.Bits
@@ -205,6 +206,29 @@ flatMapBitboard f = go
         let i = countTrailingZeros bb
             bb' = clearBit bb i
         in f (Square i) ++ go bb'
+
+-- | Fold a function over the set bits of a bitboard.
+foldBitboard :: (a -> Square -> a) -> a -> Bitboard -> a
+{-# INLINE foldBitboard #-}
+foldBitboard f z bb = go z bb
+  where
+    go !acc 0 = acc
+    go !acc b =
+        let i = countTrailingZeros b
+            b' = clearBit b i
+        in go (f acc (Square i)) b'
+
+-- | Monadic fold over the set bits of a bitboard.
+foldBitboardM :: Monad m => (a -> Square -> m a) -> a -> Bitboard -> m a
+{-# INLINE foldBitboardM #-}
+foldBitboardM f z bb = go z bb
+  where
+    go !acc 0 = return acc
+    go !acc b = do
+        let i = countTrailingZeros b
+            b' = clearBit b i
+        acc' <- f acc (Square i)
+        go acc' b'
 
 -- | Index of most significant 1 bit, if any.
 msb :: Bitboard -> Maybe Int
