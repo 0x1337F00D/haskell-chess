@@ -64,8 +64,12 @@ instance Evaluate 'Middlegame where
             egScore = egMat + egPST
             (wSafety, bSafety) = evalKingSafety b
             safetyAdj = bSafety - wSafety
-            -- No MopUp in Middlegame
-            egScoreTotal = egScore + safetyAdj
+
+            -- Conditional MopUp: If phase drops to Endgame levels (< 10), enable MopUp.
+            -- This handles transition from Middlegame to Endgame within the search tree.
+            mopUpAdj = if clampedPhase < 10 then evalMopUp b else 0
+
+            egScoreTotal = egScore + safetyAdj + mopUpAdj
             finalScore = (((mgScore + safetyAdj) * clampedPhase) + (egScoreTotal * (totalPhase - clampedPhase))) `div` totalPhase
         in if turn gs == White then finalScore else -finalScore
 
