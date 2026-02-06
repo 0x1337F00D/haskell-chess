@@ -28,6 +28,7 @@ import qualified Chess.Board.Fen as Fen
 import Data.Bits (testBit, countTrailingZeros, (.|.), (.&.), complement, setBit)
 import Data.List (find)
 import Data.Maybe (mapMaybe)
+import Data.Function ((&))
 
 -- | Create a game from FEN string (Fischer Random variant).
 fischerRandomGameFromFEN :: String -> Maybe (Game 'FischerRandom 'Active)
@@ -153,12 +154,11 @@ instance ChessVariant 'FischerRandom where
         newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
 
         newGS = gsUpdated
-          { GS.turn = toColor (colorVal @(Opposite c))
-          , GS.epSquare = newEP
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          , GS.zobristHash = 0
-          }
+          & GS.setTurn (toColor (colorVal @(Opposite c)))
+          & GS.setEpSquare newEP
+          & GS.setHalfmoveClock newHMC
+          & GS.setFullmoveNumber newFMN
+          & GS.setZobristHash 0
 
         frState = variantState ag
 
@@ -210,4 +210,3 @@ isCastlingValid b c kSq rSq isKSide =
         isSafe s = not (Base.isAttackedBy b oppC s)
 
     in all isEmpty checkSquares && all isSafe safeCheckSquares
-

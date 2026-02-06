@@ -7,7 +7,7 @@ import Data.Bits (countTrailingZeros, clearBit, popCount, (.&.), (.|.), shiftL, 
 import Chess.Types
 import Chess.Bitboard
 import qualified Chess.Board.Base as Base
-import Chess.Board.GameState (GameState(..))
+import Chess.Board.GameState (GameState(..), turn)
 import Chess.Board (Board(..), ValidatedBoard, getBoard)
 
 -- | Evaluation score in centipawns.

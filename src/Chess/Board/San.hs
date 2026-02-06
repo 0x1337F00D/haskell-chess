@@ -4,11 +4,13 @@ module Chess.Board.San where
 import Data.List (find)
 import Data.Maybe (isJust, fromMaybe)
 import Data.Bits ((.&.), complement, (.|.), testBit)
+import Data.Function ((&))
 
 import Chess.Types
 import Chess.Bitboard (bbFromSquare, pattern BB_A1, pattern BB_H1, pattern BB_A8, pattern BB_H8, scanForward, pawnAttacks)
 import Chess.Board.Base
 import Chess.Board.GameState
+import qualified Chess.Board.GameState as GS
 import Chess.Board.MoveGen (isLegal, applyMoveBoard, GenMove(..), pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture)
 import Chess.Board.Validation (isCheck, isCheckmate)
 
@@ -16,7 +18,7 @@ import Chess.Board.Validation (isCheck, isCheckmate)
 san :: Board -> GameState -> Move -> String
 san board gs move@(Move from to promo) =
     let p = pieceAt board from
-        c = turn gs
+        c = GS.turn gs
         isCapture = isJust (pieceAt board to) || isEpCapture board gs move
     in case p of
         Nothing -> ""
@@ -53,9 +55,9 @@ applyMove :: Board -> GameState -> Move -> (Board, GameState)
 applyMove b gs m@(Move from to _ ) =
     let b' = applyMoveBoard b gs m
         p = pieceAt b from
-        c = turn gs
+        c = GS.turn gs
 
-        cr = castlingRights gs
+        cr = GS.castlingRights gs
         cr1 = case p of
             Just (Piece _ King) ->
                  let mask = if c == White then (BB_A1 .|. BB_H1) else (BB_A8 .|. BB_H8)
@@ -74,10 +76,9 @@ applyMove b gs m@(Move from to _ ) =
              else Nothing
 
         gs' = gs
-            { turn = oppositeColor c
-            , castlingRights = cr2
-            , epSquare = ep
-            }
+            & GS.setTurn (oppositeColor c)
+            & GS.setCastlingRights cr2
+            & GS.setEpSquare ep
     in (b', gs')
 applyMove b gs _ = (b, gs)
 
@@ -141,7 +142,7 @@ getCandidates b gs (Piece c pt) target =
 
     isStartRank s = (c == White && squareRank s == 1) || (c == Black && squareRank s == 6)
 
-    isEpSquare t = epSquare gs == Just t
+    isEpSquare t = GS.epSquare gs == Just t
 
 disambiguate :: Square -> [Square] -> String
 disambiguate src candidates
@@ -160,7 +161,7 @@ rankChar :: Int -> Char
 rankChar r = rankNames !! r
 
 isEpCapture :: Board -> GameState -> Move -> Bool
-isEpCapture b _ (Move from to _ ) =
+isEpCapture b gs (Move from to _ ) =
     case pieceAt b from of
         Just (Piece _ Pawn) ->
              case pieceAt b to of
@@ -173,7 +174,7 @@ isEpCapture _ _ _ = False
 parseSan :: Board -> GameState -> String -> Maybe Move
 parseSan b gs str =
     let cleanStr = filter (`notElem` "+#") str
-        c = turn gs
+        c = GS.turn gs
 
         -- Helper to check legality of a Move (converting to GenMove first)
         checkLegal m@(Move from to promo) =

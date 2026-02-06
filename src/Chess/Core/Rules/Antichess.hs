@@ -30,7 +30,7 @@ antichessInitialGame =
   let b = initialBoard
       ag = ActiveGame
            { internalBoard = toBaseBoard b
-           , gameState = GS.initialGameState { GS.castlingRights = 0 }
+           , gameState = GS.setCastlingRights 0 GS.initialGameState
            , variantState = ()
            , checkStatus = SSafe
            } :: ActiveGame 'Antichess 'White 'Safe

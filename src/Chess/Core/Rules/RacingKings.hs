@@ -23,6 +23,7 @@ import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
+import Data.Function ((&))
 
 instance ChessVariant 'RacingKings where
   generateMoves (ag :: ActiveGame 'RacingKings c s) =
@@ -37,7 +38,7 @@ instance ChessVariant 'RacingKings where
             let baseNext = applyMoveBase m baseBoard
             in not (Val.isCheck baseNext (dummyGameState oppC))
           where
-            dummyGameState col = GS.initialGameState { GS.turn = toColor col }
+            dummyGameState col = GS.initialGameState & GS.setTurn (toColor col)
 
     in filter noGiveCheck coreMoves
 

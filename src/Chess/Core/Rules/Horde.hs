@@ -26,6 +26,7 @@ import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
 import Data.Bits (popCount, testBit, setBit, (.|.))
 import Data.Word (Word64)
+import Data.Function ((&))
 
 -- | Initial Game State for Horde
 hordeInitialGame :: Game 'Horde 'Active
@@ -77,9 +78,8 @@ hordeInitialGame =
       crBB = BB.BB_A8 .|. BB.BB_H8
 
       gs = GS.initialGameState
-           { GS.castlingRights = crBB
-           , GS.turn = T.White
-           }
+           & GS.setCastlingRights crBB
+           & GS.setTurn T.White
 
       ag = ActiveGame
            { internalBoard = baseBoard
@@ -177,12 +177,11 @@ instance ChessVariant 'Horde where
         newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
 
         newGS = gsUpdated
-          { GS.turn = toColor (colorVal @(Opposite c))
-          , GS.epSquare = newEP
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          , GS.zobristHash = 0
-          }
+          & GS.setTurn (toColor (colorVal @(Opposite c)))
+          & GS.setEpSquare newEP
+          & GS.setHalfmoveClock newHMC
+          & GS.setFullmoveNumber newFMN
+          & GS.setZobristHash 0
 
         nextAg = ActiveGame internalB' newGS () SUnchecked
 
