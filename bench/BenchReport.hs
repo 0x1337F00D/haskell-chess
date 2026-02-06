@@ -17,7 +17,7 @@ import System.IO (hFlush, stdout)
 import Chess.Types (Depth(..), mkDepth, unDepth)
 import Chess.Board (parseFen, uci, Board)
 import Chess.Engine.Search (search)
--- import Chess.Engine.Search.Types (SearchResult(..))
+import Chess.Engine.Search.Types (SearchLimits(..), defaultLimits)
 import Chess.Engine.TT (newTT, clearTT)
 
 -- Perft Imports
@@ -101,7 +101,7 @@ runSearchSuite depth = do
         Nothing -> putStrLn "Invalid KiwiPete FEN"
         Just board -> do
             tt <- newTT 20
-            res <- search board tt depth
+            res <- search board tt (defaultLimits { limitDepth = Just depth })
             -- let nps = if srTime res > 0 then fromIntegral (srNodes res) / srTime res else 0
             -- printf "kiwipete d%d nodes=%d qnodes=%d time=%.3f nps=%.0f pv=%s\n"
             --    depth (srNodes res) (srQNodes res) (srTime res) nps (uci (srBestMove res))
@@ -118,7 +118,7 @@ runTacticsSuite = do
             Nothing -> printf "name=%s FAIL (Invalid FEN)\n" (tcName tc)
             Just board -> do
                 clearTT tt
-                res <- search board tt depth
+                res <- search board tt (defaultLimits { limitDepth = Just depth })
                 -- let bestM = srBestMove res
                 -- let uciM = uci bestM
                 -- let passed = uciM `elem` tcExpected tc

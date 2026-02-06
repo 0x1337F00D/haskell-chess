@@ -37,6 +37,18 @@ data SearchPhase = MainSearch | Quiescence
 data NullMoveState = NullMoveAllowed | NullMoveSkipped
     deriving (Show, Eq)
 
+-- | Search Limits
+data SearchLimits = SearchLimits
+    { limitTime     :: !(Maybe Int) -- ^ Time limit in milliseconds
+    , limitNodes    :: !(Maybe Int) -- ^ Node limit
+    , limitDepth    :: !(Maybe Int) -- ^ Depth limit
+    , limitMate     :: !(Maybe Int) -- ^ Search for mate in N moves
+    , limitInfinite :: !Bool        -- ^ Infinite search
+    } deriving (Show, Eq)
+
+defaultLimits :: SearchLimits
+defaultLimits = SearchLimits Nothing Nothing Nothing Nothing False
+
 -- | Search Resources
 -- Contains thread-local mutable data for move ordering and heuristics.
 data SearchResources = SearchResources

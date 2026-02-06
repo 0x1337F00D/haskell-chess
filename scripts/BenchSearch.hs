@@ -4,6 +4,7 @@ import System.Environment (getArgs)
 import Data.Time.Clock (getCurrentTime, diffUTCTime)
 import Chess.Board (parseFen)
 import Chess.Engine.Search (search)
+import Chess.Engine.Search.Types (SearchLimits(..), defaultLimits)
 import Chess.Engine.TT (newTT)
 
 -- KiwiPete position
@@ -20,6 +21,6 @@ main = do
     let Just b = parseFen fen
     tt <- newTT 20
     start <- getCurrentTime
-    _ <- search b tt depth
+    _ <- search b tt (defaultLimits { limitDepth = Just depth })
     end <- getCurrentTime
     putStrLn $ "Time: " ++ show (diffUTCTime end start)
