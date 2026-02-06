@@ -22,7 +22,7 @@ allCastling = BB_A1 .|. BB_H1 .|. BB_A8 .|. BB_H8
 data GameState = GameState
   { turn           :: !Color
   , castlingRights :: !CastlingRights
-  , epSquare       :: !(Maybe Square)
+  , epSquare       :: !Square
   , halfmoveClock  :: !HalfmoveClock
   , fullmoveNumber :: !FullmoveNumber
   , zobristHash    :: !Word64
@@ -34,7 +34,7 @@ initialGameState :: GameState
 initialGameState = GameState
   { turn = White
   , castlingRights = allCastling
-  , epSquare = Nothing
+  , epSquare = NoSquare
   , halfmoveClock = 0
   , fullmoveNumber = 1
   , zobristHash = 0

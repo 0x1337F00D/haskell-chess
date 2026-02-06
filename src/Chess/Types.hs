@@ -241,6 +241,10 @@ pattern F8 = Square 61
 pattern G8 = Square 62
 pattern H8 = Square 63
 
+-- | Sentinel value for no square (used for En Passant)
+pattern NoSquare :: Square
+pattern NoSquare = Square 64
+
 -- | All squares from A1 to H8.
 squares :: [Square]
 squares = [Square n | n <- [0..63]]
@@ -310,7 +314,9 @@ rankNames = ['1'..'8']
 
 -- | Convert square to algebraic notation (e.g. a1).
 squareName :: Square -> String
-squareName (Square n) = [chr (ord 'a' + file), chr (ord '1' + rank)]
+squareName (Square n)
+  | n == 64 = "-"
+  | otherwise = [chr (ord 'a' + file), chr (ord '1' + rank)]
   where
     file = n `mod` 8
     rank = n `div` 8

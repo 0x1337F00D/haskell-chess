@@ -234,9 +234,9 @@ instance ChessVariant 'Crazyhouse where
         newEP = case m of
                   QuietMove f t _ ->
                     if isPawn && isDoublePush f t
-                    then Just (toSquare (Square (getFile f) (epRank (colorVal @(Opposite c)))))
-                    else Nothing
-                  _ -> Nothing
+                    then toSquare (Square (getFile f) (epRank (colorVal @(Opposite c))))
+                    else T.NoSquare
+                  _ -> T.NoSquare
 
         isCapture = case m of
                       CaptureMove {} -> True

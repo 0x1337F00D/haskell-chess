@@ -189,7 +189,7 @@ spec = describe "Core Architecture" $ do
                { internalBoard = toBaseBoard b
                , gameState = GS.initialGameState
                    { GS.castlingRights = mkCastlingRights False False False False
-                   , GS.epSquare = Just (toSquare (Square FileF Rank6))
+                   , GS.epSquare = toSquare (Square FileF Rank6)
                    }
                , variantState = ()
                , checkStatus = SSafe

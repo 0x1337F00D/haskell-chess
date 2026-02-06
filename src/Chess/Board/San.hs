@@ -70,8 +70,8 @@ applyMove b gs m@(Move from to _ ) =
             _ -> cr1
 
         ep = if isDoublePush b from to
-             then Just (midSquare from to)
-             else Nothing
+             then midSquare from to
+             else NoSquare
 
         gs' = gs
             { turn = oppositeColor c
@@ -141,7 +141,7 @@ getCandidates b gs (Piece c pt) target =
 
     isStartRank s = (c == White && squareRank s == 1) || (c == Black && squareRank s == 6)
 
-    isEpSquare t = epSquare gs == Just t
+    isEpSquare t = epSquare gs == t
 
 disambiguate :: Square -> [Square] -> String
 disambiguate src candidates

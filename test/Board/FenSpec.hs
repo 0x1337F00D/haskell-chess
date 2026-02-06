@@ -35,7 +35,7 @@ spec = do
       -- Check state
       GS.turn gs `shouldBe` White
       GS.castlingRights gs `shouldBe` GS.allCastling
-      GS.epSquare gs `shouldBe` Nothing
+      GS.epSquare gs `shouldBe` NoSquare
       GS.halfmoveClock gs `shouldBe` 0
       GS.fullmoveNumber gs `shouldBe` 1
 
@@ -48,7 +48,7 @@ spec = do
       let fenStr = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
       let (Just (b, gs)) = Fen.parseFen fenStr
       GS.turn gs `shouldBe` Black
-      GS.epSquare gs `shouldBe` Just E3
+      GS.epSquare gs `shouldBe` E3
       Board.pieceAt b E4 `shouldBe` Just (Piece White Pawn)
 
     it "handles empty castling" $ do

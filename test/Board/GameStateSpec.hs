@@ -11,7 +11,7 @@ spec = do
       let gs = GS.initialGameState
       GS.turn gs `shouldBe` White
       GS.castlingRights gs `shouldBe` GS.allCastling
-      GS.epSquare gs `shouldBe` Nothing
+      GS.epSquare gs `shouldBe` NoSquare
       GS.halfmoveClock gs `shouldBe` 0
       GS.fullmoveNumber gs `shouldBe` 1
 

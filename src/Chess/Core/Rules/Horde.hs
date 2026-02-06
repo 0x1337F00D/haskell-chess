@@ -159,13 +159,13 @@ instance ChessVariant 'Horde where
                       if isPawn
                       then
                           if isDoublePush f t
-                          then Just (toSquare (Square (getFile f) (epRank (colorVal @(Opposite c)))))
+                          then toSquare (Square (getFile f) (epRank (colorVal @(Opposite c))))
                           -- Horde Special: Rank 1 Double Push
                           else if c == White && (fromEnum (getRank f) == 0) && (fromEnum (getRank t) == 2)
-                               then Just (toSquare (Square (getFile f) Rank2))
-                               else Nothing
-                      else Nothing
-                  _ -> Nothing
+                               then toSquare (Square (getFile f) Rank2)
+                               else T.NoSquare
+                      else T.NoSquare
+                  _ -> T.NoSquare
 
         isCapture = case m of
                       CaptureMove {} -> True

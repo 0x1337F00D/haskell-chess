@@ -145,9 +145,9 @@ instance ChessVariant 'Atomic where
         newEP = case m of
                   QuietMove f t _ ->
                     if isPawn && isDoublePush f t
-                    then Just (toSquare (Square (getFile f) (epRank (colorVal @(Opposite c)))))
-                    else Nothing
-                  _ -> Nothing
+                    then toSquare (Square (getFile f) (epRank (colorVal @(Opposite c))))
+                    else T.NoSquare
+                  _ -> T.NoSquare
 
         newHMC = if isPawn || isCapture then 0 else GS.halfmoveClock gs + 1
         newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
