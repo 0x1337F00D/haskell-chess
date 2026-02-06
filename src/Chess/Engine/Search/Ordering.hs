@@ -1,5 +1,9 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Chess.Engine.Search.Ordering where
 
 import Data.List (sortOn, partition)
@@ -73,7 +77,7 @@ partitionMoves moves = foldr part ([], [], [], []) moves
         GenQuiet {} -> (cp, c, p, lm:q)
         GenCastling {} -> (cp, c, p, lm:q)
 
-updateKillers :: SearchContext -> Depth -> Move -> IO ()
+updateKillers :: forall p. SearchContext p -> Depth -> Move -> IO ()
 updateKillers ctx depth m = do
     let res = scResources ctx
     let ply = resMaxDepth res - unDepth depth
@@ -87,7 +91,7 @@ updateKillers ctx depth m = do
         else return ()
     else return ()
 
-getKillers :: SearchContext -> Depth -> IO [Move]
+getKillers :: forall p. SearchContext p -> Depth -> IO [Move]
 getKillers ctx depth = do
     let res = scResources ctx
     let ply = resMaxDepth res - unDepth depth
@@ -99,7 +103,7 @@ getKillers ctx depth = do
         return $ filter (/= nullMove) [k1, k2]
     else return []
 
-updateHistory :: SearchContext -> Depth -> Move -> IO ()
+updateHistory :: forall p. SearchContext p -> Depth -> Move -> IO ()
 updateHistory ctx depth (Move f t _) = do
     let res = scResources ctx
     let idx = (unSquare f) * 64 + (unSquare t)
@@ -109,7 +113,7 @@ updateHistory ctx depth (Move f t _) = do
     UM.unsafeWrite (resHistory res) idx (v + bonus)
 updateHistory _ _ _ = return ()
 
-updateCounterMove :: SearchContext -> Maybe Move -> Move -> IO ()
+updateCounterMove :: forall p. SearchContext p -> Maybe Move -> Move -> IO ()
 updateCounterMove _ Nothing _ = return ()
 updateCounterMove ctx (Just prevM) m = do
     let res = scResources ctx
@@ -119,7 +123,7 @@ updateCounterMove ctx (Just prevM) m = do
             UM.unsafeWrite (resCounterMove res) idx m
         else return ()
 
-getCounterMove :: SearchContext -> Maybe Move -> IO (Maybe Move)
+getCounterMove :: forall p. SearchContext p -> Maybe Move -> IO (Maybe Move)
 getCounterMove _ Nothing = return Nothing
 getCounterMove ctx (Just prevM) = do
     let res = scResources ctx
@@ -134,7 +138,7 @@ moveToIndex :: Move -> Int
 moveToIndex (Move f t _) = (unSquare f) * 64 + (unSquare t)
 moveToIndex _ = -1
 
-orderQuiets :: SearchContext -> [LegalMove] -> [Move] -> Maybe Move -> Maybe Move -> IO [LegalMove]
+orderQuiets :: forall p. SearchContext p -> [LegalMove] -> [Move] -> Maybe Move -> Maybe Move -> IO [LegalMove]
 orderQuiets ctx quiets killers counterMove ttM = do
     let (kMoves, others) = partitionKillers quiets killers
     let (cmMoves, others2) = case counterMove of
@@ -171,7 +175,7 @@ partitionKillers lms ks = foldr part ([], []) lms
     getMove (GenCastling f t) = Move f t Nothing
     getMove _ = nullMove
 
-scoreHistory :: SearchContext -> LegalMove -> IO Int
+scoreHistory :: forall p. SearchContext p -> LegalMove -> IO Int
 scoreHistory ctx lm = do
     let res = scResources ctx
     let gm = getGenMove lm

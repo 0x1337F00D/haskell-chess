@@ -71,6 +71,7 @@ library
                     , Chess.Board.San
                     , Chess.Board.Zobrist
                     , Chess.Board
+                    , Chess.Board.Phase
                     , Chess
                     , Chess.Pgn
                     , Chess.Book.Polyglot

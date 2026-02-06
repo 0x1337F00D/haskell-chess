@@ -1,4 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts #-}
+
 module Chess.Engine.Search.Quiescence where
 
 import Data.IORef (IORef, modifyIORef')
@@ -6,14 +9,15 @@ import Chess.Types (Depth(..), unDepth, decDepth, depthZero)
 import Chess.Board (ValidatedBoard, getBoard, state, applyLegalMove, isCheck, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated)
 import qualified Chess.Board
 import qualified Chess.Board.GameState as GS
-import Chess.Engine.Evaluation (evaluate)
+import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
+import Chess.Board.Phase (Position(..))
 import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
 import Chess.Engine.Search.Types (mateValue, SearchContext(..), CheckState(..))
 import Chess.Engine.Search.Ordering (orderGenMoves)
 import Chess.Types (Move, nullMove)
 
 -- | Quiescence Search.
-quiescence :: SearchContext -> ValidatedBoard -> TT -> Int -> Int -> IORef Int -> Depth -> IO Int
+quiescence :: forall p. Evaluate p => SearchContext p -> ValidatedBoard -> TT -> Int -> Int -> IORef Int -> Depth -> IO Int
 quiescence ctx vBoard tt alpha beta nodes depth = do
     modifyIORef' nodes (+1)
     let board = getBoard vBoard
@@ -47,7 +51,7 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
         standPat <- case staticEval of
             Just s -> return s
             Nothing -> do
-                let s = evaluate vBoard
+                let s = evaluatePos (Position vBoard :: Position p)
                 -- Store static eval in TT
                 storeTT tt hash depthZero s TTEval nullMove
                 return s
@@ -83,7 +87,7 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
         -- Calculate CheckState for recursion
         let newInCheck = isCheck (getBoard newVBoard)
         let newCheckState = if newInCheck then InCheck else NotInCheck
-        let newCtx = ctx { scCheckState = newCheckState, scPly = scPly ctx + 1 }
+        let newCtx = ctx { scCheckState = newCheckState, scPly = scPly ctx + 1 } :: SearchContext p
 
         score <- do
             -- Decrement depth for recursion

@@ -1,5 +1,8 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts #-}
+
 module Chess.Engine.Search.AlphaBeta where
 
 import Data.Maybe (fromMaybe, isJust)
@@ -18,7 +21,8 @@ import Chess.Board (Board(..), applyMove, isCheck, uci, GenMove(..)
 import qualified Chess.Board
 import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
-import Chess.Engine.Evaluation (evaluate)
+import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
+import Chess.Board.Phase (Position(..))
 import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
 import Chess.Engine.Search.Types
 import Chess.Engine.Search.Pruning (lmrTable)
@@ -26,17 +30,15 @@ import Chess.Engine.Search.Ordering
 import Chess.Engine.Search.Quiescence (quiescence)
 
 -- | Search for the best move.
-search :: Board -> TT -> Int -> IO Move
-search board tt maxDepthInt = do
+searchPhase :: forall p. Evaluate p => Position p -> TT -> Int -> IO Move
+searchPhase (Position vBoard) tt maxDepthInt = do
+    let board = getBoard vBoard
     let maxDepth = mkDepth maxDepthInt
     nodes <- newIORef 0
 
     -- Initialize Search Resources
-    -- Killers: 2 per ply. Let's assume max depth 128. Size = 128 * 2 = 256.
     killers <- UM.replicate 256 nullMove
-    -- History: 64 * 64 = 4096.
     historyVec <- UM.replicate 4096 0
-    -- Counter Moves: 64 * 64 = 4096.
     counterMove <- UM.replicate 4096 nullMove
     let resources = SearchResources killers historyVec counterMove 128
 
@@ -44,13 +46,12 @@ search board tt maxDepthInt = do
     let ctx = SearchContext
           { scResources = resources
           , scNodeKind = Root
-          , scCheckState = NotInCheck -- Will be updated in alphaBetaRoot if needed
+          , scCheckState = NotInCheck
           , scPhase = MainSearch
           , scPly = 0
           , scNullMoveState = NullMoveAllowed
-          }
+          } :: SearchContext p
 
-    let vBoard = trustBoard board
     let loop depth bestM
           | depth > maxDepth = return bestM
           | otherwise = do
@@ -66,23 +67,18 @@ search board tt maxDepthInt = do
     loop depthOne nullMove
 
 -- | Root Search
-alphaBetaRoot :: SearchContext -> ValidatedBoard -> TT -> Depth -> IORef Int -> IO (Move, Int)
+alphaBetaRoot :: forall p. Evaluate p => SearchContext p -> ValidatedBoard -> TT -> Depth -> IORef Int -> IO (Move, Int)
 alphaBetaRoot ctx vBoard tt depth nodes = do
     let moves = Chess.Board.legalMovesValidated vBoard
     let board = getBoard vBoard
-    -- Probe TT for root move ordering (optional but good)
     let hash = GS.zobristHash (state board)
     ttEntry <- probeTT tt hash
     let ttMove = case ttEntry of Just (m, _, _, _) -> Just m; Nothing -> Nothing
 
     let sortedMoves = orderGenMoves vBoard moves ttMove
 
-    -- Root Check State (implicit, but we should set it for children)
-    -- Actually alphaBetaRoot iterates moves, each child gets new context.
-    -- We assume Root is legal.
-
     case sortedMoves of
-        [] -> return (nullMove, 0) -- Should not happen if game not over
+        [] -> return (nullMove, 0)
         (lm:lms) -> do
             let gm = getGenMove lm
             let m = getMove gm
@@ -90,13 +86,12 @@ alphaBetaRoot ctx vBoard tt depth nodes = do
             let givesCheck = isCheck (getBoard newVBoard)
             let newCheckState = if givesCheck then InCheck else NotInCheck
 
-            -- Root Move Context
             let nextCtx = ctx
                   { scNodeKind = PV
                   , scCheckState = newCheckState
                   , scPly = scPly ctx + 1
                   , scNullMoveState = NullMoveAllowed
-                  }
+                  } :: SearchContext p
 
             s <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-infinity) infinity nodes
             let bestMove = getMove gm
@@ -129,17 +124,13 @@ alphaBetaRoot ctx vBoard tt depth nodes = do
                                             let givesCheckWorker = isCheck (getBoard newVBWorker)
                                             let newCSWorker = if givesCheckWorker then InCheck else NotInCheck
 
-                                            -- Worker Context
-                                            -- Use `ctx` (root context) as base, but update ply/check/nodekind
-                                            -- scPly ctx is 0. Next is 1.
                                             let workerCtx = ctx
                                                   { scNodeKind = PV
                                                   , scCheckState = newCSWorker
                                                   , scPly = scPly ctx + 1
                                                   , scNullMoveState = NullMoveAllowed
-                                                  }
+                                                  } :: SearchContext p
 
-                                            -- search gm
                                             s <- alphaBeta workerCtx newVBWorker tt (Just mWorker) (decDepth depth) (-infinity) (-bestScore) localNodes
                                             let searchScore = stepScore s
 
@@ -171,15 +162,13 @@ alphaBetaRoot ctx vBoard tt depth nodes = do
         let newCheckState = if givesCheck then InCheck else NotInCheck
 
         let nextCtx = ctx
-              { scNodeKind = NonPV -- PVS: Late moves are NonPV
+              { scNodeKind = NonPV
               , scCheckState = newCheckState
               , scPly = scPly ctx + 1
               , scNullMoveState = NullMoveAllowed
-              }
+              } :: SearchContext p
 
-        -- PVS: Search with null window first if we found a good move
         let newAlpha = max alpha bestScore
-        -- NonPV node (null window)
         s <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-beta) (-newAlpha) nodes
         let score = stepScore s
 
@@ -204,82 +193,71 @@ mapConcurrently f xs = do
         return v) xs
     mapM takeMVar vars
 
--- | Alpha-Beta Search (Wrapper for Repetition Check)
-alphaBeta :: SearchContext -> ValidatedBoard -> TT -> Maybe Move -> Depth -> Int -> Int -> IORef Int -> IO Int
+-- | Alpha-Beta Search
+alphaBeta :: forall p. Evaluate p => SearchContext p -> ValidatedBoard -> TT -> Maybe Move -> Depth -> Int -> Int -> IORef Int -> IO Int
 alphaBeta ctx vBoard tt lastMove depth alpha beta nodes = do
     modifyIORef' nodes (+1)
     let board = getBoard vBoard
     let hash = GS.zobristHash (state board)
 
-    -- Repetition Check
-    -- If hash is in history, it's a draw (0).
     let isRep = hash `elem` history board
     if isRep && not (isZeroDepth depth)
     then return 0
     else alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes
 
 -- | Alpha-Beta Search Body
-alphaBetaBody :: SearchContext -> ValidatedBoard -> TT -> Maybe Move -> Depth -> Int -> Int -> IORef Int -> IO Int
+alphaBetaBody :: forall p. Evaluate p => SearchContext p -> ValidatedBoard -> TT -> Maybe Move -> Depth -> Int -> Int -> IORef Int -> IO Int
 alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes = do
     let board = getBoard vBoard
     let hash = GS.zobristHash (state board)
 
-    -- Extract context
     let nodeKind = scNodeKind ctx
     let checkState = scCheckState ctx
     let inCheck = case checkState of InCheck -> True; NotInCheck -> False
 
-    -- 1. TT Probe
     ttEntry <- probeTT tt hash
     let (ttMove, ttScore, ttDepth, ttFlag) = case ttEntry of
             Just (m, s, d, f) -> (Just m, s, d, f)
             Nothing -> (Nothing, 0, mkDepth (-1), TTExact)
 
-    -- TT Cutoff
     let ttHit = isJust ttEntry && ttDepth >= depth
     let ttCutoff = if ttHit
                    then case ttFlag of
                        TTExact -> True
                        TTLower -> ttScore >= beta
                        TTUpper -> ttScore <= alpha
-                       TTEval  -> False -- Evaluation is not a search result
+                       TTEval  -> False
                    else False
 
-    if ttCutoff && abs ttScore < 15000 -- Don't return mate scores from TT directly to avoid distance issues
+    if ttCutoff && abs ttScore < 15000
     then return ttScore
     else do
-        -- Static Evaluation
-        let staticEval = evaluate vBoard
+        -- Static Evaluation using Evaluate Typeclass
+        let staticEval = evaluatePos (Position vBoard :: Position p)
 
-        -- Checkmate/Stalemate detection if no moves (handled later) or depth <= 0
         if isZeroDepth depth
         then do
-             let qsCtx = ctx { scPhase = Quiescence }
+             let qsCtx = ctx { scPhase = Quiescence } :: SearchContext p
              quiescence qsCtx vBoard tt alpha beta nodes depth
         else do
-            -- 3. Null Move Pruning
-            -- R=2 if depth > 6 else R=2? Usually R=2.
             let r = if depth > mkDepth 6 then mkDepth 3 else mkDepth 2
-
             let canNull = scNullMoveState ctx == NullMoveAllowed
-
             let doNmp = canNull && not inCheck && depth >= r && beta < mateValue
-                        && staticEval >= beta -- NMP Verification
-                        && popCount (Base.occupiedTotal (pieces board)) > 5 -- Endgame protection
+                        && staticEval >= beta
+                        && popCount (Base.occupiedTotal (pieces board)) > 5
 
             nmpResult <- if doNmp
                          then do
                              let nullB = Chess.Board.applyMove board NullMove
-                             let nullVB = trustBoard nullB -- Assuming null move is safe if inCheck is false
-                             -- depth - 1 - r
+                             let nullVB = trustBoard nullB
                              let d' = depth `minusDepth` depthOne `minusDepth` r
 
                              let nmpCtx = ctx
                                    { scNullMoveState = NullMoveSkipped
                                    , scPly = scPly ctx + 1
                                    , scNodeKind = NonPV
-                                   , scCheckState = NotInCheck -- Null move doesn't give check (we do nothing)
-                                   }
+                                   , scCheckState = NotInCheck
+                                   } :: SearchContext p
 
                              score <- alphaBeta nmpCtx nullVB tt Nothing d' (-beta) (-beta + 1) nodes
                              return (if stepScore score >= beta then Just beta else Nothing)
@@ -288,12 +266,9 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes = do
             case nmpResult of
                 Just cutoff -> return cutoff
                 Nothing -> do
-                    -- 4. Staged Move Generation
-
                     let hasTT = isJust ttMove
                     let ttM = fromMaybe nullMove ttMove
 
-                    -- Stage 0: Explicit TT Move
                     (score0, flag0, bestM0, found0, alpha0, searchedTT) <- if hasTT
                         then do
                             if Chess.Board.isLegalMove board ttM
@@ -302,26 +277,23 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes = do
                                     Just gm -> do
                                         let lm = Chess.Board.mkLegalMove gm
                                         let newVBoard = applyLegalMove vBoard lm
-
-                                        -- Calculate check extension for TT move
                                         let givesCheck = isCheck (getBoard newVBoard)
                                         let newCheckState = if givesCheck then InCheck else NotInCheck
                                         let extension = if inCheck then depthOne else depthZero
                                         let nextDepth = (decDepth depth) `plusDepth` extension
 
-                                        -- PV Node logic: If we are PV, TT move is PV.
                                         let nextCtx = ctx
                                               { scNodeKind = nodeKind
                                               , scCheckState = newCheckState
                                               , scPly = scPly ctx + 1
                                               , scNullMoveState = NullMoveAllowed
-                                              }
+                                              } :: SearchContext p
 
                                         s <- alphaBeta nextCtx newVBoard tt (Just ttM) nextDepth (-beta) (-alpha) nodes
                                         let score = stepScore s
 
                                         if score >= beta
-                                        then return (score, TTLower, ttM, True, alpha, True) -- Fail high
+                                        then return (score, TTLower, ttM, True, alpha, True)
                                         else do
                                             let newBestScore = max (-infinity) score
                                             let newAlpha = max alpha score
@@ -338,7 +310,6 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes = do
                         let filterTT ms = if searchedTT then filter (\lm -> getMove (getGenMove lm) /= ttM) ms else ms
                         let sortingTT = if searchedTT then Nothing else Just ttM
 
-                        -- Stage 1: Captures (Good)
                         let captures = Chess.Board.captureMovesValidated vBoard
                         let (goodCaps, badCaps) = partitionSEE vBoard captures
                         let sortedGood = orderGenMoves vBoard (filterTT goodCaps) sortingTT
@@ -348,7 +319,6 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes = do
                         if score1 >= beta
                         then storeAndReturn score1 bestM1 TTLower
                         else do
-                            -- Stage 2: Promotions (Quiet only)
                             let promotions = filter (not . isCapture) (Chess.Board.legalPromotionsValidated vBoard)
                             let sortedPromotions = orderGenMoves vBoard (filterTT promotions) sortingTT
 
@@ -357,7 +327,6 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes = do
                             if score2 >= beta
                             then storeAndReturn score2 bestM2 TTLower
                             else do
-                                -- Stage 3: Quiets
                                 let quiets = Chess.Board.legalQuietsValidated vBoard
                                 killers <- getKillers ctx depth
                                 counterMove <- getCounterMove ctx lastMove
@@ -368,11 +337,10 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes = do
                                 if score3 >= beta
                                 then storeAndReturn score3 bestM3 flag3
                                 else do
-                                    -- Stage 4: Captures (Bad)
                                     let sortedBad = orderGenMoves vBoard (filterTT badCaps) sortingTT
                                     (score4, flag4, bestM4, found4, _) <- searchStage sortedBad (0 :: Int) inCheck staticEval alpha3 beta depth flag3 score3 bestM3 found3
 
-                                    if not found4 -- No moves found (Checkmate or Stalemate)
+                                    if not found4
                                     then return $ if inCheck then -mateValue else 0
                                     else storeAndReturn score4 bestM4 flag4
 
@@ -394,60 +362,38 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes = do
         let m = getMove gm
 
         let newVBoard = applyLegalMove vBoard lm
-
-        -- Calculate check extension based on the NEW board state (after move)
         let givesCheck = isCheck (getBoard newVBoard)
         let newCheckState = if givesCheck then InCheck else NotInCheck
 
-        -- Move-based Pruning (Quiet only)
-        -- Delayed to allow checking givesCheck
-
-        -- Pattern Match Pruning Logic
         let pruneQuiet = case (scNodeKind ctx, scCheckState ctx) of
                 (NonPV, NotInCheck) | isQuiet && not givesCheck ->
                              let lmpCount = 3 + dVal * dVal
                                  doLMP = dVal < 8 && dVal >= 3 && index > lmpCount
-
                                  fpMargin = 100 * dVal
-                                 -- Guard: Disable futility pruning for the first 11 quiet moves (index > 10)
                                  doFutility = index > 10 && dVal < 7 && dVal >= 2 && abs bestScore < mateValue && abs a < mateValue && staticEval + fpMargin <= a
-                                              && popCount (Base.occupiedTotal (pieces (getBoard vBoard))) > 5 -- Endgame protection
+                                              && popCount (Base.occupiedTotal (pieces (getBoard vBoard))) > 5
                              in doLMP || doFutility
                 _ -> False
 
         if pruneQuiet
-        then searchStage lms (index + 1) inCheck staticEval a b d flag bestScore bestM True -- Skip move
+        then searchStage lms (index + 1) inCheck staticEval a b d flag bestScore bestM True
         else do
             let extension = if inCheck then depthOne else depthZero
             let nextDepth = (decDepth d) `plusDepth` extension
 
-            -- PVS
-            score <- if bestScore == -infinity -- First move (following TT move)
+            score <- if bestScore == -infinity
                      then do
-                         -- PV Search (preserve nodeKind)
                          let nextCtx = ctx
                                { scNodeKind = scNodeKind ctx
                                , scCheckState = newCheckState
                                , scPly = scPly ctx + 1
                                , scNullMoveState = NullMoveAllowed
-                               }
+                               } :: SearchContext p
                          s <- alphaBeta nextCtx newVBoard tt (Just m) nextDepth (-b) (-a) nodes
                          return (stepScore s)
                      else do
-                         -- Late Move Reduction
-                         -- If quiet, depth >= 3, not checking, etc.
-                         -- Pattern matching guard for LMR?
-                         -- The instruction said "Refactor pruning guards to pattern-match on types".
-                         -- LMR logic is complex.
-                         -- "case (nodeKind, checkState) ... "
-                         -- Let's see if we can use types.
-                         -- LMR is allowed if NonPV? Or PV too?
-                         -- Usually LMR is everywhere for quiets.
-                         -- But checks disable LMR.
-                         -- "not inCheck && not givesCheck".
-
                          let lmr = if d >= mkDepth 3 && not isCap && not isProm && index >= 2 && not inCheck && not givesCheck
-                                      && popCount (Base.occupiedTotal (pieces (getBoard vBoard))) > 5 -- Endgame protection
+                                      && popCount (Base.occupiedTotal (pieces (getBoard vBoard))) > 5
                                    then
                                        let dIdx = min 63 (unDepth d)
                                            mIdx = min 63 index
@@ -456,26 +402,23 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes = do
 
                          let dLMR = nextDepth `minusDepth` lmr
 
-                         -- NonPV Search (Null Window)
                          let lmrCtx = ctx
                                { scNodeKind = NonPV
                                , scCheckState = newCheckState
                                , scPly = scPly ctx + 1
                                , scNullMoveState = NullMoveAllowed
-                               }
+                               } :: SearchContext p
 
                          s <- alphaBeta lmrCtx newVBoard tt (Just m) dLMR (-a - 1) (-a) nodes
                          let scoreLMR = stepScore s
                          if scoreLMR > a && scoreLMR < b
                          then do
-                             -- Re-search with full window (PV node potentially)
-                             -- Use original nodeKind (if we are PV node)
                              let researchCtx = ctx
                                    { scNodeKind = scNodeKind ctx
                                    , scCheckState = newCheckState
                                    , scPly = scPly ctx + 1
                                    , scNullMoveState = NullMoveAllowed
-                                   }
+                                   } :: SearchContext p
                              s2 <- alphaBeta researchCtx newVBoard tt (Just m) nextDepth (-b) (-a) nodes
                              return (stepScore s2)
                          else return scoreLMR
@@ -493,7 +436,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes = do
                      updateHistory ctx d m
                      updateCounterMove ctx lastMove m
                  else return ()
-                 return (score, TTLower, m, True, newAlpha) -- Fail high
+                 return (score, TTLower, m, True, newAlpha)
             else searchStage lms (index + 1) inCheck staticEval newAlpha b d newFlag newBestScore newBestM True
 
     getMove (GenQuiet f t _) = Move f t Nothing
