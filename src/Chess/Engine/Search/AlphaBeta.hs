@@ -8,7 +8,7 @@ module Chess.Engine.Search.AlphaBeta where
 import Data.Maybe (fromMaybe, isJust)
 import Data.List (foldl')
 import Data.Bits (popCount, (.&.))
-import Data.IORef (IORef, newIORef, readIORef, modifyIORef')
+import Data.IORef (IORef, newIORef, readIORef, modifyIORef', writeIORef)
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar, getNumCapabilities, newMVar, modifyMVar)
 import qualified Data.Vector.Unboxed.Mutable as UM
 import qualified Data.Vector.Unboxed as U
@@ -27,7 +27,18 @@ import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
 import Chess.Engine.Search.Types
 import Chess.Engine.Search.Pruning (lmrTable)
 import Chess.Engine.Search.Ordering
+import Chess.Engine.Search.Ordering hiding (orderGenMoves)
+import qualified Chess.Engine.Search.Ordering as Ordering
 import Chess.Engine.Search.Quiescence (quiescence)
+
+-- | Convert GenMove to Move
+fromGenMove :: GenMove -> Move
+fromGenMove (GenQuiet f t _) = Move f t Nothing
+fromGenMove (GenCapture f t _ _) = Move f t Nothing
+fromGenMove (GenEnPassant f t) = Move f t Nothing
+fromGenMove (GenCastling f t) = Move f t Nothing
+fromGenMove (GenPromotion f t p) = Move f t (Just p)
+fromGenMove (GenPromotionCapture f t p _) = Move f t (Just p)
 
 -- | Search for the best move.
 searchPhase :: forall p. Evaluate p => Position p -> TT -> SearchLimits -> IORef Bool -> IO Move
@@ -37,6 +48,15 @@ searchPhase (Position vBoard) tt limits stopFlag = do
             Just d -> mkDepth d
             Nothing -> mkDepth 100
     nodes <- newIORef 0
+
+    -- Get initial legal moves to have a fallback
+    let moves = Chess.Board.legalMovesValidated vBoard
+    -- If no legal moves, return nullMove (caller should handle mate/stalemate detection if needed, or we just return nullMove)
+    -- In standard UCI, returning (none) or 0000 is acceptable if no moves.
+    -- But better to pick the first one if exists.
+    let initialBestMove = case moves of
+            [] -> nullMove
+            (lm:_) -> fromGenMove (getGenMove lm)
 
     -- Initialize Search Resources
     killers <- UM.replicate 256 nullMove
@@ -61,7 +81,7 @@ searchPhase (Position vBoard) tt limits stopFlag = do
               stop <- readIORef stopFlag
               if stop then return bestM
               else do
-                  (move, score) <- alphaBetaRoot ctx vBoard tt depth nodes stopFlag
+                  (move, score) <- alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits
 
                   -- Check if stopped during search
                   stopAfter <- readIORef stopFlag
@@ -74,27 +94,37 @@ searchPhase (Position vBoard) tt limits stopFlag = do
                                      else "cp " ++ show score
                       putStrLn $ "info depth " ++ show depth ++ " score " ++ scoreStr ++ " nodes " ++ show n ++ " pv " ++ uci move
 
-                      loop (incDepth depth) move
+                      -- Check Mate Limit
+                      let stopMate = case limitMate limits of
+                              Just m -> (abs score > 10000) && ((mateValue - abs score + 1) `div` 2 <= m)
+                              Nothing -> False
+
+                      if stopMate
+                      then return move
+                      else loop (incDepth depth) move
 
     -- Iterative Deepening
-    loop depthOne nullMove
+    -- Use initialBestMove as fallback so we return a valid move if depth 1 aborts.
+    if initialBestMove == nullMove
+    then return nullMove
+    else loop depthOne initialBestMove
 
 -- | Root Search
-alphaBetaRoot :: forall p. Evaluate p => SearchContext p -> ValidatedBoard -> TT -> Depth -> IORef Int -> IORef Bool -> IO (Move, Int)
-alphaBetaRoot ctx vBoard tt depth nodes stopFlag = do
+alphaBetaRoot :: forall p. Evaluate p => SearchContext p -> ValidatedBoard -> TT -> Depth -> IORef Int -> IORef Bool -> SearchLimits -> IO (Move, Int)
+alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
     let moves = Chess.Board.legalMovesValidated vBoard
     let board = getBoard vBoard
     let hash = GS.zobristHash (state board)
     ttEntry <- probeTT tt hash
     let ttMove = case ttEntry of Just (m, _, _, _) -> Just m; Nothing -> Nothing
 
-    let sortedMoves = orderGenMoves vBoard moves ttMove
+    let sortedMoves = Ordering.orderGenMoves vBoard moves ttMove
 
     case sortedMoves of
         [] -> return (nullMove, 0)
         (lm:lms) -> do
             let gm = getGenMove lm
-            let m = getMove gm
+            let m = fromGenMove gm
             let newVBoard = applyLegalMove vBoard lm
             let givesCheck = isCheck (getBoard newVBoard)
             let newCheckState = if givesCheck then InCheck else NotInCheck
@@ -106,8 +136,8 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag = do
                   , scNullMoveState = NullMoveAllowed
                   } :: SearchContext p
 
-            s <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-infinity) infinity nodes stopFlag
-            let bestMove = getMove gm
+            s <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-infinity) infinity nodes stopFlag limits
+            let bestMove = fromGenMove gm
             let bestScore = stepScore s
 
             if null lms then return (bestMove, bestScore)
@@ -139,7 +169,7 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag = do
                                                 return (bestRes, n)
                                             else do
                                                 let gmWorker = getGenMove lmWorker
-                                                let mWorker = getMove gmWorker
+                                                let mWorker = fromGenMove gmWorker
                                                 let newVBWorker = applyLegalMove vBoard lmWorker
                                                 let givesCheckWorker = isCheck (getBoard newVBWorker)
                                                 let newCSWorker = if givesCheckWorker then InCheck else NotInCheck
@@ -151,7 +181,7 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag = do
                                                       , scNullMoveState = NullMoveAllowed
                                                       } :: SearchContext p
 
-                                                s <- alphaBeta workerCtx newVBWorker tt (Just mWorker) (decDepth depth) (-infinity) (-bestScore) localNodes stopFlag
+                                                s <- alphaBeta workerCtx newVBWorker tt (Just mWorker) (decDepth depth) (-infinity) (-bestScore) localNodes stopFlag limits
                                                 let searchScore = stepScore s
 
                                                 let newBestRes = case bestRes of
@@ -179,7 +209,7 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag = do
         if stop then return (bestM, bestScore)
         else do
             let gm = getGenMove lm
-            let m = getMove gm
+            let m = fromGenMove gm
             let newVBoard = applyLegalMove vBoard lm
             let givesCheck = isCheck (getBoard newVBoard)
             let newCheckState = if givesCheck then InCheck else NotInCheck
@@ -192,19 +222,12 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag = do
                   } :: SearchContext p
 
             let newAlpha = max alpha bestScore
-            s <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-beta) (-newAlpha) nodes stopFlag
+            s <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-beta) (-newAlpha) nodes stopFlag limits
             let score = stepScore s
 
             if score > bestScore
             then go lms m score alpha beta
             else go lms bestM bestScore alpha beta
-
-    getMove (GenQuiet f t _) = Move f t Nothing
-    getMove (GenCapture f t _ _) = Move f t Nothing
-    getMove (GenEnPassant f t) = Move f t Nothing
-    getMove (GenCastling f t) = Move f t Nothing
-    getMove (GenPromotion f t p) = Move f t (Just p)
-    getMove (GenPromotionCapture f t p _) = Move f t (Just p)
 
 mapConcurrently :: (a -> IO b) -> [a] -> IO [b]
 mapConcurrently f xs = do
@@ -217,19 +240,26 @@ mapConcurrently f xs = do
     mapM takeMVar vars
 
 -- | Alpha-Beta Search
-alphaBeta :: forall p. Evaluate p => SearchContext p -> ValidatedBoard -> TT -> Maybe Move -> Depth -> Int -> Int -> IORef Int -> IORef Bool -> IO Int
-alphaBeta ctx vBoard tt lastMove depth alpha beta nodes stopFlag = do
+alphaBeta :: forall p. Evaluate p => SearchContext p -> ValidatedBoard -> TT -> Maybe Move -> Depth -> Int -> Int -> IORef Int -> IORef Bool -> SearchLimits -> IO Int
+alphaBeta ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
     n <- modifyIORef' nodes (+1) >> readIORef nodes
     if (n .&. 2047 == 0)
     then do
+        -- Check Stop Flag
         stop <- readIORef stopFlag
-        if stop then return 0 -- Abort value
-        else alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag
-    else alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag
+        if stop then return 0
+        else do
+            -- Check Node Limit
+            case limitNodes limits of
+                Just ln | n >= ln -> do
+                    writeIORef stopFlag True
+                    return 0
+                _ -> alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits
+    else alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits
 
 -- | Alpha-Beta Search Body
-alphaBetaBody :: forall p. Evaluate p => SearchContext p -> ValidatedBoard -> TT -> Maybe Move -> Depth -> Int -> Int -> IORef Int -> IORef Bool -> IO Int
-alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag = do
+alphaBetaBody :: forall p. Evaluate p => SearchContext p -> ValidatedBoard -> TT -> Maybe Move -> Depth -> Int -> Int -> IORef Int -> IORef Bool -> SearchLimits -> IO Int
+alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
     let board = getBoard vBoard
     let hash = GS.zobristHash (state board)
 
@@ -285,7 +315,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag = do
                                        , scCheckState = NotInCheck
                                        } :: SearchContext p
 
-                                 score <- alphaBeta nmpCtx nullVB tt Nothing d' (-beta) (-beta + 1) nodes stopFlag
+                                 score <- alphaBeta nmpCtx nullVB tt Nothing d' (-beta) (-beta + 1) nodes stopFlag limits
                                  return (if stepScore score >= beta then Just beta else Nothing)
                              else return Nothing
 
@@ -315,7 +345,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag = do
                                                   , scNullMoveState = NullMoveAllowed
                                                   } :: SearchContext p
 
-                                            s <- alphaBeta nextCtx newVBoard tt (Just ttM) nextDepth (-beta) (-alpha) nodes stopFlag
+                                            s <- alphaBeta nextCtx newVBoard tt (Just ttM) nextDepth (-beta) (-alpha) nodes stopFlag limits
                                             let score = stepScore s
 
                                             if score >= beta
@@ -333,12 +363,12 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag = do
                         if score0 >= beta
                         then storeAndReturn score0 bestM0 TTLower
                         else do
-                            let filterTT ms = if searchedTT then filter (\lm -> getMove (getGenMove lm) /= ttM) ms else ms
+                            let filterTT ms = if searchedTT then filter (\lm -> fromGenMove (getGenMove lm) /= ttM) ms else ms
                             let sortingTT = if searchedTT then Nothing else Just ttM
 
                             let captures = Chess.Board.captureMovesValidated vBoard
                             let (goodCaps, badCaps) = partitionSEE vBoard captures
-                            let sortedGood = orderGenMoves vBoard (filterTT goodCaps) sortingTT
+                            let sortedGood = Ordering.orderGenMoves vBoard (filterTT goodCaps) sortingTT
 
                             (score1, flag1, bestM1, found1, alpha1) <- searchStage sortedGood (0 :: Int) inCheck staticEval alpha0 beta depth flag0 score0 bestM0 found0
 
@@ -346,7 +376,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag = do
                             then storeAndReturn score1 bestM1 TTLower
                             else do
                                 let promotions = filter (not . isCapture) (Chess.Board.legalPromotionsValidated vBoard)
-                                let sortedPromotions = orderGenMoves vBoard (filterTT promotions) sortingTT
+                                let sortedPromotions = Ordering.orderGenMoves vBoard (filterTT promotions) sortingTT
 
                                 (score2, flag2, bestM2, found2, alpha2) <- searchStage sortedPromotions (0 :: Int) inCheck staticEval alpha1 beta depth flag1 score1 bestM1 found1
 
@@ -363,7 +393,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag = do
                                     if score3 >= beta
                                     then storeAndReturn score3 bestM3 flag3
                                     else do
-                                        let sortedBad = orderGenMoves vBoard (filterTT badCaps) sortingTT
+                                        let sortedBad = Ordering.orderGenMoves vBoard (filterTT badCaps) sortingTT
                                         (score4, flag4, bestM4, found4, _) <- searchStage sortedBad (0 :: Int) inCheck staticEval alpha3 beta depth flag3 score3 bestM3 found3
 
                                         if not found4
@@ -389,7 +419,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag = do
         let dVal = unDepth d
 
         let gm = getGenMove lm
-        let m = getMove gm
+        let m = fromGenMove gm
 
         let newVBoard = applyLegalMove vBoard lm
         let givesCheck = isCheck (getBoard newVBoard)
@@ -419,7 +449,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag = do
                                , scPly = scPly ctx + 1
                                , scNullMoveState = NullMoveAllowed
                                } :: SearchContext p
-                         s <- alphaBeta nextCtx newVBoard tt (Just m) nextDepth (-b) (-a) nodes stopFlag
+                         s <- alphaBeta nextCtx newVBoard tt (Just m) nextDepth (-b) (-a) nodes stopFlag limits
                          return (stepScore s)
                      else do
                          let lmr = if d >= mkDepth 3 && not isCap && not isProm && index >= 2 && not inCheck && not givesCheck
@@ -439,7 +469,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag = do
                                , scNullMoveState = NullMoveAllowed
                                } :: SearchContext p
 
-                         s <- alphaBeta lmrCtx newVBoard tt (Just m) dLMR (-a - 1) (-a) nodes stopFlag
+                         s <- alphaBeta lmrCtx newVBoard tt (Just m) dLMR (-a - 1) (-a) nodes stopFlag limits
                          let scoreLMR = stepScore s
                          if scoreLMR > a && scoreLMR < b
                          then do
@@ -449,7 +479,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag = do
                                    , scPly = scPly ctx + 1
                                    , scNullMoveState = NullMoveAllowed
                                    } :: SearchContext p
-                             s2 <- alphaBeta researchCtx newVBoard tt (Just m) nextDepth (-b) (-a) nodes stopFlag
+                             s2 <- alphaBeta researchCtx newVBoard tt (Just m) nextDepth (-b) (-a) nodes stopFlag limits
                              return (stepScore s2)
                          else return scoreLMR
 
@@ -468,10 +498,3 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag = do
                  else return ()
                  return (score, TTLower, m, True, newAlpha)
             else searchStage lms (index + 1) inCheck staticEval newAlpha b d newFlag newBestScore newBestM True
-
-    getMove (GenQuiet f t _) = Move f t Nothing
-    getMove (GenCapture f t _ _) = Move f t Nothing
-    getMove (GenEnPassant f t) = Move f t Nothing
-    getMove (GenCastling f t) = Move f t Nothing
-    getMove (GenPromotion f t p) = Move f t (Just p)
-    getMove (GenPromotionCapture f t p _) = Move f t (Just p)
