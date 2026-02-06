@@ -6,6 +6,7 @@ import System.IO (hFlush, stdout)
 
 import Chess.Board (parseFen, uci, Board)
 import Chess.Engine.Search (search)
+import Chess.Engine.Search.Types (SearchLimits(..), defaultLimits)
 import Chess.Engine.TT (TT, newTT)
 import Chess.Types (Move)
 
@@ -58,7 +59,7 @@ runCase tt depth (TestCase name fenStr expected) = do
             return False
         Just board -> do
             -- Run search
-            bestMove <- search board tt depth
+            bestMove <- search board tt (defaultLimits { limitDepth = Just depth })
             let uciMove = uci bestMove
 
             -- Check result

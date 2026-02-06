@@ -15,6 +15,7 @@ import Text.Printf (printf)
 import Chess.Board (Board, initialBoard, applyMove, uci, fromUci, outcome)
 import Chess.Types (Move, Color(..), Outcome(..))
 import Chess.Engine.Search (search)
+import Chess.Engine.Search.Types (SearchLimits(..), defaultLimits)
 import Chess.Engine.TT (TT, newTT)
 
 -- | Configuration for an agent
@@ -79,7 +80,7 @@ closeAgent (ExternalHandle _ _ hin hout ph) = do
 -- | Get best move from an agent
 getBestMove :: AgentHandle -> Board -> [Move] -> IO Move
 getBestMove (InternalHandle d tt) board _ = do
-    search board tt d
+    search board tt (defaultLimits { limitDepth = Just d })
 getBestMove (ExternalHandle _ d hin hout _) _ moves = do
     let movesStr = unwords (map uci moves)
     hPutStrLn hin $ "position startpos moves " ++ movesStr

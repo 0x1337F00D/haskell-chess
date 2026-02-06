@@ -5,6 +5,7 @@ import Data.Maybe (fromJust)
 import Chess.Board (initialBoard, parseFen, uci, trustBoard)
 import Chess.Engine.Evaluation (evaluate)
 import Chess.Engine.Search (search)
+import Chess.Engine.Search.Types (SearchLimits(..), defaultLimits)
 import Chess.Engine.TT (newTT)
 
 spec :: Spec
@@ -33,5 +34,5 @@ spec = describe "Engine" $ do
       let fenStr = "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2"
           board = fromJust $ parseFen fenStr
       tt <- newTT 16
-      move <- search board tt 2
+      move <- search board tt (defaultLimits { limitDepth = Just 2 })
       uci move `shouldBe` "d8h4"
