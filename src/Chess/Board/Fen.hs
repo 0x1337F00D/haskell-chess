@@ -121,9 +121,9 @@ parseCastling s = foldM addRight GS.noCastling s
       | c >= 'a' && c <= 'h' = Just (acc .|. bbFromSquare (Square (ord c - ord 'a' + 56)))
       | otherwise = Nothing
 
-parseEp :: String -> Maybe (Maybe Square)
-parseEp "-" = Just Nothing
-parseEp s = Just (parseSquare s)
+parseEp :: String -> Maybe Square
+parseEp "-" = Just NoSquare
+parseEp s = parseSquare s
 
 -- Helper functions for serialization
 
@@ -159,6 +159,5 @@ showCastling cr
   where
     fileChar f = chr (ord 'A' + f)
 
-showEp :: Maybe Square -> String
-showEp Nothing = "-"
-showEp (Just sq) = squareName sq
+showEp :: Square -> String
+showEp = squareName

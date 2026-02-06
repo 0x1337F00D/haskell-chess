@@ -33,3 +33,7 @@
 ## 2026-02-01 – [Bit-Packed GenMove]
 **Learning:** `GenMove` (sum type with 6 constructors) was a major source of allocation (~1.6GB) in move generation. Replaced it with a bit-packed `newtype GenMove = MkGenMove Word64` using `PatternSynonyms`. This reduces heap object size significantly (5 words -> 2 words) and enables `Unboxed Vector` storage. However, observed ~15% regression in raw perft NPS due to bitwise packing/unpacking overhead in tight loops.
 **Action:** Use bit-packing for data that is stored in bulk (like Move lists), but be aware of the CPU cost of unpacking. Essential for enabling `Unbox` instances to remove list structure overhead in future steps.
+
+## 2026-02-06 – [EpSquare Unboxing]
+**Learning:** `GameState` contained `Maybe Square` for `epSquare`. This introduced boxing (pointer indirection + heap object) for every `GameState` created (which is every node in the search tree).
+**Action:** Replaced `Maybe Square` with strict `Square` and a sentinel value (`NoSquare = Square 64`). This flattens `GameState` to be purely unboxed fields, reducing GC pressure and memory traffic. Verified ~1.1% speedup on KiwiPete perft.

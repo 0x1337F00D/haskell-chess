@@ -211,8 +211,8 @@ applyMoveHelper (Board b gs hist) gm =
         -- En Passant square
         -- Set if pawn double push
         ep' = if isPawn && abs (squareRank from - squareRank to) == 2
-              then Just (midSquare from to)
-              else Nothing
+              then midSquare from to
+              else NoSquare
 
         -- Finalize Hash
         hFinal = h4 `xor` Zobrist.zobristCastling (GS.castlingRights gs2)

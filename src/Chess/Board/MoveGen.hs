@@ -604,9 +604,9 @@ pawnCaptures b gs = U.fromList $
 
     genWhiteCaptures i from =
         let
-            epMoves = case epSquare gs of
-                Nothing -> []
-                Just ep ->
+            ep = epSquare gs
+            epMoves = if ep == NoSquare then []
+                else
                     let epIdx = unSquare ep
                     in if (i + 7) == epIdx && (i `mod` 8) /= 0 then [GenEnPassant from ep]
                        else if (i + 9) == epIdx && (i `mod` 8) /= 7 then [GenEnPassant from ep]
@@ -633,9 +633,9 @@ pawnCaptures b gs = U.fromList $
 
     genBlackCaptures i from =
         let
-            epMoves = case epSquare gs of
-                Nothing -> []
-                Just ep ->
+            ep = epSquare gs
+            epMoves = if ep == NoSquare then []
+                else
                     let epIdx = unSquare ep
                     in if (i - 9) == epIdx && (i `mod` 8) /= 0 then [GenEnPassant from ep]
                        else if (i - 7) == epIdx && (i `mod` 8) /= 7 then [GenEnPassant from ep]
