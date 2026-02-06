@@ -239,10 +239,9 @@ polyglotKey b gs =
         -- 3. En Passant
         -- Polyglot only includes EP if a capture is actually possible by a pawn.
         -- "If the opponent has performed a double pawn push and there is now a pawn next to it belonging to the player to move"
-        epKey = let epSq = epSquare gs in
-            if epSq == NoSquare
-            then 0
-            else
+        epKey = case epSquare gs of
+            NoSquare -> 0
+            epSq ->
                 let
                     file = squareFile epSq
                     -- Pawn location is one rank behind/forward of epSq depending on turn

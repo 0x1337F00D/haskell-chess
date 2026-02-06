@@ -22,6 +22,7 @@ import qualified Chess.Bitboard as BB
 import qualified Chess.Types as T
 import Data.Bits ((.|.), (.&.))
 import Data.Word (Word8)
+import Data.Function ((&))
 
 unsafeViewBoard :: Base.Board -> CBI.Board
 unsafeViewBoard bb = fromJust (CBI.fromBaseBoard bb)
@@ -165,7 +166,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights True False False False }
+               , gameState = GS.setCastlingRights (mkCastlingRights True False False False) GS.initialGameState
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -188,9 +189,8 @@ spec = describe "Core Architecture" $ do
           ag = ActiveGame
                { internalBoard = toBaseBoard b
                , gameState = GS.initialGameState
-                   { GS.castlingRights = mkCastlingRights False False False False
-                   , GS.epSquare = toSquare (Square FileF Rank6)
-                   }
+                   & GS.setCastlingRights (mkCastlingRights False False False False)
+                   & GS.setEpSquare (toSquare (Square FileF Rank6))
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -213,7 +213,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Atomic 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights False False False False }
+               , gameState = GS.setCastlingRights (mkCastlingRights False False False False) GS.initialGameState
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -239,7 +239,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'KingOfTheHill 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights False False False False }
+               , gameState = GS.setCastlingRights (mkCastlingRights False False False False) GS.initialGameState
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -261,7 +261,7 @@ spec = describe "Core Architecture" $ do
         let ag :: ActiveGame 'RacingKings 'White 'Safe
             ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights False False False False }
+               , gameState = GS.setCastlingRights (mkCastlingRights False False False False) GS.initialGameState
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -281,7 +281,7 @@ spec = describe "Core Architecture" $ do
        let ag :: ActiveGame 'RacingKings 'White 'Safe
            ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights False False False False }
+               , gameState = GS.setCastlingRights (mkCastlingRights False False False False) GS.initialGameState
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -304,7 +304,7 @@ spec = describe "Core Architecture" $ do
        let ag :: ActiveGame 'ThreeCheck 'White 'Safe
            ag = ActiveGame
                 { internalBoard = toBaseBoard b
-                , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights False False False False }
+                , gameState = GS.setCastlingRights (mkCastlingRights False False False False) GS.initialGameState
                 , variantState = (0, 0)
                 , checkStatus = SSafe
                 }
@@ -320,7 +320,7 @@ spec = describe "Core Architecture" $ do
        let agTwo :: ActiveGame 'ThreeCheck 'White 'Safe
            agTwo = ActiveGame
                 { internalBoard = toBaseBoard b
-                , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights False False False False }
+                , gameState = GS.setCastlingRights (mkCastlingRights False False False False) GS.initialGameState
                 , variantState = (2, 0)
                 , checkStatus = SSafe
                 }

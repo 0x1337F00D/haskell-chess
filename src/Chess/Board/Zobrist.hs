@@ -6,7 +6,7 @@ import qualified Data.Vector.Unboxed as U
 
 import Chess.Types
 import Chess.Board.Base (Board, pieceAt)
-import Chess.Board.GameState (GameState(..), CastlingRights)
+import Chess.Board.GameState (GameState(..), CastlingRights, turn, castlingRights, epSquare)
 
 -- | Zobrist keys for pieces: [Color][PieceType][Square]
 -- Flattened: color * 6 * 64 + pieceType * 64 + square
@@ -45,9 +45,8 @@ zobristEpTable = U.fromList
   [ 0x14692626be6048ce, 0x8822d42641f84930, 0xf8c29fbd4e540f21, 0x4f21ff6496a2daa4, 0xb37120b330b86ff3, 0xb9c0b9a53831e2c9, 0x7476d3c8225ef08, 0x9202296b23d53a0c, 0x84990394150bac57, 0x9a350d3d8c939fae, 0x50f4c2b42dde9cf, 0x393be6bc2ff6b518, 0x846475f176d20cf9, 0xa1c144d24438f0d4, 0xea14191e7721829c, 0x854976b6f3b6224, 0x6f274158cf08413e, 0x27692e2fd7616e45, 0x6da3ce0c683a1fd8, 0xc7c600325d691f1a, 0x399f3c17b6bd660a, 0xb3bf929912d0c7e5, 0x3611e3d9c04d0ee, 0xb61010409ed48a72, 0x9d765cccc1bd77e3, 0xb7b528f4e7260a5b, 0xc226c4b3b780b4cf, 0x7da6e239d663c13f, 0x4730cff3f6fd60d, 0x4c738c6b61226a83, 0x68b964c2a5a632c8, 0x9e87a6c4e65df89b, 0x46b525884abd7f2a, 0x7c1128ad861c78b0, 0x3de7a78d715560cf, 0x45715109a773f36e, 0xb09e983718a7786d, 0x67c9f5eb4631ac16, 0x15c804df5d95724e, 0xc35d90b217b77925, 0x22bc7aeb54dcf00a, 0x8057153ed84f39c4, 0xd53ad24cf0f4f3ea, 0x1052e074b835abb9, 0x4f51053de9934a4d, 0x22daabbc3f046f14, 0xaa60e81a29f92b28, 0x32da19c157bf46e8, 0x977e3798fbc4fea6, 0x98deb29cf35f770d, 0x31f35bfab3352e7a, 0x6f5e0d156813b490, 0xf398720ca4bc110e, 0xdaa21a7507338cfa, 0x75df8dc8fe0d4817, 0xc215fb3969afcd69, 0xb3fca07ef9f17235, 0x4a067da95b5c1697, 0x24795e1bdecc92f9, 0x6e6eea3f9b06c2fb, 0xd34df4c07e450c33, 0xe26b78ca89f09f57, 0xd33cabdc4dfedca8, 0x6066bbd2f10e3208 ]
 
 zobristEp :: Square -> Word64
-zobristEp sq
-  | sq == NoSquare = 0
-  | otherwise      = zobristEpTable `U.unsafeIndex` (unSquare sq)
+zobristEp NoSquare = 0
+zobristEp (Square sq) = zobristEpTable `U.unsafeIndex` sq
 
 computeHash :: Board -> GameState -> Word64
 computeHash b gs =

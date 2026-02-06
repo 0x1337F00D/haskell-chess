@@ -27,6 +27,7 @@ import qualified Chess.Bitboard as BB
 import qualified Chess.Board.Fen as Fen
 import Data.Bits (testBit, countTrailingZeros, (.|.), setBit, clearBit)
 import Data.Word (Word8)
+import Data.Function ((&))
 
 -- | Create a game from FEN string (Crazyhouse variant).
 crazyhouseGameFromFEN :: String -> Maybe (Game 'Crazyhouse 'Active)
@@ -249,12 +250,11 @@ instance ChessVariant 'Crazyhouse where
         newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
 
         newGS = gsUpdated
-          { GS.turn = toColor (colorVal @(Opposite c))
-          , GS.epSquare = newEP
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          , GS.zobristHash = 0
-          }
+          & GS.setTurn (toColor (colorVal @(Opposite c)))
+          & GS.setEpSquare newEP
+          & GS.setHalfmoveClock newHMC
+          & GS.setFullmoveNumber newFMN
+          & GS.setZobristHash 0
 
         newState = CrazyhouseState wPocket' bPocket' promoted'
 

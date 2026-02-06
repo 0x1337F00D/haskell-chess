@@ -25,6 +25,7 @@ import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
 import Data.Bits ((.&.), complement, (.|.))
+import Data.Function ((&))
 
 instance ChessVariant 'Atomic where
   generateMoves (ag :: ActiveGame 'Atomic c s) =
@@ -153,12 +154,11 @@ instance ChessVariant 'Atomic where
         newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
 
         newGS = gsUpdated
-          { GS.turn = toColor (colorVal @(Opposite c))
-          , GS.epSquare = newEP
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          , GS.zobristHash = 0
-          }
+          & GS.setTurn (toColor (colorVal @(Opposite c)))
+          & GS.setEpSquare newEP
+          & GS.setHalfmoveClock newHMC
+          & GS.setFullmoveNumber newFMN
+          & GS.setZobristHash 0
 
         nextAg = ActiveGame bFinal newGS () SUnchecked
 
