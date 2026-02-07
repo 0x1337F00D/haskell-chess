@@ -1,0 +1,4 @@
+Benchmarking 'ray' function...
+Result: 11
+Time: 0.4784s
+Iterations: 102400000
