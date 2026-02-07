@@ -35,6 +35,36 @@ orderGenMoves vBoard moves ttM =
     getMove (GenPromotion f t p) = Move f t (Just p)
     getMove (GenPromotionCapture f t p _) = Move f t (Just p)
 
+-- | Specialized move ordering for Quiescence Search.
+-- Avoids concatenating lists and re-partitioning.
+orderQSMoves :: ValidatedBoard -> [LegalMove] -> [LegalMove] -> [LegalMove] -> [LegalMove]
+orderQSMoves vBoard caps proms quietChecks =
+    let board = pieces (getBoard vBoard)
+
+        -- Process caps: Split into PromoCaps, GoodCaps, BadCaps
+        (promoCaps, goodCaps, badCaps) = foldr processCap ([], [], []) caps
+
+        processCap lm (pc, gc, bc) = case getGenMove lm of
+            GenPromotionCapture {} -> (lm:pc, gc, bc)
+            GenCapture _ _ _ _ ->
+                if see board (getMove (getGenMove lm)) >= 0
+                then (pc, lm:gc, bc)
+                else (pc, gc, lm:bc)
+            GenEnPassant {} -> (pc, lm:gc, bc) -- En Passant is generally good
+            _ -> (pc, gc, bc) -- Should not happen for caps list
+
+        sortDesc = sortOn (negate . scoreMove . getGenMove)
+
+        -- Order: PromoCaps > GoodCaps > Proms > QuietChecks > BadCaps
+    in sortDesc promoCaps ++ sortDesc goodCaps ++ sortDesc proms ++ quietChecks ++ sortDesc badCaps
+  where
+    getMove (GenQuiet f t _) = Move f t Nothing
+    getMove (GenCapture f t _ _) = Move f t Nothing
+    getMove (GenEnPassant f t) = Move f t Nothing
+    getMove (GenCastling f t) = Move f t Nothing
+    getMove (GenPromotion f t p) = Move f t (Just p)
+    getMove (GenPromotionCapture f t p _) = Move f t (Just p)
+
 scoreMove :: GenMove -> Int
 scoreMove (GenCapture _ _ pt capPt) = 1000 + (pieceValue capPt * 10) - (pieceValue pt)
 scoreMove (GenPromotionCapture _ _ promPt capPt) = 1000 + (pieceValue capPt * 10) - (pieceValue Pawn) + (pieceValue promPt)
