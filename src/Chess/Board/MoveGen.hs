@@ -803,6 +803,54 @@ applyMoveBoard b gs m =
         Just gm -> applyMoveBoardFast b gs gm
         Nothing -> b
 
+-- | Check if a move gives check without fully applying it.
+-- This is a fast path for quiet moves and castling.
+givesCheckFast :: Board -> GameState -> GenMove -> Bool
+givesCheckFast b gs gm =
+    let c = turn gs
+        oppC = oppositeColor c
+        kingSq = case kingSquare b oppC of
+                   Just k -> k
+                   Nothing -> Square 0
+        occ = occupiedTotal b
+    in case gm of
+        GenQuiet from to pt ->
+            let
+                fromI = unSquare from
+                toI = unSquare to
+                occ' = (occ `clearBit` fromI) `setBit` toI
+
+                -- Magic Lookups from King (Symmetric)
+                bAtt = bishopAttacks kingSq occ'
+                rAtt = rookAttacks kingSq occ'
+
+                -- 1. Direct Check from 'to'
+                direct = case pt of
+                    Pawn -> testBit (pawnAttacks c to) (unSquare kingSq)
+                    Knight -> testBit (knightAttacks to) (unSquare kingSq)
+                    Bishop -> testBit bAtt toI
+                    Rook -> testBit rAtt toI
+                    Queen -> testBit bAtt toI || testBit rAtt toI
+                    King -> False
+
+                -- 2. Discovered Check from other sliders
+                (fDiag, fOrth) = if c == White
+                                 then (whiteDiagonal b, whiteOrthogonal b)
+                                 else (blackDiagonal b, blackOrthogonal b)
+
+                fDiag' = fDiag `clearBit` fromI
+                fOrth' = fOrth `clearBit` fromI
+
+                discovered = (bAtt .&. fDiag' /= 0) || (rAtt .&. fOrth' /= 0)
+
+            in direct || discovered
+
+        GenCastling _ _ ->
+             let b' = applyMoveBoardFast b gs gm
+             in isAttackedBy b' c kingSq
+
+        _ -> False
+
 -- List Adapters for Core
 {-# INLINE pseudoLegalMovesList #-}
 pseudoLegalMovesList :: Board -> GameState -> [GenMove]

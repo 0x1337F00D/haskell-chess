@@ -6,8 +6,9 @@ module Chess.Engine.Search.Quiescence where
 
 import Data.IORef (IORef, modifyIORef')
 import Chess.Types (Depth(..), unDepth, decDepth, depthZero)
-import Chess.Board (ValidatedBoard, getBoard, state, applyLegalMove, isCheck, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated)
+import Chess.Board (ValidatedBoard, getBoard, state, pieces, applyLegalMove, isCheck, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated, getGenMove)
 import qualified Chess.Board
+import Chess.Board.MoveGen (givesCheckFast)
 import qualified Chess.Board.GameState as GS
 import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
 import Chess.Board.Phase (Position(..))
@@ -77,8 +78,8 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
             go sortedMoves a
   where
     givesCheck vb lm =
-        let newVBoard = applyLegalMove vb lm
-        in isCheck (getBoard newVBoard)
+        let b = getBoard vb
+        in givesCheckFast (pieces b) (state b) (getGenMove lm)
 
     go [] a = return a
     go (lm:lms) a = do
