@@ -37,3 +37,8 @@
 ## 2026-02-06 – [EpSquare Unboxing]
 **Learning:** `GameState` contained `Maybe Square` for `epSquare`. This introduced boxing (pointer indirection + heap object) for every `GameState` created (which is every node in the search tree).
 **Action:** Replaced `Maybe Square` with strict `Square` and a sentinel value (`NoSquare = Square 64`). This flattens `GameState` to be purely unboxed fields, reducing GC pressure and memory traffic. Verified ~1.1% speedup on KiwiPete perft.
+
+## 2026-02-06 – [Pawn Move Vectorization]
+**Learning:** `pawnMoves` helpers (`pawnQuiets`, `pawnCaptures`, etc.) were using list comprehensions to generate moves before converting to `U.Vector`. This created millions of short-lived list nodes (cons cells + boxed GenMoves) per second, dominating GC.
+**Action:** Replaced list comprehensions with `U.create` and a two-pass "count-then-fill" strategy using direct bitwise logic and `M.unsafeWrite`. This eliminates the intermediate list allocation entirely for pawns.
+**Impact:** Allocations reduced by ~16.2% (7.6GB saved on benchmark run). Runtime improved by ~9.3%.
