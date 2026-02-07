@@ -359,7 +359,18 @@ movePieceFast b from to c pt =
         blackOcc = if c == Black then occupiedBlack b `xor` mask else occupiedBlack b
         totalOcc = occupiedTotal b `xor` mask
 
-    in b2 { occupiedWhite = whiteOcc, occupiedBlack = blackOcc, occupiedTotal = totalOcc }
+        -- Score Updates
+        scoreFrom = getPieceScore c pt from
+        scoreTo   = getPieceScore c pt to
+
+        sw = scoreWhite b
+        sb = scoreBlack b
+
+        (sw', sb') = if c == White
+                     then (sw - scoreFrom + scoreTo, sb)
+                     else (sw, sb - scoreFrom + scoreTo)
+
+    in b2 { occupiedWhite = whiteOcc, occupiedBlack = blackOcc, occupiedTotal = totalOcc, scoreWhite = sw', scoreBlack = sb' }
 
 castlingRookMove :: Square -> Square -> (Square, Square)
 castlingRookMove kingFrom kingTo

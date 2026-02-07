@@ -556,3 +556,9 @@ toSquare NullMove       = Nothing
 promotion :: Move -> Maybe PieceType
 promotion (Move _ _ p) = p
 promotion _            = Nothing
+
+-- | Evaluation score in centipawns.
+type Score = Int
+
+-- | Packed Score (MG in upper 32 bits, EG in lower 32 bits).
+type PackedScore = Int

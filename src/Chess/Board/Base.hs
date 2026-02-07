@@ -1,10 +1,12 @@
 {-# LANGUAGE PatternSynonyms #-}
 module Chess.Board.Base where
 
-import Data.Bits ((.|.), (.&.), testBit, setBit, clearBit, xor, shiftL, countTrailingZeros, countLeadingZeros)
+import Data.Bits ((.|.), (.&.), testBit, setBit, clearBit, xor, shiftL, countTrailingZeros, countLeadingZeros, popCount)
 
 import Chess.Types
 import Chess.Bitboard
+import qualified Chess.Data.Evaluation as E
+import qualified Data.Vector.Unboxed as U
 
 -- | A board representation with bitboards for each piece type and color.
 data Board = Board
@@ -20,6 +22,12 @@ data Board = Board
   , blackRooks   :: {-# UNPACK #-} !Bitboard
   , blackQueens  :: {-# UNPACK #-} !Bitboard
   , blackKings   :: {-# UNPACK #-} !Bitboard
+
+  -- Evaluation Cache
+  , scoreWhite   :: {-# UNPACK #-} !PackedScore
+  , scoreBlack   :: {-# UNPACK #-} !PackedScore
+  , gamePhase    :: {-# UNPACK #-} !Int
+
   , occupiedWhite :: {-# UNPACK #-} !Bitboard
   , occupiedBlack :: {-# UNPACK #-} !Bitboard
   , occupiedTotal :: {-# UNPACK #-} !Bitboard
@@ -32,7 +40,7 @@ data Board = Board
 
 -- | An empty board.
 empty :: Board
-empty = Board 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+empty = Board 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 
 -- | Get the bitboard for a specific piece type and color.
 pieceBitboard :: Board -> Color -> PieceType -> Bitboard
@@ -164,7 +172,16 @@ unsafePutPiece b sq (Piece c pt) =
         white = if c == White then setBit (occupiedWhite b) i else occupiedWhite b
         black = if c == Black then setBit (occupiedBlack b) i else occupiedBlack b
         total = setBit (occupiedTotal b) i
-    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total }
+
+        -- Update scores
+        score = getPieceScore c pt sq
+        phase = getPiecePhase pt
+
+        sw = if c == White then scoreWhite b + score else scoreWhite b
+        sb = if c == Black then scoreBlack b + score else scoreBlack b
+        ph = gamePhase b + phase
+
+    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total, scoreWhite = sw, scoreBlack = sb, gamePhase = ph }
 
 -- | Remove a piece from the board knowing its color and type.
 -- Does not update other bitboards, so it is faster than removePieceAt.
@@ -199,25 +216,22 @@ unsafeRemovePiece b sq c pt =
         white = if c == White then clearBit (occupiedWhite b) i else occupiedWhite b
         black = if c == Black then clearBit (occupiedBlack b) i else occupiedBlack b
         total = clearBit (occupiedTotal b) i
-    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total }
+
+        -- Update scores
+        score = getPieceScore c pt sq
+        phase = getPiecePhase pt
+
+        sw = if c == White then scoreWhite b - score else scoreWhite b
+        sb = if c == Black then scoreBlack b - score else scoreBlack b
+        ph = gamePhase b - phase
+
+    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total, scoreWhite = sw, scoreBlack = sb, gamePhase = ph }
 
 -- | Remove a piece from the board.
 removePieceAt :: Board -> Square -> Board
-removePieceAt b sq = updateOccupancy $ b
-  { whitePawns   = clearBit (whitePawns b) i
-  , whiteKnights = clearBit (whiteKnights b) i
-  , whiteBishops = clearBit (whiteBishops b) i
-  , whiteRooks   = clearBit (whiteRooks b) i
-  , whiteQueens  = clearBit (whiteQueens b) i
-  , whiteKings   = clearBit (whiteKings b) i
-  , blackPawns   = clearBit (blackPawns b) i
-  , blackKnights = clearBit (blackKnights b) i
-  , blackBishops = clearBit (blackBishops b) i
-  , blackRooks   = clearBit (blackRooks b) i
-  , blackQueens  = clearBit (blackQueens b) i
-  , blackKings   = clearBit (blackKings b) i
-  }
-  where i = unSquare sq
+removePieceAt b sq = case pieceAt b sq of
+    Nothing -> b
+    Just (Piece c pt) -> unsafeRemovePiece b sq c pt
 
 -- | Move a piece from one square to another.
 -- Handles capturing if the target square is occupied.
@@ -270,7 +284,18 @@ movePiece b from to c pt =
         blackOcc = if c == Black then occupiedBlack b1 `xor` mask else occupiedBlack b1
         totalOcc = occupiedTotal b1 `xor` mask
 
-    in b2 { occupiedWhite = whiteOcc, occupiedBlack = blackOcc, occupiedTotal = totalOcc }
+        -- Update scores (Phase doesn't change on move)
+        scoreFrom = getPieceScore c pt from
+        scoreTo   = getPieceScore c pt to
+
+        sw = scoreWhite b1
+        sb = scoreBlack b1
+
+        (sw', sb') = if c == White
+                     then (sw - scoreFrom + scoreTo, sb)
+                     else (sw, sb - scoreFrom + scoreTo)
+
+    in b2 { occupiedWhite = whiteOcc, occupiedBlack = blackOcc, occupiedTotal = totalOcc, scoreWhite = sw', scoreBlack = sb' }
 
 -- | Bitboard of all pieces.
 {-# INLINE occupied #-}
@@ -341,6 +366,60 @@ findPieceType b c sq =
       else if testBit (blackQueens b) i then Queen
       else King
 
+-- Helper to get score contribution of a piece
+{-# INLINE getPieceScore #-}
+getPieceScore :: Color -> PieceType -> Square -> PackedScore
+getPieceScore c pt (Square i) =
+    case pt of
+        Pawn   -> if c == White then E.scorePawnTable   `U.unsafeIndex` i else E.scorePawnTableFlip   `U.unsafeIndex` i
+        Knight -> if c == White then E.scoreKnightTable `U.unsafeIndex` i else E.scoreKnightTableFlip `U.unsafeIndex` i
+        Bishop -> if c == White then E.scoreBishopTable `U.unsafeIndex` i else E.scoreBishopTableFlip `U.unsafeIndex` i
+        Rook   -> if c == White then E.scoreRookTable   `U.unsafeIndex` i else E.scoreRookTableFlip   `U.unsafeIndex` i
+        Queen  -> if c == White then E.scoreQueenTable  `U.unsafeIndex` i else E.scoreQueenTableFlip  `U.unsafeIndex` i
+        King   -> if c == White then E.scoreKingTable   `U.unsafeIndex` i else E.scoreKingTableFlip   `U.unsafeIndex` i
+
+-- Helper to get phase contribution of a piece
+{-# INLINE getPiecePhase #-}
+getPiecePhase :: PieceType -> Int
+getPiecePhase Pawn   = E.phasePawn
+getPiecePhase Knight = E.phaseKnight
+getPiecePhase Bishop = E.phaseBishop
+getPiecePhase Rook   = E.phaseRook
+getPiecePhase Queen  = E.phaseQueen
+getPiecePhase King   = 0
+
+-- | Recompute evaluation scores and phase from scratch.
+computeScores :: Board -> Board
+computeScores b =
+    let
+        -- Helper to sum scores for a piece type and color
+        sumScore :: Color -> PieceType -> PackedScore
+        sumScore c pt =
+            let bb = pieceBitboard b c pt
+            in foldBitboard (\acc sq -> acc + getPieceScore c pt sq) 0 bb
+
+        -- Helper to sum phase
+        sumPhase :: Int
+        sumPhase =
+            let wn = popCount (whiteKnights b)
+                wb = popCount (whiteBishops b)
+                wr = popCount (whiteRooks b)
+                wq = popCount (whiteQueens b)
+                bn = popCount (blackKnights b)
+                bb = popCount (blackBishops b)
+                br = popCount (blackRooks b)
+                bq = popCount (blackQueens b)
+            in wn * E.phaseKnight + wb * E.phaseBishop + wr * E.phaseRook + wq * E.phaseQueen +
+               bn * E.phaseKnight + bb * E.phaseBishop + br * E.phaseRook + bq * E.phaseQueen
+
+        sw = sumScore White Pawn + sumScore White Knight + sumScore White Bishop +
+             sumScore White Rook + sumScore White Queen + sumScore White King
+
+        sb = sumScore Black Pawn + sumScore Black Knight + sumScore Black Bishop +
+             sumScore Black Rook + sumScore Black Queen + sumScore Black King
+
+    in b { scoreWhite = sw, scoreBlack = sb, gamePhase = sumPhase }
+
 -- | Move a piece assuming the target square is empty.
 -- It updates the specific piece bitboard and the occupancy bitboards.
 {-# INLINE unsafeMovePiece #-}
@@ -376,7 +455,19 @@ unsafeMovePiece b from to c pt =
         white = if c == White then occupiedWhite b `xor` mask else occupiedWhite b
         black = if c == Black then occupiedBlack b `xor` mask else occupiedBlack b
         total = occupiedTotal b `xor` mask
-    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total }
+
+        -- Update scores (Phase doesn't change on move)
+        scoreFrom = getPieceScore c pt from
+        scoreTo   = getPieceScore c pt to
+
+        sw = scoreWhite b
+        sb = scoreBlack b
+
+        (sw', sb') = if c == White
+                     then (sw - scoreFrom + scoreTo, sb)
+                     else (sw, sb - scoreFrom + scoreTo)
+
+    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total, scoreWhite = sw', scoreBlack = sb' }
 
 -- Attackers ------------------------------------------------------------------
 

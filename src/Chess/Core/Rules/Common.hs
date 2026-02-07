@@ -65,7 +65,7 @@ fromPieceType T.Pawn   = Pawn
 
 -- | Convert Core Board to Engine Board
 toBaseBoard :: Board -> Base.Board
-toBaseBoard b = Base.Board
+toBaseBoard b = Base.computeScores $ Base.Board
   { Base.whitePawns   = wPawns
   , Base.blackPawns   = bPawns
   , Base.whiteKnights = wKnights
@@ -78,6 +78,9 @@ toBaseBoard b = Base.Board
   , Base.blackQueens  = bQueens
   , Base.whiteKings   = wKings
   , Base.blackKings   = bKings
+  , Base.scoreWhite = 0
+  , Base.scoreBlack = 0
+  , Base.gamePhase = 0
   , Base.occupiedWhite = wOcc
   , Base.occupiedBlack = bOcc
   , Base.occupiedTotal = wOcc .|. bOcc
