@@ -1,65 +1,28 @@
+Resolving dependencies...
 Build profile: -w ghc-9.4.7 -O1
 In order, the following will be built (use -v for more details):
- - haskell-chess-0.1.0.0 (lib) (file src/Chess/Engine/Search.hs changed)
- - haskell-chess-0.1.0.0 (exe:bench-search) (dependency rebuilt)
-Preprocessing library for haskell-chess-0.1.0.0..
-Building library for haskell-chess-0.1.0.0..
-[37 of 42] Compiling Chess.Engine.Search ( src/Chess/Engine/Search.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Engine/Search.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Engine/Search.dyn_o ) [Source file changed]
+ - haskell-chess-0.1.0.0 (exe:bench-ray) (file bench/RayBench.hs changed)
+Preprocessing executable 'bench-ray' for haskell-chess-0.1.0.0..
+Building executable 'bench-ray' for haskell-chess-0.1.0.0..
+[1 of 1] Compiling Main             ( bench/RayBench.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/x/bench-ray/build/bench-ray/bench-ray-tmp/Main.o ) [Source file changed]
 
-src/Chess/Engine/Search.hs:46:17: warning: [-Wtype-defaults]
-    • Defaulting the type variable ‘a0’ to type ‘Double’ in the following constraints
-        (RealFrac a0)
-          arising from a use of ‘floor’
-          at src/Chess/Engine/Search.hs:46:17-21
-        (Num a0)
-          arising from a use of ‘+’ at src/Chess/Engine/Search.hs:46:30
-        (Fractional a0)
-          arising from the literal ‘0.75’
-          at src/Chess/Engine/Search.hs:46:25-28
-        (Floating a0)
-          arising from a use of ‘log’ at src/Chess/Engine/Search.hs:46:32-34
-    • In the first argument of ‘($)’, namely ‘floor’
-      In the expression:
-        floor $ 0.75 + log (fromIntegral d) * log (fromIntegral idx) / 2.25
-      In the expression:
-        if d < 3 || idx < 2 then
-            0
-        else
-            floor $ 0.75 + log (fromIntegral d) * log (fromIntegral idx) / 2.25
-   |
-46 |            else floor $ 0.75 + log (fromIntegral d) * log (fromIntegral idx) / 2.25
-   |                 ^^^^^
+bench/RayBench.hs:7:1: warning: [-Wunused-imports]
+    The import of ‘Control.Monad’ is redundant
+      except perhaps to import instances from ‘Control.Monad’
+    To import instances alone, use: import Control.Monad()
+  |
+7 | import Control.Monad (replicateM_)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-src/Chess/Engine/Search.hs:129:45: warning: [-Wname-shadowing]
-    This binding for ‘s’ shadows the existing binding
-      bound at src/Chess/Engine/Search.hs:102:13
-    |
-129 |                                             s <- alphaBeta ctx (applyLegalMove vBoard lmWorker) tt (Just (getMove gmWorker)) (decDepth depth) (-infinity) (-bestScore) True localNodes
-    |                                             ^
-
-src/Chess/Engine/Search.hs:262:45: warning: [-Wunused-local-binds]
-    Defined but not used: ‘givesCheck’
-    |
-262 |                                         let givesCheck = isCheck (getBoard newVBoard)
-    |                                             ^^^^^^^^^^
-[38 of 42] Compiling Chess.Engine.Uci ( src/Chess/Engine/Uci.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Engine/Uci.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Engine/Uci.dyn_o ) [Chess.Engine.Search changed]
-Preprocessing executable 'bench-search' for haskell-chess-0.1.0.0..
-Building executable 'bench-search' for haskell-chess-0.1.0.0..
-[1 of 1] Compiling Main             ( scripts/BenchSearch.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/x/bench-search/build/bench-search/bench-search-tmp/Main.o ) [Chess.Engine.Search changed]
-
-scripts/BenchSearch.hs:20:9: warning: [-Wincomplete-uni-patterns]
-    Pattern match(es) are non-exhaustive
-    In a pattern binding:
-        Patterns of type ‘Maybe Chess.Board.Board’ not matched: Nothing
-   |
-20 |     let Just b = parseFen fen
-   |         ^^^^^^^^^^^^^^^^^^^^^
-[2 of 2] Linking /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/x/bench-search/build/bench-search/bench-search [Objects changed]
-Starting Benchmark (KiwiPete Depth 6)...
-info depth 1 score cp 25 nodes 2300 pv e2a6
-info depth 2 score cp 25 nodes 6387 pv e2a6
-info depth 3 score cp -12 nodes 14739 pv e2a6
-info depth 4 score cp 5 nodes 36074 pv d5e6
-info depth 5 score cp -28 nodes 100684 pv e2a6
-info depth 6 score cp -28 nodes 210053 pv e2a6
-Time: 0.267503732s
+bench/RayBench.hs:9:1: warning: [-Wunused-imports]
+    The import of ‘Data.Word’ is redundant
+      except perhaps to import instances from ‘Data.Word’
+    To import instances alone, use: import Data.Word()
+  |
+9 | import Data.Word (Word64)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^
+[2 of 2] Linking /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/x/bench-ray/build/bench-ray/bench-ray [Objects changed]
+Benchmarking 'ray' function...
+Result: 11
+Time: 2.8669s
+Iterations: 102400000

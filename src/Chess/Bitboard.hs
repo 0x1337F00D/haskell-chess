@@ -620,10 +620,17 @@ getRayAttacks sq dirIdx occ =
 
 -- Rays ----------------------------------------------------------------------
 
--- | Bitboard of squares in a ray from one square to another, including the
--- target but excluding the origin. Zero if not aligned.
-ray :: Square -> Square -> Bitboard
-ray a@(Square ai) b@(Square bi)
+-- | Precomputed rays between all pairs of squares.
+-- Index = from * 64 + to
+bbRaysBetween :: U.Vector Bitboard
+bbRaysBetween = U.generate (64 * 64) $ \i ->
+    let from = Square (i `div` 64)
+        to   = Square (i `mod` 64)
+    in rayInit from to
+
+-- | Helper to generate ray (logic from original ray function)
+rayInit :: Square -> Square -> Bitboard
+rayInit a@(Square ai) b@(Square bi)
   | a == b = 0
   | abs df == abs dr || df == 0 || dr == 0 = go (fileA+dfSign) (rankA+drSign) 0
   | otherwise = 0
@@ -643,6 +650,12 @@ ray a@(Square ai) b@(Square bi)
       | otherwise =
           let acc' = acc .|. bbFromSquare (Square (r*8 + f))
           in go (f+dfSign) (r+drSign) acc'
+
+-- | Bitboard of squares in a ray from one square to another, including the
+-- target but excluding the origin. Zero if not aligned.
+ray :: Square -> Square -> Bitboard
+{-# INLINE ray #-}
+ray (Square from) (Square to) = bbRaysBetween `U.unsafeIndex` (from * 64 + to)
 
 -- | Squares strictly between two aligned squares.
 between :: Square -> Square -> Bitboard
