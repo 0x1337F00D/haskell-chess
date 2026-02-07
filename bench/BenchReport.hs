@@ -101,10 +101,11 @@ runSearchSuite depth = do
         Nothing -> putStrLn "Invalid KiwiPete FEN"
         Just board -> do
             tt <- newTT 20
+            start <- getCurrentTime
             res <- search board tt (defaultLimits { limitDepth = Just depth })
-            -- let nps = if srTime res > 0 then fromIntegral (srNodes res) / srTime res else 0
-            -- printf "kiwipete d%d nodes=%d qnodes=%d time=%.3f nps=%.0f pv=%s\n"
-            --    depth (srNodes res) (srQNodes res) (srTime res) nps (uci (srBestMove res))
+            end <- getCurrentTime
+            let duration = realToFrac (diffUTCTime end start) :: Double
+            printf "kiwipete d%d time=%.4fs\n" depth duration
             putStrLn "Search done"
 
 -- Tactics Suite
