@@ -73,11 +73,9 @@ applyMove b gs m@(Move from to _ ) =
              then midSquare from to
              else NoSquare
 
-        gs' = gs
-            { turn = oppositeColor c
-            , castlingRights = cr2
-            , epSquare = ep
-            }
+        gs' = setTurn (oppositeColor c) $
+              setCastlingRights cr2 $
+              setEpSquare ep gs
     in (b', gs')
 applyMove b gs _ = (b, gs)
 

@@ -142,7 +142,7 @@ epRank Black = Rank3
 isCheck :: Board -> Color -> Bool
 isCheck b c = Val.isCheck (toBaseBoard b) (dummyGameState c)
   where
-    dummyGameState col = GS.initialGameState { GS.turn = toColor col }
+    dummyGameState col = GS.setTurn (toColor col) GS.initialGameState
 
 -- Generate Legal Moves
 generateLegalMoves :: forall v c s. (KnownColor c, ChessVariant v) => ActiveGame v c s -> [Move c]
@@ -222,7 +222,7 @@ updateCastlingRights gs m =
 
       mask = if c == White then complement BB.bbRank1 else complement BB.bbRank8
   in if isKing
-     then gs2 { GS.castlingRights = GS.castlingRights gs2 .&. mask }
+     then GS.setCastlingRights (GS.castlingRights gs2 .&. mask) gs2
      else gs2
 
 -- Apply Move Helper (Base Board update)
@@ -352,13 +352,11 @@ genericApplyMove m ag =
         newHMC = if isPawn || isCapture then 0 else GS.halfmoveClock gs + 1
         newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
 
-        newGS = gs3
-          { GS.turn = toColor (colorVal @(Opposite c))
-          , GS.epSquare = newEP
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          , GS.zobristHash = 0 -- Reset hash as we don't track it incrementally yet
-          }
+        newGS = GS.setTurn (toColor (colorVal @(Opposite c))) $
+                GS.setEpSquare newEP $
+                GS.setHalfmoveClock newHMC $
+                GS.setFullmoveNumber newFMN $
+                GS.setZobristHash 0 gs3
 
         nextAg = ActiveGame
           { internalBoard = internalB'
