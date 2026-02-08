@@ -215,3 +215,21 @@ scoreHistory ctx lm = do
              UM.unsafeRead (resHistory res) idx
         GenCastling _ _ -> return 0
         _ -> return 0
+
+-- | Sorts a list of moves by score, optionally picking a TT move to be first.
+-- Does NOT re-partition or re-calculate SEE.
+{-# INLINE pickAndSort #-}
+pickAndSort :: [LegalMove] -> Maybe Move -> [LegalMove]
+pickAndSort moves Nothing = sortOn (negate . scoreMove . getGenMove) moves
+pickAndSort moves (Just ttM) =
+    let (pre, post) = break (\lm -> getMove (getGenMove lm) == ttM) moves
+    in case post of
+        [] -> sortOn (negate . scoreMove . getGenMove) pre
+        (tt:rest) -> tt : sortOn (negate . scoreMove . getGenMove) (pre ++ rest)
+  where
+    getMove (GenQuiet f t _) = Move f t Nothing
+    getMove (GenCapture f t _ _) = Move f t Nothing
+    getMove (GenEnPassant f t) = Move f t Nothing
+    getMove (GenCastling f t) = Move f t Nothing
+    getMove (GenPromotion f t p) = Move f t (Just p)
+    getMove (GenPromotionCapture f t p _) = Move f t (Just p)
