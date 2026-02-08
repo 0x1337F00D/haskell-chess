@@ -7,7 +7,7 @@ import Data.Coerce (coerce)
 import qualified Data.Vector.Storable.Mutable as UM
 import Control.Monad (when)
 
-import Chess.Types (Move(..), Square(..), PieceType(..), Depth(..))
+import Chess.Types (Move(..), Depth(..))
 
 -- | Transposition Table Entry Flags
 -- TTEval is for storing static evaluation (depth 0).

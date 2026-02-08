@@ -2,7 +2,7 @@
 module Chess.Board.San where
 
 import Data.List (find)
-import Data.Maybe (isJust, fromMaybe)
+import Data.Maybe (isJust)
 import Data.Bits ((.&.), complement, (.|.), testBit)
 
 import Chess.Types
@@ -195,6 +195,7 @@ parseSan b gs str =
                                 Just cp -> GenCapture from to pt cp
                                 Nothing -> GenQuiet from to pt
             in isLegal b gs gm
+        checkLegal _ = False
 
         findMatch candidates = find (\m -> checkLegal m && (san b gs m == str || san b gs m == cleanStr)) candidates
 
