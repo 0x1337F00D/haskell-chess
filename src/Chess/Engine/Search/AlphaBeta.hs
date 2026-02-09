@@ -24,6 +24,7 @@ import Chess.Board (Board(..), applyMove, isCheck, uci, GenMove(..)
 import qualified Chess.Board
 import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
+import qualified Chess.Board.MoveGen as MoveGen
 import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
 import Chess.Board.Phase (Position(..))
 import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
@@ -430,7 +431,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                              -- But givesCheck requires lookahead.
                              -- givesCheckFast is available.
                              -- Using givesCheckFast here:
-                             let givesCheck = Chess.Board.MoveGen.givesCheckFast (pieces (getBoard vBoard)) (state (getBoard vBoard)) gm
+                             let givesCheck = MoveGen.givesCheckFast (pieces (getBoard vBoard)) (state (getBoard vBoard)) gm
                              in if givesCheck then False
                                 else
                                      let lmpCount = 3 + dVal * dVal

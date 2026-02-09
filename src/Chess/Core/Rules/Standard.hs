@@ -18,6 +18,7 @@ import Chess.Core.Board.Internal
 import Chess.Core.Game.Internal
 import Chess.Core.Move.Internal
 
+import Chess.Types (CheckStatus(..), SCheckStatus(..))
 import qualified Chess.Types as T
 import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
