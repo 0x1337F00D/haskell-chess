@@ -871,3 +871,7 @@ pieceMovesList b gs pt = U.toList (pieceMoves b gs pt)
 {-# INLINE castlingMovesList #-}
 castlingMovesList :: Board -> GameState -> [GenMove]
 castlingMovesList b gs = U.toList (castlingMoves b gs)
+
+-- | Generate all legal quiet moves that give check.
+legalQuietChecks :: Board -> GameState -> U.Vector GenMove
+legalQuietChecks b gs = U.filter (\gm -> isLegal b gs gm && givesCheckFast b gs gm) (pseudoLegalQuiets b gs)
