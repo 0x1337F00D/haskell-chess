@@ -15,7 +15,7 @@ import Chess.Engine.SEE (see)
 import Chess.Engine.Search.Types (SearchContext(..), SearchResources(..))
 
 -- | Move Ordering
-orderGenMoves :: ValidatedBoard -> [LegalMove] -> Maybe Move -> [LegalMove]
+orderGenMoves :: ValidatedBoard s -> [LegalMove] -> Maybe Move -> [LegalMove]
 orderGenMoves vBoard moves ttM =
     let board = pieces (getBoard vBoard)
         (ttMoves, rest) = case ttM of
@@ -37,7 +37,7 @@ orderGenMoves vBoard moves ttM =
 
 -- | Specialized move ordering for Quiescence Search.
 -- Avoids concatenating lists and re-partitioning.
-orderQSMoves :: ValidatedBoard -> [LegalMove] -> [LegalMove] -> [LegalMove] -> [LegalMove]
+orderQSMoves :: ValidatedBoard s -> [LegalMove] -> [LegalMove] -> [LegalMove] -> [LegalMove]
 orderQSMoves vBoard caps proms quietChecks =
     let board = pieces (getBoard vBoard)
 
@@ -80,7 +80,7 @@ pieceValue Rook = 5
 pieceValue Queen = 9
 pieceValue King = 100
 
-partitionSEE :: ValidatedBoard -> [LegalMove] -> ([LegalMove], [LegalMove])
+partitionSEE :: ValidatedBoard s -> [LegalMove] -> ([LegalMove], [LegalMove])
 partitionSEE vb moves = partition isGood moves
   where
     b = pieces (getBoard vb)
