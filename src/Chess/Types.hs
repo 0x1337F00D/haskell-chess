@@ -5,6 +5,11 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Chess.Types where
 
@@ -75,6 +80,18 @@ unicodeSymbol Black Bishop = '♝'
 unicodeSymbol Black Rook   = '♜'
 unicodeSymbol Black Queen  = '♛'
 unicodeSymbol Black King   = '♚'
+
+-- | Check Status
+data CheckStatus = Safe | Checked | Unchecked
+  deriving (Eq, Show)
+
+data SCheckStatus (s :: CheckStatus) where
+  SSafe    :: SCheckStatus 'Safe
+  SChecked :: SCheckStatus 'Checked
+  SUnchecked :: SCheckStatus 'Unchecked
+
+deriving instance Show (SCheckStatus s)
+deriving instance Eq (SCheckStatus s)
 
 -- | Squares represented as integers 0..63 (a1=0).
 newtype Square = Square { unSquare :: Int }

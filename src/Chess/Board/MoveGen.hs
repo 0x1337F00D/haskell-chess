@@ -183,6 +183,85 @@ pseudoLegalMoves b gs =
 
     in U.concat [pm, nm, bm, rm, qm, km, cm]
 
+-- | Generate all pseudo-legal moves excluding the King.
+pseudoLegalMovesNoKing :: Board -> GameState -> U.Vector GenMove
+pseudoLegalMovesNoKing b gs =
+    let pm = pawnMoves b gs
+        nm = pieceMoves b gs Knight
+        bm = pieceMoves b gs Bishop
+        rm = pieceMoves b gs Rook
+        qm = pieceMoves b gs Queen
+    in U.concat [pm, nm, bm, rm, qm]
+
+-- | Generate only legal moves when in check (Evasions).
+-- This is significantly faster than generating all moves and filtering.
+generateEvasions :: Board -> GameState -> U.Vector GenMove
+generateEvasions b gs =
+    let c = turn gs
+        oppC = oppositeColor c
+        occ = occupiedTotal b
+        kingSq = case kingSquare b c of
+                   Just k -> k
+                   Nothing -> Square 0 -- Should not happen
+
+        -- Find checkers
+        checkers = attackersTo b kingSq occ .&. occupiedBy b oppC
+        numCheckers = popcount checkers
+
+        -- King moves are always candidates (must filter for attacks)
+        -- pieceMoves generates attacks and quiets for the King.
+        kMoves = U.filter (isLegal b gs) (pieceMoves b gs King)
+
+    in if numCheckers > 1
+       then kMoves -- Double check: only King can move
+       else if numCheckers == 1
+       then
+           let checkerSq = Square (countTrailingZeros checkers)
+               checkerPt = findPieceType b oppC checkerSq
+
+               -- Target mask: capture checker OR block ray (if slider)
+               captureMask = bbFromSquare checkerSq
+               pushMask = if isSlider checkerPt
+                          then between kingSq checkerSq
+                          else 0
+               targetMask = captureMask .|. pushMask
+
+               -- Helpers for filtering
+               isTarget to = testBit targetMask (unSquare to)
+
+               -- Special handling for En Passant capturing the checker
+               isEPCaptureOfChecker gm = case gm of
+                   GenEnPassant _ to ->
+                       let capSq = if c == White
+                                   then Square (unSquare to - 8)
+                                   else Square (unSquare to + 8)
+                       in capSq == checkerSq
+                   _ -> False
+
+               filterMove gm =
+                   let to = genMoveTo gm
+                   in (isTarget to || isEPCaptureOfChecker gm) && isLegal b gs gm
+
+               otherMoves = U.filter filterMove (pseudoLegalMovesNoKing b gs)
+
+           in U.concat [kMoves, otherMoves]
+       else
+           -- Not in check: Fallback to standard generation
+           legalGenMoves b gs
+
+-- | Alias for generateEvasions
+legalGenEvasions :: Board -> GameState -> U.Vector GenMove
+legalGenEvasions = generateEvasions
+
+-- | Helper to extract destination square from GenMove
+genMoveTo :: GenMove -> Square
+genMoveTo (GenQuiet _ t _) = t
+genMoveTo (GenCapture _ t _ _) = t
+genMoveTo (GenEnPassant _ t) = t
+genMoveTo (GenCastling _ t) = t
+genMoveTo (GenPromotion _ t _) = t
+genMoveTo (GenPromotionCapture _ t _ _) = t
+
 -- | Generate all legal moves.
 legalMoves :: Board -> GameState -> [Move]
 legalMoves b gs = U.toList $ U.map genMoveToMove $ U.filter (isLegal b gs) (pseudoLegalMoves b gs)

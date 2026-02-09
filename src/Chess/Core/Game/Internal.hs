@@ -13,7 +13,7 @@ module Chess.Core.Game.Internal where
 import Chess.Core.Board.Internal
 import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
-import Chess.Types (HalfmoveClock, FullmoveNumber)
+import Chess.Types (HalfmoveClock, FullmoveNumber, CheckStatus(..), SCheckStatus(..))
 import Data.Word (Word8)
 import Data.Bits ((.|.), (.&.), complement, testBit, setBit, clearBit)
 import Chess.Bitboard (Bitboard)
@@ -58,18 +58,6 @@ type family VariantState (v :: Variant) where
   VariantState 'Crazyhouse = CrazyhouseState
   VariantState 'FischerRandom = FischerRandomState
   VariantState _ = ()
-
--- Check Status (Section 7)
-data CheckStatus = Safe | Checked | Unchecked
-  deriving (Eq, Show)
-
-data SCheckStatus (s :: CheckStatus) where
-  SSafe    :: SCheckStatus 'Safe
-  SChecked :: SCheckStatus 'Checked
-  SUnchecked :: SCheckStatus 'Unchecked
-
-deriving instance Show (SCheckStatus s)
-deriving instance Eq (SCheckStatus s)
 
 data Outcome = Winner Color | Draw
   deriving (Eq, Show)

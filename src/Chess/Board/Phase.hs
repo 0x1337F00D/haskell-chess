@@ -12,14 +12,14 @@ import Data.Bits (popCount)
 import qualified Chess.Board.Base as Base
 import Chess.Board (Board(..), ValidatedBoard, getBoard)
 import Chess.Board.GameState (GameState(..))
-import Chess.Types (FullmoveNumber(..))
+import Chess.Types (FullmoveNumber(..), CheckStatus)
 
 -- | Game Phases
 data Phase = Opening | Middlegame | Endgame
   deriving (Show, Eq)
 
 -- | A Phase-Indexed Position
-newtype Position (p :: Phase) = Position ValidatedBoard
+newtype Position (p :: Phase) (s :: CheckStatus) = Position (ValidatedBoard s)
   deriving (Show, Eq)
 
 -- | Singleton for Phase
@@ -32,11 +32,11 @@ deriving instance Show (SPhase p)
 deriving instance Eq (SPhase p)
 
 -- | Existential wrapper for a Position with its Phase
-data SomePhase where
-  SomePhase :: SPhase p -> Position p -> SomePhase
+data SomePhase s where
+  SomePhase :: SPhase p -> Position p s -> SomePhase s
 
 -- | Classify the position into a phase.
-classifyPhase :: ValidatedBoard -> SomePhase
+classifyPhase :: ValidatedBoard s -> SomePhase s
 classifyPhase vb =
     let b = getBoard vb
         base = pieces b

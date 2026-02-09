@@ -25,10 +25,6 @@ stepScore s
 data NodeKind = Root | PV | NonPV
     deriving (Show, Eq)
 
--- | Check Status for Search
-data CheckState = InCheck | NotInCheck
-    deriving (Show, Eq)
-
 -- | Search Phase
 data SearchPhase = MainSearch | Quiescence
     deriving (Show, Eq)
@@ -63,7 +59,6 @@ data SearchResources = SearchResources
 data SearchContext (p :: Phase) = SearchContext
     { scResources     :: !SearchResources
     , scNodeKind      :: !NodeKind
-    , scCheckState    :: !CheckState
     , scPhase         :: !SearchPhase
     , scPly           :: !Int
     , scNullMoveState :: !NullMoveState

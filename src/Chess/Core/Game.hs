@@ -16,4 +16,5 @@ module Chess.Core.Game
   , Game -- Opaque
   ) where
 
+import Chess.Types (CheckStatus(..))
 import Chess.Core.Game.Internal

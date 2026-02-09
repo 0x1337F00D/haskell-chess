@@ -1,24 +1,27 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
 
 module Chess.Engine.Search.Quiescence where
 
 import Data.IORef (IORef, modifyIORef')
-import Chess.Types (Depth(..), unDepth, decDepth, depthZero)
-import Chess.Board (ValidatedBoard, getBoard, state, pieces, applyLegalMove, isCheck, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated, getGenMove)
+import Chess.Types (Depth(..), unDepth, decDepth, depthZero, CheckStatus(..), SCheckStatus(..))
+import Chess.Board (ValidatedBoard(..), SomeValidatedBoard(..), getBoard, state, pieces, applyLegalMove, isCheck, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated, getGenMove)
 import qualified Chess.Board
 import Chess.Board.MoveGen (givesCheckFast)
 import qualified Chess.Board.GameState as GS
 import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
 import Chess.Board.Phase (Position(..))
 import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
-import Chess.Engine.Search.Types (mateValue, SearchContext(..), CheckState(..))
+import Chess.Engine.Search.Types (mateValue, SearchContext(..))
 import Chess.Engine.Search.Ordering (orderGenMoves, orderQSMoves)
 import Chess.Types (Move, nullMove)
 
 -- | Quiescence Search.
-quiescence :: forall p. Evaluate p => SearchContext p -> ValidatedBoard -> TT -> Int -> Int -> IORef Int -> Depth -> IO Int
+quiescence :: forall p s. Evaluate p => SearchContext p -> ValidatedBoard s -> TT -> Int -> Int -> IORef Int -> Depth -> IO Int
 quiescence ctx vBoard tt alpha beta nodes depth = do
     modifyIORef' nodes (+1)
     let board = getBoard vBoard
@@ -27,10 +30,10 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
     let hash = GS.zobristHash (state board)
     ttEntry <- probeTT tt hash
 
-    -- Use CheckState from context
-    let inCheck = case scCheckState ctx of
-            InCheck -> True
-            NotInCheck -> False
+    -- Use CheckState from Type
+    let inCheck = case vBoard of
+            ValidatedBoard SChecked _ -> True
+            _ -> False
 
     if inCheck
     then do
@@ -52,7 +55,7 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
         standPat <- case staticEval of
             Just s -> return s
             Nothing -> do
-                let s = evaluatePos (Position vBoard :: Position p)
+                let s = evaluatePos (Position vBoard :: Position p s)
                 -- Store static eval in TT
                 storeTT tt hash depthZero s TTEval nullMove
                 return s
@@ -82,17 +85,15 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
 
     go [] a = return a
     go (lm:lms) a = do
-        let newVBoard = applyLegalMove vBoard lm
+        case applyLegalMove vBoard lm of
+            SomeValidatedBoard newVBoard -> do
+                -- Update Context
+                let newCtx = ctx { scPly = scPly ctx + 1 } :: SearchContext p
 
-        -- Calculate CheckState for recursion
-        let newInCheck = isCheck (getBoard newVBoard)
-        let newCheckState = if newInCheck then InCheck else NotInCheck
-        let newCtx = ctx { scCheckState = newCheckState, scPly = scPly ctx + 1 } :: SearchContext p
-
-        score <- do
-            -- Decrement depth for recursion
-            s <- quiescence newCtx newVBoard tt (-beta) (-a) nodes (decDepth depth)
-            return (-s)
-        if score >= beta
-        then return beta
-        else go lms (max a score)
+                score <- do
+                    -- Decrement depth for recursion
+                    s <- quiescence newCtx newVBoard tt (-beta) (-a) nodes (decDepth depth)
+                    return (-s)
+                if score >= beta
+                then return beta
+                else go lms (max a score)
