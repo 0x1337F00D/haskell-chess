@@ -10,7 +10,7 @@ import Chess.Types
 import Chess.Bitboard
 import Chess.Board.Base (Board)
 import qualified Chess.Board.Base as Board
-import Chess.Board.GameState (GameState(..), CastlingRights)
+import Chess.Board.GameState (GameState(..), CastlingRights, turn, castlingRights, epSquare, halfmoveClock, fullmoveNumber)
 import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.Zobrist as Zobrist
 
@@ -39,16 +39,9 @@ parseFenRest s = do
   halfmove <- HalfmoveClock <$> readMaybe halfmoveStr
   fullmove <- FullmoveNumber <$> readMaybe fullmoveStr
 
-  let gsProto = GameState
-        { turn = turnVal
-        , castlingRights = castling
-        , epSquare = ep
-        , halfmoveClock = halfmove
-        , fullmoveNumber = fullmove
-        , zobristHash = 0
-        }
+  let gsProto = GS.mkGameState turnVal castling ep halfmove fullmove 0
       hash = Zobrist.computeHash board gsProto
-      gs = gsProto { zobristHash = hash }
+      gs = GS.setZobristHash gsProto hash
 
   return (board, gs, extra')
 
