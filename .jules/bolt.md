@@ -42,3 +42,8 @@
 **Learning:** `pawnMoves` helpers (`pawnQuiets`, `pawnCaptures`, etc.) were using list comprehensions to generate moves before converting to `U.Vector`. This created millions of short-lived list nodes (cons cells + boxed GenMoves) per second, dominating GC.
 **Action:** Replaced list comprehensions with `U.create` and a two-pass "count-then-fill" strategy using direct bitwise logic and `M.unsafeWrite`. This eliminates the intermediate list allocation entirely for pawns.
 **Impact:** Allocations reduced by ~16.2% (7.6GB saved on benchmark run). Runtime improved by ~9.3%.
+
+## 2026-02-12 – [Unboxed Magic Bitboards]
+**Learning:** `Chess.Bitboard` stored Magic Bitboard constants in a boxed `V.Vector Magic`. This caused an extra pointer dereference and cache miss for *every* sliding piece attack lookup (millions/sec). The `Magic` struct itself was small (4 words) but boxed.
+**Action:** Defined `Unbox` instance for `Magic` and switched `bbBishopMagics`/`bbRookMagics` to `U.Vector Magic`. This packs the constants contiguously in memory, removing indirection.
+**Impact:** `bench-magic` speedup from 52.8 M/s to 68.0 M/s (~28.8%).
