@@ -1,0 +1,4 @@
+Up to date
+Benchmarking Chess.Core...
+Core | Start      | Depth 5 | Nodes:    4865609 | Time: 341.635s | NPS:      14242
+Core | KiwiPete   | Depth 4 | Nodes:    4085603 | Time:  0.654s | NPS:    6243303
