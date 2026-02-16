@@ -42,7 +42,3 @@
 **Learning:** `pawnMoves` helpers (`pawnQuiets`, `pawnCaptures`, etc.) were using list comprehensions to generate moves before converting to `U.Vector`. This created millions of short-lived list nodes (cons cells + boxed GenMoves) per second, dominating GC.
 **Action:** Replaced list comprehensions with `U.create` and a two-pass "count-then-fill" strategy using direct bitwise logic and `M.unsafeWrite`. This eliminates the intermediate list allocation entirely for pawns.
 **Impact:** Allocations reduced by ~16.2% (7.6GB saved on benchmark run). Runtime improved by ~9.3%.
-
-## 2026-02-07 – [GenMove-Based SEE]
-**Learning:** The move ordering logic was converting `GenMove` back to `Move` to call `see`. This caused allocation of `Move` objects and redundant `pieceAt` lookups (checking moving piece and target piece types), which `GenMove` already contains.
-**Action:** Implemented `seeGen` which operates directly on `GenMove`. It extracts piece types from `GenCapture` and `GenEnPassant` constructors, avoiding `Move` allocation and board lookups. Updated `Ordering.hs` to use `seeGen`. This optimizes the hot path of move sorting.
