@@ -97,10 +97,7 @@ hordeInitialGame =
       -- Black Rooks at A8 (56) and H8 (63).
       crBB = BB.BB_A8 .|. BB.BB_H8
 
-      gs = GS.initialGameState
-           { GS.castlingRights = crBB
-           , GS.turn = T.White
-           }
+      gs = GS.setTurn (GS.setCastlingRights GS.initialGameState crBB) T.White
 
       ag = ActiveGame
            { internalBoard = baseBoard
@@ -197,13 +194,15 @@ instance ChessVariant 'Horde where
         newHMC = if isPawn || isCapture then 0 else GS.halfmoveClock gs + 1
         newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
 
-        newGS = gsUpdated
-          { GS.turn = toColor (colorVal @(Opposite c))
-          , GS.epSquare = newEP
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          , GS.zobristHash = 0
-          }
+        newGS = GS.setZobristHash
+          (GS.setFullmoveNumber
+            (GS.setHalfmoveClock
+              (GS.setEpSquare
+                (GS.setTurn gsUpdated (toColor (colorVal @(Opposite c))))
+                newEP)
+              newHMC)
+            newFMN)
+          0
 
         nextAg = ActiveGame internalB' newGS () SUnchecked
 

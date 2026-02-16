@@ -253,7 +253,7 @@ updateCastlingRights gs m =
 
       mask = if c == White then complement BB.bbRank1 else complement BB.bbRank8
   in if isKing
-     then gs2 { GS.castlingRights = GS.castlingRights gs2 .&. mask }
+     then GS.setCastlingRights gs2 (GS.castlingRights gs2 .&. mask)
      else gs2
 
 -- Apply Move Helper (Base Board update)
@@ -383,13 +383,15 @@ genericApplyMove m ag =
         newHMC = if isPawn || isCapture then 0 else GS.halfmoveClock gs + 1
         newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
 
-        newGS = gs3
-          { GS.turn = toColor (colorVal @(Opposite c))
-          , GS.epSquare = newEP
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          , GS.zobristHash = 0 -- Reset hash as we don't track it incrementally yet
-          }
+        newGS = GS.setZobristHash
+          (GS.setFullmoveNumber
+            (GS.setHalfmoveClock
+              (GS.setEpSquare
+                (GS.setTurn gs3 (toColor (colorVal @(Opposite c))))
+                newEP)
+              newHMC)
+            newFMN)
+          0 -- Reset hash as we don't track it incrementally yet
 
         nextAg = ActiveGame
           { internalBoard = internalB'
