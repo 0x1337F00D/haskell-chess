@@ -193,20 +193,7 @@ generateLegalMoves :: forall v c s. (KnownColor c, ChessVariant v) => ActiveGame
 generateLegalMoves = generateMoves
 
 toCoreMove :: MG.GenMove -> Move c
-toCoreMove gm =
-  case gm of
-    MG.GenQuiet f t pt ->
-        QuietMove (fromSquare f) (fromSquare t) (fromPieceType pt)
-    MG.GenCapture f t pt cap ->
-        CaptureMove (fromSquare f) (fromSquare t) (fromPieceType pt) (fromPieceType cap)
-    MG.GenEnPassant f t ->
-        EnPassantMove (fromSquare f) (fromSquare t)
-    MG.GenCastling f t ->
-        CastlingMove (fromSquare f) (fromSquare t)
-    MG.GenPromotion f t ppt ->
-        PromotionMove (fromSquare f) (fromSquare t) (fromPieceType ppt)
-    MG.GenPromotionCapture f t ppt cap ->
-        PromotionCaptureMove (fromSquare f) (fromSquare t) (fromPieceType ppt) (fromPieceType cap)
+toCoreMove = Move
 
 isCastlingMove :: T.Piece -> Square -> Square -> Bool
 isCastlingMove p from to =
