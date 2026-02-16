@@ -1,11 +1,10 @@
-module Chess.Engine.SEE (see, seeGen, attackersTo, pieceValue) where
+module Chess.Engine.SEE (see, attackersTo) where
 
 import Data.Bits
 import Data.List (foldl')
 import Chess.Types
 import Chess.Bitboard
 import Chess.Board.Base
-import qualified Chess.Board.MoveGen as MoveGen
 
 -- | Piece values for SEE.
 pieceValue :: PieceType -> Int
@@ -16,17 +15,7 @@ pieceValue Rook   = 500
 pieceValue Queen  = 900
 pieceValue King   = 20000
 
--- | SEE Implementation using GenMove.
--- Avoids Move allocation and piece lookups.
-{-# INLINE seeGen #-}
-seeGen :: Board -> Color -> MoveGen.GenMove -> Int
-seeGen b c gm = case gm of
-    MoveGen.GenCapture from to pt capPt ->
-        runSeeStart b from to c (pieceValue pt) (pieceValue capPt)
-    MoveGen.GenEnPassant from to ->
-        runSeeStart b from to c 100 100
-    _ -> 0
-
+-- | Returns a bitboard of all pieces attacking a square.
 -- | SEE Implementation.
 see :: Board -> Move -> Int
 see _ NullMove = 0
@@ -45,31 +34,19 @@ see board (Move from to _) =
         -- Attacker value
         valAttacker = pieceValue (pieceType (unsafePieceAt board from))
 
-        -- Side to move (attacker)
-        -- We don't have 'Color' passed to 'see', so we infer it from the moving piece.
-        -- unsafePieceAt uses pieceAt which checks occupancy.
-        -- But since we are moving from 'from', it must be occupied.
-        c = pieceColor (unsafePieceAt board from)
-
-    in runSeeStart board from to c valAttacker valTarget
-
-{-# INLINE runSeeStart #-}
-runSeeStart :: Board -> Square -> Square -> Color -> Int -> Int -> Int
-runSeeStart b from to c valAttacker valTarget =
-    let
         -- Initial gains list: [Target]
         initialGain = [valTarget]
 
         -- Remove moving piece from occupancy
-        occ = occupied b `clearBit` (unSquare from)
+        occ = occupied board `clearBit` (unSquare from)
 
         -- Compute attackers to 'to' square
-        atts = attackersTo b to occ
+        atts = attackersTo board to occ
 
-        side = oppositeColor c
+        side = oppositeColor (pieceColor (unsafePieceAt board from))
 
         -- Run swap
-        scores = runSEE b to side occ atts (valAttacker : initialGain)
+        scores = runSEE board to side occ atts (valAttacker : initialGain)
 
     in negamax scores
 

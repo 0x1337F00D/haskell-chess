@@ -10,23 +10,20 @@ import Data.List (sortOn, partition)
 import qualified Data.Vector.Unboxed.Mutable as UM
 
 import Chess.Types
-import Chess.Board (Board(..), ValidatedBoard, LegalMove, GenMove(..), pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture, getBoard, pieces, getGenMove)
-import qualified Chess.Board.GameState as GS
-import Chess.Engine.SEE (see, seeGen)
+import Chess.Board (ValidatedBoard, LegalMove, GenMove(..), pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture, getBoard, pieces, getGenMove)
+import Chess.Engine.SEE (see)
 import Chess.Engine.Search.Types (SearchContext(..), SearchResources(..))
 
 -- | Move Ordering
 orderGenMoves :: ValidatedBoard -> [LegalMove] -> Maybe Move -> [LegalMove]
 orderGenMoves vBoard moves ttM =
-    let (Board b gs _) = getBoard vBoard
-        turn = GS.turn gs
-
+    let board = pieces (getBoard vBoard)
         (ttMoves, rest) = case ttM of
             Nothing -> ([], moves)
             Just tm -> foldr (\lm (t, o) -> if getMove (getGenMove lm) == tm then (lm:t, o) else (t, lm:o)) ([], []) moves
 
         (capProms, capsAll, proms, quiets) = partitionMoves rest
-        (goodCaps, badCaps) = partition (\lm -> seeGen b turn (getGenMove lm) >= 0) capsAll
+        (goodCaps, badCaps) = partition (\lm -> see board (getMove (getGenMove lm)) >= 0) capsAll
 
         sortDesc = sortOn (negate . scoreMove . getGenMove)
     in ttMoves ++ sortDesc capProms ++ sortDesc goodCaps ++ sortDesc proms ++ quiets ++ sortDesc badCaps
@@ -42,8 +39,7 @@ orderGenMoves vBoard moves ttM =
 -- Avoids concatenating lists and re-partitioning.
 orderQSMoves :: ValidatedBoard -> [LegalMove] -> [LegalMove] -> [LegalMove] -> [LegalMove]
 orderQSMoves vBoard caps proms quietChecks =
-    let (Board b gs _) = getBoard vBoard
-        turn = GS.turn gs
+    let board = pieces (getBoard vBoard)
 
         -- Process caps: Split into PromoCaps, GoodCaps, BadCaps
         (promoCaps, goodCaps, badCaps) = foldr processCap ([], [], []) caps
@@ -51,7 +47,7 @@ orderQSMoves vBoard caps proms quietChecks =
         processCap lm (pc, gc, bc) = case getGenMove lm of
             GenPromotionCapture {} -> (lm:pc, gc, bc)
             GenCapture _ _ _ _ ->
-                if seeGen b turn (getGenMove lm) >= 0
+                if see board (getMove (getGenMove lm)) >= 0
                 then (pc, lm:gc, bc)
                 else (pc, gc, lm:bc)
             GenEnPassant {} -> (pc, lm:gc, bc) -- En Passant is generally good
@@ -61,6 +57,13 @@ orderQSMoves vBoard caps proms quietChecks =
 
         -- Order: PromoCaps > GoodCaps > Proms > QuietChecks > BadCaps
     in sortDesc promoCaps ++ sortDesc goodCaps ++ sortDesc proms ++ quietChecks ++ sortDesc badCaps
+  where
+    getMove (GenQuiet f t _) = Move f t Nothing
+    getMove (GenCapture f t _ _) = Move f t Nothing
+    getMove (GenEnPassant f t) = Move f t Nothing
+    getMove (GenCastling f t) = Move f t Nothing
+    getMove (GenPromotion f t p) = Move f t (Just p)
+    getMove (GenPromotionCapture f t p _) = Move f t (Just p)
 
 scoreMove :: GenMove -> Int
 scoreMove (GenCapture _ _ pt capPt) = 1000 + (pieceValue capPt * 10) - (pieceValue pt)
@@ -80,13 +83,18 @@ pieceValue King = 100
 partitionSEE :: ValidatedBoard -> [LegalMove] -> ([LegalMove], [LegalMove])
 partitionSEE vb moves = partition isGood moves
   where
-    (Board b gs _) = getBoard vb
-    turn = GS.turn gs
+    b = pieces (getBoard vb)
     isGood lm = case getGenMove lm of
         GenPromotionCapture {} -> True
         GenEnPassant {} -> True
-        GenCapture {} -> seeGen b turn (getGenMove lm) >= 0
+        GenCapture {} -> see b (getMove (getGenMove lm)) >= 0
         _ -> True
+    getMove (GenQuiet f t _) = Move f t Nothing
+    getMove (GenCapture f t _ _) = Move f t Nothing
+    getMove (GenEnPassant f t) = Move f t Nothing
+    getMove (GenCastling f t) = Move f t Nothing
+    getMove (GenPromotion f t p) = Move f t (Just p)
+    getMove (GenPromotionCapture f t p _) = Move f t (Just p)
 
 partitionMoves :: [LegalMove] -> ([LegalMove], [LegalMove], [LegalMove], [LegalMove])
 partitionMoves moves = foldr part ([], [], [], []) moves

@@ -46,8 +46,4 @@
 ## 2026-02-13 – [Perft Delegation & Zobrist Castling]
 **Learning:** `Chess.Core.Perft.perft` was using a default recursive implementation that allocated boxed `Move` objects and `ActiveGame` states, ignoring the optimized `perftVariant` implementation available for `Standard` chess (which uses `GenMove` and `FastBoard`). Also, `zobristCastling` was iterating 0-63 (O(64)) to update hash, called twice per move (128 iterations).
 **Action:** Updated `perft` to delegate to `perftVariant` to enable fast path dispatch. Optimized `zobristCastling` to use `foldBitboard` (O(bits set), typically 4) instead of linear scan.
-
 **Impact:** ~8% speedup on KiwiPete perft (0.713s -> 0.654s, 5.7M -> 6.2M NPS). Confirmed correctness with tests.
-## 2026-02-07 – [GenMove-Based SEE]
-**Learning:** The move ordering logic was converting `GenMove` back to `Move` to call `see`. This caused allocation of `Move` objects and redundant `pieceAt` lookups (checking moving piece and target piece types), which `GenMove` already contains.
-**Action:** Implemented `seeGen` which operates directly on `GenMove`. It extracts piece types from `GenCapture` and `GenEnPassant` constructors, avoiding `Move` allocation and board lookups. Updated `Ordering.hs` to use `seeGen`. This optimizes the hot path of move sorting.

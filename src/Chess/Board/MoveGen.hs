@@ -12,8 +12,7 @@ module Chess.Board.MoveGen where
 import Data.Bits
 import Data.Word (Word64)
 import Foreign.Storable (Storable)
-import Control.Monad (liftM, when)
-import Control.Monad.ST (ST)
+import Control.Monad (liftM)
 import Data.Coerce (coerce)
 
 import qualified Data.Vector.Generic         as G
@@ -173,40 +172,16 @@ genMoveToMove (GenPromotionCapture f t p _) = Move f t (Just p)
 
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> GameState -> U.Vector GenMove
-pseudoLegalMoves b gs = U.create $ do
-    let c = turn gs
-    let occ = occupiedTotal b
-    let friends = occupiedBy b c
-    let pawns = pieceBitboard b c Pawn
-    let knights = pieceBitboard b c Knight
-    let bishops = pieceBitboard b c Bishop
-    let rooks = pieceBitboard b c Rook
-    let queens = pieceBitboard b c Queen
-    let kings = pieceBitboard b c King
+pseudoLegalMoves b gs =
+    let pm = pawnMoves b gs
+        nm = pieceMoves b gs Knight
+        bm = pieceMoves b gs Bishop
+        rm = pieceMoves b gs Rook
+        qm = pieceMoves b gs Queen
+        km = pieceMoves b gs King
+        cm = castlingMoves b gs
 
-    -- 1. Count Total
-    let !cntP = countPawnMoves b c pawns occ gs
-    let !cntN = countPieceMoves b c knights occ friends Knight
-    let !cntB = countPieceMoves b c bishops occ friends Bishop
-    let !cntR = countPieceMoves b c rooks occ friends Rook
-    let !cntQ = countPieceMoves b c queens occ friends Queen
-    let !cntK = countPieceMoves b c kings occ friends King
-    let !cntC = countCastlingMoves b gs
-
-    let total = cntP + cntN + cntB + cntR + cntQ + cntK + cntC
-
-    mv <- M.unsafeNew total
-
-    -- 2. Fill Moves
-    idx1 <- fillPawnMoves mv 0 b c pawns occ gs
-    idx2 <- fillPieceMoves mv idx1 b c knights occ friends Knight
-    idx3 <- fillPieceMoves mv idx2 b c bishops occ friends Bishop
-    idx4 <- fillPieceMoves mv idx3 b c rooks occ friends Rook
-    idx5 <- fillPieceMoves mv idx4 b c queens occ friends Queen
-    idx6 <- fillPieceMoves mv idx5 b c kings occ friends King
-    _    <- fillCastlingMoves mv idx6 b gs
-
-    return mv
+    in U.concat [pm, nm, bm, rm, qm, km, cm]
 
 -- | Generate all legal moves.
 legalMoves :: Board -> GameState -> [Move]
@@ -404,13 +379,43 @@ kingSquare b c = fmap Square (lsb (pieceBitboard b c King))
 pieceMoves :: Board -> GameState -> PieceType -> U.Vector GenMove
 pieceMoves b gs pt = U.create $ do
     let c = turn gs
+    let bb = pieceBitboard b c pt
     let occ = occupiedTotal b
     let friends = occupiedBy b c
-    let bb = pieceBitboard b c pt
+    let enemies = occupiedBy b (oppositeColor c)
+    let oppC = oppositeColor c
 
-    let count = countPieceMoves b c bb occ friends pt
-    mv <- M.unsafeNew count
-    _ <- fillPieceMoves mv 0 b c bb occ friends pt
+    let getAttacks from = case pt of
+             Knight -> knightAttacks from
+             Bishop -> bishopAttacks from occ
+             Rook   -> rookAttacks from occ
+             Queen  -> bishopAttacks from occ .|. rookAttacks from occ
+             King   -> kingAttacks from
+             _      -> 0
+
+    -- Pass 1: Count
+    let countMoves acc from = acc + popCount (getAttacks from .&. complement friends)
+    let total = foldBitboard countMoves 0 bb
+
+    mv <- M.unsafeNew total
+
+    -- Pass 2: Fill
+    let fillAcc !idx from = do
+            let att = getAttacks from
+            let valid = att .&. complement friends
+
+            let writeMove idx2 to = do
+                    let toI = unSquare to
+                    let isCap = testBit enemies toI
+                    let gm = if isCap
+                             then GenCapture from to pt (findPieceType b oppC to)
+                             else GenQuiet from to pt
+                    M.unsafeWrite mv idx2 gm
+                    return (idx2 + 1)
+
+            foldBitboardM writeMove idx valid
+
+    _ <- foldBitboardM fillAcc 0 bb
     return mv
 
 pieceCaptures :: Board -> GameState -> PieceType -> U.Vector GenMove
@@ -486,15 +491,7 @@ pieceQuiets b gs pt = U.create $ do
     return mv
 
 pawnMoves :: Board -> GameState -> U.Vector GenMove
-pawnMoves b gs = U.create $ do
-    let c = turn gs
-    let occ = occupiedTotal b
-    let pawns = pieceBitboard b c Pawn
-
-    let count = countPawnMoves b c pawns occ gs
-    mv <- M.unsafeNew count
-    _ <- fillPawnMoves mv 0 b c pawns occ gs
-    return mv
+pawnMoves b gs = U.concat [pawnQuiets b gs, pawnCaptures b gs, pawnPromotions b gs]
 
 pawnQuiets :: Board -> GameState -> U.Vector GenMove
 pawnQuiets b gs = U.create $ do
@@ -774,11 +771,30 @@ pawnCaptures b gs = U.create $ do
     return mv
 
 castlingMoves :: Board -> GameState -> U.Vector GenMove
-castlingMoves b gs = U.create $ do
-    let cnt = countCastlingMoves b gs
-    mv <- M.unsafeNew cnt
-    _ <- fillCastlingMoves mv 0 b gs
-    return mv
+castlingMoves b gs = U.fromList (ks ++ qs)
+  where
+    c = turn gs
+    ks = if canCastleKingside gs c && kingsideClear then [mkCastlingMove True] else []
+    qs = if canCastleQueenside gs c && queensideClear then [mkCastlingMove False] else []
+
+    rank = if c == White then 0 else 7
+    kingSq = Square (rank * 8 + 4)
+
+    mkCastlingMove isKingside =
+        let toFile = if isKingside then 6 else 2
+            toSq = Square (rank * 8 + toFile)
+        in GenCastling kingSq toSq
+
+    kingsideClear =
+        let f1 = Square (rank * 8 + 5)
+            g1 = Square (rank * 8 + 6)
+        in not (testBit (occupiedTotal b) (unSquare f1)) && not (testBit (occupiedTotal b) (unSquare g1))
+
+    queensideClear =
+        let d1 = Square (rank * 8 + 3)
+            c1 = Square (rank * 8 + 2)
+            b1 = Square (rank * 8 + 1)
+        in not (testBit (occupiedTotal b) (unSquare d1)) && not (testBit (occupiedTotal b) (unSquare c1)) && not (testBit (occupiedTotal b) (unSquare b1))
 
 -- | Apply a move to the board (without updating game state like counters).
 applyMoveBoard :: Board -> GameState -> Move -> Board
@@ -855,311 +871,3 @@ pieceMovesList b gs pt = U.toList (pieceMoves b gs pt)
 {-# INLINE castlingMovesList #-}
 castlingMovesList :: Board -> GameState -> [GenMove]
 castlingMovesList b gs = U.toList (castlingMoves b gs)
-
--- Helpers ---------------------------------------------------------------------
-
-{-# INLINE countPieceMoves #-}
-countPieceMoves :: Board -> Color -> Bitboard -> Bitboard -> Bitboard -> PieceType -> Int
-countPieceMoves _ _ bb occ friends pt = foldBitboard count 0 bb
-  where
-    count acc from =
-        let att = case pt of
-             Knight -> knightAttacks from
-             Bishop -> bishopAttacks from occ
-             Rook   -> rookAttacks from occ
-             Queen  -> bishopAttacks from occ .|. rookAttacks from occ
-             King   -> kingAttacks from
-             _      -> 0
-        in acc + popCount (att .&. complement friends)
-
-{-# INLINE fillPieceMoves #-}
-fillPieceMoves :: U.MVector s GenMove -> Int -> Board -> Color -> Bitboard -> Bitboard -> Bitboard -> PieceType -> ST s Int
-fillPieceMoves mv startIdx b c bb occ friends pt = foldBitboardM fill startIdx bb
-  where
-    oppC = oppositeColor c
-    enemies = occupiedBy b oppC
-
-    fill !idx from = do
-        let att = case pt of
-             Knight -> knightAttacks from
-             Bishop -> bishopAttacks from occ
-             Rook   -> rookAttacks from occ
-             Queen  -> bishopAttacks from occ .|. rookAttacks from occ
-             King   -> kingAttacks from
-             _      -> 0
-        let valid = att .&. complement friends
-
-        let writeMove idx2 to = do
-                let toI = unSquare to
-                let isCap = testBit enemies toI
-                let gm = if isCap
-                         then GenCapture from to pt (findPieceType b oppC to)
-                         else GenQuiet from to pt
-                M.unsafeWrite mv idx2 gm
-                return (idx2 + 1)
-
-        foldBitboardM writeMove idx valid
-
-{-# INLINE countPawnMoves #-}
-countPawnMoves :: Board -> Color -> Bitboard -> Bitboard -> GameState -> Int
-countPawnMoves b c pawns occ gs = foldBitboard count 0 pawns
-  where
-    enemy = occupiedBy b (oppositeColor c)
-    ep = epSquare gs
-    epIdx = unSquare ep
-
-    count acc from =
-        let i = unSquare from
-        in if c == White then
-            let
-                -- 1. Quiet
-                to8 = i + 8
-                acc1 = if testBit occ to8 then acc
-                       else
-                           let a = if to8 >= 56 then acc + 4 else acc + 1
-                               to16 = i + 16
-                           in if i >= 8 && i <= 15 && not (testBit occ to16)
-                              then a + 1
-                              else a
-                -- 2. Capture Right (i+9)
-                acc2 = if (i `mod` 8) /= 7
-                       then let to9 = i + 9
-                            in if testBit enemy to9
-                               then if to9 >= 56 then acc1 + 4 else acc1 + 1
-                               else if ep /= NoSquare && to9 == epIdx then acc1 + 1 else acc1
-                       else acc1
-                -- 3. Capture Left (i+7)
-                acc3 = if (i `mod` 8) /= 0
-                       then let to7 = i + 7
-                            in if testBit enemy to7
-                               then if to7 >= 56 then acc2 + 4 else acc2 + 1
-                               else if ep /= NoSquare && to7 == epIdx then acc2 + 1 else acc2
-                       else acc2
-            in acc3
-        else -- Black
-            let
-                -- 1. Quiet
-                to8 = i - 8
-                acc1 = if testBit occ to8 then acc
-                       else
-                           let a = if to8 <= 7 then acc + 4 else acc + 1
-                               to16 = i - 16
-                           in if i >= 48 && i <= 55 && not (testBit occ to16)
-                              then a + 1
-                              else a
-                -- 2. Capture Right (i-7)
-                acc2 = if (i `mod` 8) /= 7
-                       then let to7 = i - 7
-                            in if testBit enemy to7
-                               then if to7 <= 7 then acc1 + 4 else acc1 + 1
-                               else if ep /= NoSquare && to7 == epIdx then acc1 + 1 else acc1
-                       else acc1
-                -- 3. Capture Left (i-9)
-                acc3 = if (i `mod` 8) /= 0
-                       then let to9 = i - 9
-                            in if testBit enemy to9
-                               then if to9 <= 7 then acc2 + 4 else acc2 + 1
-                               else if ep /= NoSquare && to9 == epIdx then acc2 + 1 else acc2
-                       else acc2
-            in acc3
-
-{-# INLINE fillPawnMoves #-}
-fillPawnMoves :: U.MVector s GenMove -> Int -> Board -> Color -> Bitboard -> Bitboard -> GameState -> ST s Int
-fillPawnMoves mv startIdx b c pawns occ gs = foldBitboardM fill startIdx pawns
-  where
-    enemy = occupiedBy b (oppositeColor c)
-    oppC = oppositeColor c
-    ep = epSquare gs
-    epIdx = unSquare ep
-
-    fill !idx from = do
-        let i = unSquare from
-        if c == White then do
-            -- 1. Quiet
-            let to8 = i + 8
-            idx1 <- if testBit occ to8 then return idx
-                    else do
-                        if to8 >= 56
-                        then do
-                            let dest = Square to8
-                            M.unsafeWrite mv idx     (GenPromotion from dest Queen)
-                            M.unsafeWrite mv (idx+1) (GenPromotion from dest Rook)
-                            M.unsafeWrite mv (idx+2) (GenPromotion from dest Bishop)
-                            M.unsafeWrite mv (idx+3) (GenPromotion from dest Knight)
-                            return (idx + 4)
-                        else do
-                            M.unsafeWrite mv idx (GenQuiet from (Square to8) Pawn)
-                            let to16 = i + 16
-                            if i >= 8 && i <= 15 && not (testBit occ to16)
-                            then do
-                                M.unsafeWrite mv (idx+1) (GenQuiet from (Square to16) Pawn)
-                                return (idx + 2)
-                            else return (idx + 1)
-            -- 2. Capture Right (i+9)
-            idx2 <- if (i `mod` 8) /= 7
-                    then let to9 = i + 9
-                             dest = Square to9
-                         in if testBit enemy to9
-                            then do
-                                let capPt = findPieceType b oppC dest
-                                if to9 >= 56
-                                then do
-                                    M.unsafeWrite mv idx1     (GenPromotionCapture from dest Queen capPt)
-                                    M.unsafeWrite mv (idx1+1) (GenPromotionCapture from dest Rook capPt)
-                                    M.unsafeWrite mv (idx1+2) (GenPromotionCapture from dest Bishop capPt)
-                                    M.unsafeWrite mv (idx1+3) (GenPromotionCapture from dest Knight capPt)
-                                    return (idx1 + 4)
-                                else do
-                                    M.unsafeWrite mv idx1 (GenCapture from dest Pawn capPt)
-                                    return (idx1 + 1)
-                            else if ep /= NoSquare && to9 == epIdx
-                            then do
-                                M.unsafeWrite mv idx1 (GenEnPassant from ep)
-                                return (idx1 + 1)
-                            else return idx1
-                    else return idx1
-            -- 3. Capture Left (i+7)
-            idx3 <- if (i `mod` 8) /= 0
-                    then let to7 = i + 7
-                             dest = Square to7
-                         in if testBit enemy to7
-                            then do
-                                let capPt = findPieceType b oppC dest
-                                if to7 >= 56
-                                then do
-                                    M.unsafeWrite mv idx2     (GenPromotionCapture from dest Queen capPt)
-                                    M.unsafeWrite mv (idx2+1) (GenPromotionCapture from dest Rook capPt)
-                                    M.unsafeWrite mv (idx2+2) (GenPromotionCapture from dest Bishop capPt)
-                                    M.unsafeWrite mv (idx2+3) (GenPromotionCapture from dest Knight capPt)
-                                    return (idx2 + 4)
-                                else do
-                                    M.unsafeWrite mv idx2 (GenCapture from dest Pawn capPt)
-                                    return (idx2 + 1)
-                            else if ep /= NoSquare && to7 == epIdx
-                            then do
-                                M.unsafeWrite mv idx2 (GenEnPassant from ep)
-                                return (idx2 + 1)
-                            else return idx2
-                    else return idx2
-            return idx3
-        else do -- Black
-            -- 1. Quiet
-            let to8 = i - 8
-            idx1 <- if testBit occ to8 then return idx
-                    else do
-                        if to8 <= 7
-                        then do
-                            let dest = Square to8
-                            M.unsafeWrite mv idx     (GenPromotion from dest Queen)
-                            M.unsafeWrite mv (idx+1) (GenPromotion from dest Rook)
-                            M.unsafeWrite mv (idx+2) (GenPromotion from dest Bishop)
-                            M.unsafeWrite mv (idx+3) (GenPromotion from dest Knight)
-                            return (idx + 4)
-                        else do
-                            M.unsafeWrite mv idx (GenQuiet from (Square to8) Pawn)
-                            let to16 = i - 16
-                            if i >= 48 && i <= 55 && not (testBit occ to16)
-                            then do
-                                M.unsafeWrite mv (idx+1) (GenQuiet from (Square to16) Pawn)
-                                return (idx + 2)
-                            else return (idx + 1)
-            -- 2. Capture Right (i-7)
-            idx2 <- if (i `mod` 8) /= 7
-                    then let to7 = i - 7
-                             dest = Square to7
-                         in if testBit enemy to7
-                            then do
-                                let capPt = findPieceType b oppC dest
-                                if to7 <= 7
-                                then do
-                                    M.unsafeWrite mv idx1     (GenPromotionCapture from dest Queen capPt)
-                                    M.unsafeWrite mv (idx1+1) (GenPromotionCapture from dest Rook capPt)
-                                    M.unsafeWrite mv (idx1+2) (GenPromotionCapture from dest Bishop capPt)
-                                    M.unsafeWrite mv (idx1+3) (GenPromotionCapture from dest Knight capPt)
-                                    return (idx1 + 4)
-                                else do
-                                    M.unsafeWrite mv idx1 (GenCapture from dest Pawn capPt)
-                                    return (idx1 + 1)
-                            else if ep /= NoSquare && to7 == epIdx
-                            then do
-                                M.unsafeWrite mv idx1 (GenEnPassant from ep)
-                                return (idx1 + 1)
-                            else return idx1
-                    else return idx1
-            -- 3. Capture Left (i-9)
-            idx3 <- if (i `mod` 8) /= 0
-                    then let to9 = i - 9
-                             dest = Square to9
-                         in if testBit enemy to9
-                            then do
-                                let capPt = findPieceType b oppC dest
-                                if to9 <= 7
-                                then do
-                                    M.unsafeWrite mv idx2     (GenPromotionCapture from dest Queen capPt)
-                                    M.unsafeWrite mv (idx2+1) (GenPromotionCapture from dest Rook capPt)
-                                    M.unsafeWrite mv (idx2+2) (GenPromotionCapture from dest Bishop capPt)
-                                    M.unsafeWrite mv (idx2+3) (GenPromotionCapture from dest Knight capPt)
-                                    return (idx2 + 4)
-                                else do
-                                    M.unsafeWrite mv idx2 (GenCapture from dest Pawn capPt)
-                                    return (idx2 + 1)
-                            else if ep /= NoSquare && to9 == epIdx
-                            then do
-                                M.unsafeWrite mv idx2 (GenEnPassant from ep)
-                                return (idx2 + 1)
-                            else return idx2
-                    else return idx2
-            return idx3
-
-{-# INLINE countCastlingMoves #-}
-countCastlingMoves :: Board -> GameState -> Int
-countCastlingMoves b gs = length (ks ++ qs) -- List is okay, max 2 elements
-  where
-    c = turn gs
-    ks = if canCastleKingside gs c && kingsideClear then [()] else []
-    qs = if canCastleQueenside gs c && queensideClear then [()] else []
-    rank = if c == White then 0 else 7
-    kingsideClear =
-        let f1 = Square (rank * 8 + 5)
-            g1 = Square (rank * 8 + 6)
-        in not (testBit (occupiedTotal b) (unSquare f1)) && not (testBit (occupiedTotal b) (unSquare g1))
-    queensideClear =
-        let d1 = Square (rank * 8 + 3)
-            c1 = Square (rank * 8 + 2)
-            b1 = Square (rank * 8 + 1)
-        in not (testBit (occupiedTotal b) (unSquare d1)) && not (testBit (occupiedTotal b) (unSquare c1)) && not (testBit (occupiedTotal b) (unSquare b1))
-
-{-# INLINE fillCastlingMoves #-}
-fillCastlingMoves :: U.MVector s GenMove -> Int -> Board -> GameState -> ST s Int
-fillCastlingMoves mv startIdx b gs = do
-    let c = turn gs
-    let rank = if c == White then 0 else 7
-    let kingSq = Square (rank * 8 + 4)
-    let occ = occupiedTotal b
-
-    let kingsideClear =
-            let f1 = Square (rank * 8 + 5)
-                g1 = Square (rank * 8 + 6)
-            in not (testBit occ (unSquare f1)) && not (testBit occ (unSquare g1))
-
-    let queensideClear =
-            let d1 = Square (rank * 8 + 3)
-                c1 = Square (rank * 8 + 2)
-                b1 = Square (rank * 8 + 1)
-            in not (testBit occ (unSquare d1)) && not (testBit occ (unSquare c1)) && not (testBit occ (unSquare b1))
-
-    idx1 <- if canCastleKingside gs c && kingsideClear
-            then do
-                let toSq = Square (rank * 8 + 6)
-                M.unsafeWrite mv startIdx (GenCastling kingSq toSq)
-                return (startIdx + 1)
-            else return startIdx
-
-    idx2 <- if canCastleQueenside gs c && queensideClear
-            then do
-                let toSq = Square (rank * 8 + 2)
-                M.unsafeWrite mv idx1 (GenCastling kingSq toSq)
-                return (idx1 + 1)
-            else return idx1
-
-    return idx2
