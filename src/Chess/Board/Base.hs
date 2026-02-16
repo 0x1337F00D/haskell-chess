@@ -1,7 +1,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 module Chess.Board.Base where
 
-import Data.Bits ((.|.), (.&.), testBit, setBit, clearBit, xor, shiftL, shiftR, countTrailingZeros, countLeadingZeros)
+import Data.Bits ((.|.), (.&.), setBit, clearBit, xor, shiftL, shiftR, countTrailingZeros, countLeadingZeros)
 import Data.Word (Word8)
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Unboxed.Mutable as UM
@@ -230,7 +230,8 @@ unsafeRemovePiece b sq c pt =
 -- | Remove a piece from the board.
 removePieceAt :: Board -> Square -> Board
 removePieceAt b sq =
-  let b1 = updateOccupancy $ b
+  let i = unSquare sq
+      b1 = updateOccupancy $ b
           { whitePawns   = clearBit (whitePawns b) i
           , whiteKnights = clearBit (whiteKnights b) i
           , whiteBishops = clearBit (whiteBishops b) i
@@ -246,7 +247,6 @@ removePieceAt b sq =
           }
       mb = U.modify (\v -> UM.unsafeWrite v i 0) (mailbox b)
   in b1 { mailbox = mb }
-  where i = unSquare sq
 
 -- | Move a piece from one square to another.
 -- Handles capturing if the target square is occupied.

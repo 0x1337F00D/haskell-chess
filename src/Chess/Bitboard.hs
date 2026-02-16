@@ -7,7 +7,6 @@ module Chess.Bitboard where
 import Data.Bits
 import Data.Word (Word64)
 import Data.List (foldl')
-import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Unboxed.Mutable as UM
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable as M

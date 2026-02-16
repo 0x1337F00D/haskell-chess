@@ -2,14 +2,14 @@
 module Chess.Board.San where
 
 import Data.List (find)
-import Data.Maybe (isJust, fromMaybe)
+import Data.Maybe (isJust)
 import Data.Bits ((.&.), complement, (.|.), testBit)
 
 import Chess.Types
 import Chess.Bitboard (bbFromSquare, pattern BB_A1, pattern BB_H1, pattern BB_A8, pattern BB_H8, scanForward, pawnAttacks)
 import Chess.Board.Base
 import Chess.Board.GameState
-import Chess.Board.MoveGen (isLegal, applyMoveBoard, GenMove(..), pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture)
+import Chess.Board.MoveGen (isLegal, applyMoveBoard, GenMove(..))
 import Chess.Board.Validation (isCheck, isCheckmate)
 
 -- | Convert a move to Standard Algebraic Notation (SAN).
@@ -176,6 +176,7 @@ parseSan b gs str =
         -- Helper to check legality of a Move (converting to GenMove first)
         checkLegal m@(Move from to promo) =
             let p = pieceAt b from
+        checkLegal _ = False
                 pt = maybe Pawn pieceType p
 
                 isEp = pt == Pawn && isEpCapture b gs m

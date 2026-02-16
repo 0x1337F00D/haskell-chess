@@ -12,7 +12,7 @@ module Chess.Board.MoveGen where
 import Data.Bits
 import Data.Word (Word64)
 import Foreign.Storable (Storable)
-import Control.Monad (liftM, when)
+import Control.Monad (liftM)
 import Control.Monad.ST (ST)
 import Data.Coerce (coerce)
 
@@ -399,8 +399,8 @@ applyMoveBoardFast b gs gm =
                 -- However, Board.MoveGen is primarily for Standard.
                 -- If we use this for Core, Core handles execution via genericApplyMove.
                 -- So this implementation is best-effort or placeholder.
-                b1 = unsafeRemovePiece b f c King
-                b2 = unsafeRemovePiece b1 t c Rook
+                _ = unsafeRemovePiece b f c King
+                _ = unsafeRemovePiece b t c Rook
                 -- We place them back? No, that's a null move.
                 -- Without target info (which depends on board setup), we can't fully execute 960 here.
                 -- But applyMoveBoardFast is for LEGALITY checking (isAttackedBy).
