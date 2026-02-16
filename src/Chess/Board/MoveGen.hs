@@ -19,6 +19,7 @@ import Data.Coerce (coerce)
 import qualified Data.Vector.Generic         as G
 import qualified Data.Vector.Generic.Mutable as M
 import qualified Data.Vector.Unboxed         as U
+import qualified Data.Vector.Unboxed.Mutable as UM
 
 import Chess.Types
 import Chess.Bitboard
@@ -384,7 +385,12 @@ movePieceFast b from to c pt =
         blackOcc = if c == Black then occupiedBlack b `xor` mask else occupiedBlack b
         totalOcc = occupiedTotal b `xor` mask
 
-    in b2 { occupiedWhite = whiteOcc, occupiedBlack = blackOcc, occupiedTotal = totalOcc }
+        mb = U.modify (\v -> do
+            UM.unsafeWrite v fromI 0
+            UM.unsafeWrite v toI (pieceToWord8 (Piece c pt))
+            ) (mailbox b)
+
+    in b2 { occupiedWhite = whiteOcc, occupiedBlack = blackOcc, occupiedTotal = totalOcc, mailbox = mb }
 
 castlingRookMove :: Square -> Square -> (Square, Square)
 castlingRookMove kingFrom kingTo

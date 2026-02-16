@@ -26,6 +26,9 @@ import Data.Bits (setBit, clearBit, (.&.), (.|.), testBit, complement)
 import Data.Word (Word8)
 import qualified Data.Map as Map
 import qualified Data.Vector as V
+import qualified Data.Vector.Unboxed as U
+import qualified Data.Vector.Unboxed.Mutable as UM
+import Control.Monad (forM_)
 
 -- | Convert Core Color to Engine Color
 toColor :: Color -> T.Color
@@ -85,8 +88,49 @@ toBaseBoard b = Base.Board
   , Base.whiteOrthogonal = wOrthogonal
   , Base.blackDiagonal = bDiagonal
   , Base.blackOrthogonal = bOrthogonal
+  , Base.mailbox = mb
   }
   where
+    mb = U.create $ do
+        v <- UM.replicate 64 0
+
+        -- White King
+        let wkIdx = T.unSquare (toSquare (whiteKing b))
+        UM.unsafeWrite v wkIdx (Base.pieceToWord8 (T.Piece T.White T.King))
+
+        -- Black King
+        let bkIdx = T.unSquare (toSquare (blackKing b))
+        UM.unsafeWrite v bkIdx (Base.pieceToWord8 (T.Piece T.Black T.King))
+
+        -- Pawns
+        forM_ (Map.toList (pawns b)) $ \((f, pr), c) -> do
+             let sq = Square f (toRank pr)
+             let idx = T.unSquare (toSquare sq)
+             let pc = T.Piece (toColor c) T.Pawn
+             UM.unsafeWrite v idx (Base.pieceToWord8 pc)
+
+        -- White Pieces
+        forM_ (Map.toList (whitePieces b)) $ \(sq, mp) -> do
+             let idx = T.unSquare (toSquare sq)
+             let pt = toPieceType (mmToPieceType mp)
+             let pc = T.Piece T.White pt
+             UM.unsafeWrite v idx (Base.pieceToWord8 pc)
+
+        -- Black Pieces
+        forM_ (Map.toList (blackPieces b)) $ \(sq, mp) -> do
+             let idx = T.unSquare (toSquare sq)
+             let pt = toPieceType (mmToPieceType mp)
+             let pc = T.Piece T.Black pt
+             UM.unsafeWrite v idx (Base.pieceToWord8 pc)
+
+        return v
+
+    mmToPieceType :: MajorMinorPiece c -> PieceType
+    mmToPieceType MQueen = Queen
+    mmToPieceType MRook = Rook
+    mmToPieceType MBishop = Bishop
+    mmToPieceType MKnight = Knight
+
     -- Helper to create bitboard from list of squares
     squaresToBB :: [Square] -> BB.Bitboard
     squaresToBB sqs = foldr (\s acc -> setBit acc (T.unSquare (toSquare s))) 0 sqs
