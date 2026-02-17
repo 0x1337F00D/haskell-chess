@@ -368,7 +368,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
 
                             let captures = Chess.Board.captureMovesValidated vBoard
                             let (goodCaps, badCaps) = partitionSEE vBoard captures
-                            let sortedGood = Ordering.orderGenMoves vBoard (filterTT goodCaps) sortingTT
+                            let sortedGood = Ordering.pickAndSort (filterTT goodCaps) sortingTT
 
                             (score1, flag1, bestM1, found1, alpha1) <- searchStage sortedGood (0 :: Int) inCheck staticEval alpha0 beta depth flag0 score0 bestM0 found0
 
@@ -376,7 +376,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                             then storeAndReturn score1 bestM1 TTLower
                             else do
                                 let promotions = filter (not . isCapture) (Chess.Board.legalPromotionsValidated vBoard)
-                                let sortedPromotions = Ordering.orderGenMoves vBoard (filterTT promotions) sortingTT
+                                let sortedPromotions = Ordering.pickAndSort (filterTT promotions) sortingTT
 
                                 (score2, flag2, bestM2, found2, alpha2) <- searchStage sortedPromotions (0 :: Int) inCheck staticEval alpha1 beta depth flag1 score1 bestM1 found1
 
@@ -393,7 +393,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                                     if score3 >= beta
                                     then storeAndReturn score3 bestM3 flag3
                                     else do
-                                        let sortedBad = Ordering.orderGenMoves vBoard (filterTT badCaps) sortingTT
+                                        let sortedBad = Ordering.pickAndSort (filterTT badCaps) sortingTT
                                         (score4, flag4, bestM4, found4, _) <- searchStage sortedBad (0 :: Int) inCheck staticEval alpha3 beta depth flag3 score3 bestM3 found3
 
                                         if not found4

@@ -13,6 +13,7 @@ import Data.Bits
 import Data.Word (Word64)
 import Foreign.Storable (Storable)
 import Control.Monad (liftM)
+import Control.Monad.ST (ST)
 import Data.Coerce (coerce)
 
 import qualified Data.Vector.Generic         as G
@@ -97,6 +98,14 @@ pattern GenPromotionCapture :: Square -> Square -> PieceType -> PieceType -> Gen
 pattern GenPromotionCapture f t p c <- (unpackPromotionCapture -> Just (f, t, p, c))
   where GenPromotionCapture f t p c = mkPromotionCapture f t p c
 
+
+pattern GenDrop :: PieceType -> Square -> GenMove
+pattern GenDrop p t <- (unpackGenDrop -> Just (p, t))
+  where GenDrop p t = mkGenDrop p t
+
+pattern GenCastling960 :: Square -> Square -> GenMove
+pattern GenCastling960 f t <- (unpackGenCastling960 -> Just (f, t))
+  where GenCastling960 f t = mkGenCastling960 f t
 {-# COMPLETE GenQuiet, GenCapture, GenEnPassant, GenCastling, GenPromotion, GenPromotionCapture #-}
 
 -- Helpers for packing/unpacking
@@ -161,6 +170,26 @@ unpackPromotionCapture (MkGenMove w) =
     then Just (Square (fromIntegral (w .&. 0x3F)), Square (fromIntegral ((w `shiftR` 6) .&. 0x3F)), toEnum (fromIntegral ((w `shiftR` 15) .&. 0x7)), toEnum (fromIntegral ((w `shiftR` 18) .&. 0x7)))
     else Nothing
 
+mkGenDrop :: PieceType -> Square -> GenMove
+mkGenDrop p (Square t) = MkGenMove $
+    fromIntegral t `shiftL` 6 .|. (6 `shiftL` 12) .|. (fromIntegral (fromEnum p) `shiftL` 15)
+
+unpackGenDrop :: GenMove -> Maybe (PieceType, Square)
+unpackGenDrop (MkGenMove w) =
+    if (w `shiftR` 12) .&. 0x7 == 6
+    then Just (toEnum (fromIntegral ((w `shiftR` 15) .&. 0x7)), Square (fromIntegral ((w `shiftR` 6) .&. 0x3F)))
+    else Nothing
+
+mkGenCastling960 :: Square -> Square -> GenMove
+mkGenCastling960 (Square f) (Square t) = MkGenMove $
+    fromIntegral f .|. (fromIntegral t `shiftL` 6) .|. (7 `shiftL` 12)
+
+unpackGenCastling960 :: GenMove -> Maybe (Square, Square)
+unpackGenCastling960 (MkGenMove w) =
+    if (w `shiftR` 12) .&. 0x7 == 7
+    then Just (Square (fromIntegral (w .&. 0x3F)), Square (fromIntegral ((w `shiftR` 6) .&. 0x3F)))
+    else Nothing
+
 -- | Convert a GenMove back to a standard Move.
 genMoveToMove :: GenMove -> Move
 genMoveToMove (GenQuiet f t _) = Move f t Nothing
@@ -172,16 +201,31 @@ genMoveToMove (GenPromotionCapture f t p _) = Move f t (Just p)
 
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> GameState -> U.Vector GenMove
-pseudoLegalMoves b gs =
-    let pm = pawnMoves b gs
-        nm = pieceMoves b gs Knight
-        bm = pieceMoves b gs Bishop
-        rm = pieceMoves b gs Rook
-        qm = pieceMoves b gs Queen
-        km = pieceMoves b gs King
-        cm = castlingMoves b gs
+pseudoLegalMoves b gs = U.create $ do
+    let cpq = countPawnQuiets b gs
+    let cpc = countPawnCaptures b gs
+    let cpp = countPawnPromotions b gs
+    let cn = countPieceMoves b gs Knight
+    let cb = countPieceMoves b gs Bishop
+    let cr = countPieceMoves b gs Rook
+    let cq = countPieceMoves b gs Queen
+    let ck = countPieceMoves b gs King
+    let cc = countCastlingMoves b gs
 
-    in U.concat [pm, nm, bm, rm, qm, km, cm]
+    let total = cpq + cpc + cpp + cn + cb + cr + cq + ck + cc
+    mv <- M.unsafeNew total
+
+    idx0 <- fillPawnQuiets b gs mv 0
+    idx1 <- fillPawnCaptures b gs mv idx0
+    idx2 <- fillPawnPromotions b gs mv idx1
+    idx3 <- fillPieceMoves b gs Knight mv idx2
+    idx4 <- fillPieceMoves b gs Bishop mv idx3
+    idx5 <- fillPieceMoves b gs Rook mv idx4
+    idx6 <- fillPieceMoves b gs Queen mv idx5
+    idx7 <- fillPieceMoves b gs King mv idx6
+    _    <- fillCastlingMoves b gs mv idx7
+
+    return mv
 
 -- | Generate all legal moves.
 legalMoves :: Board -> GameState -> [Move]
@@ -378,32 +422,47 @@ kingSquare b c = fmap Square (lsb (pieceBitboard b c King))
 
 pieceMoves :: Board -> GameState -> PieceType -> U.Vector GenMove
 pieceMoves b gs pt = U.create $ do
-    let c = turn gs
-    let bb = pieceBitboard b c pt
-    let occ = occupiedTotal b
-    let friends = occupiedBy b c
-    let enemies = occupiedBy b (oppositeColor c)
-    let oppC = oppositeColor c
+    let total = countPieceMoves b gs pt
+    mv <- M.unsafeNew total
+    _ <- fillPieceMoves b gs pt mv 0
+    return mv
 
-    let getAttacks from = case pt of
+{-# INLINE countPieceMoves #-}
+countPieceMoves :: Board -> GameState -> PieceType -> Int
+countPieceMoves b gs pt =
+    let c = turn gs
+        bb = pieceBitboard b c pt
+        occ = occupiedTotal b
+        friends = occupiedBy b c
+        getAttacks from = case pt of
              Knight -> knightAttacks from
              Bishop -> bishopAttacks from occ
              Rook   -> rookAttacks from occ
              Queen  -> bishopAttacks from occ .|. rookAttacks from occ
              King   -> kingAttacks from
              _      -> 0
+        countMoves acc from = acc + popCount (getAttacks from .&. complement friends)
+    in foldBitboard countMoves 0 bb
 
-    -- Pass 1: Count
-    let countMoves acc from = acc + popCount (getAttacks from .&. complement friends)
-    let total = foldBitboard countMoves 0 bb
-
-    mv <- M.unsafeNew total
-
-    -- Pass 2: Fill
-    let fillAcc !idx from = do
+{-# INLINE fillPieceMoves #-}
+fillPieceMoves :: Board -> GameState -> PieceType -> U.MVector s GenMove -> Int -> ST s Int
+fillPieceMoves b gs pt mv !startIdx =
+    let c = turn gs
+        bb = pieceBitboard b c pt
+        occ = occupiedTotal b
+        friends = occupiedBy b c
+        enemies = occupiedBy b (oppositeColor c)
+        oppC = oppositeColor c
+        getAttacks from = case pt of
+             Knight -> knightAttacks from
+             Bishop -> bishopAttacks from occ
+             Rook   -> rookAttacks from occ
+             Queen  -> bishopAttacks from occ .|. rookAttacks from occ
+             King   -> kingAttacks from
+             _      -> 0
+        fillAcc !idx from = do
             let att = getAttacks from
             let valid = att .&. complement friends
-
             let writeMove idx2 to = do
                     let toI = unSquare to
                     let isCap = testBit enemies toI
@@ -412,95 +471,121 @@ pieceMoves b gs pt = U.create $ do
                              else GenQuiet from to pt
                     M.unsafeWrite mv idx2 gm
                     return (idx2 + 1)
-
             foldBitboardM writeMove idx valid
-
-    _ <- foldBitboardM fillAcc 0 bb
-    return mv
+    in foldBitboardM fillAcc startIdx bb
 
 pieceCaptures :: Board -> GameState -> PieceType -> U.Vector GenMove
 pieceCaptures b gs pt = U.create $ do
-    let c = turn gs
-    let bb = pieceBitboard b c pt
-    let occ = occupiedTotal b
-    let enemies = occupiedBy b (oppositeColor c)
-    let oppC = oppositeColor c
+    let total = countPieceCaptures b gs pt
+    mv <- M.unsafeNew total
+    _ <- fillPieceCaptures b gs pt mv 0
+    return mv
 
-    let getAttacks from = case pt of
+{-# INLINE countPieceCaptures #-}
+countPieceCaptures :: Board -> GameState -> PieceType -> Int
+countPieceCaptures b gs pt =
+    let c = turn gs
+        bb = pieceBitboard b c pt
+        occ = occupiedTotal b
+        enemies = occupiedBy b (oppositeColor c)
+        getAttacks from = case pt of
              Knight -> knightAttacks from
              Bishop -> bishopAttacks from occ
              Rook   -> rookAttacks from occ
              Queen  -> bishopAttacks from occ .|. rookAttacks from occ
              King   -> kingAttacks from
              _      -> 0
+        countMoves acc from = acc + popCount (getAttacks from .&. enemies)
+    in foldBitboard countMoves 0 bb
 
-    -- Pass 1: Count
-    let countMoves acc from = acc + popCount (getAttacks from .&. enemies)
-    let total = foldBitboard countMoves 0 bb
-
-    mv <- M.unsafeNew total
-
-    -- Pass 2: Fill
-    let fillAcc !idx from = do
+{-# INLINE fillPieceCaptures #-}
+fillPieceCaptures :: Board -> GameState -> PieceType -> U.MVector s GenMove -> Int -> ST s Int
+fillPieceCaptures b gs pt mv !startIdx =
+    let c = turn gs
+        bb = pieceBitboard b c pt
+        occ = occupiedTotal b
+        enemies = occupiedBy b (oppositeColor c)
+        oppC = oppositeColor c
+        getAttacks from = case pt of
+             Knight -> knightAttacks from
+             Bishop -> bishopAttacks from occ
+             Rook   -> rookAttacks from occ
+             Queen  -> bishopAttacks from occ .|. rookAttacks from occ
+             King   -> kingAttacks from
+             _      -> 0
+        fillAcc !idx from = do
             let att = getAttacks from
             let valid = att .&. enemies
-
             let writeMove idx2 to = do
                     let gm = GenCapture from to pt (findPieceType b oppC to)
                     M.unsafeWrite mv idx2 gm
                     return (idx2 + 1)
-
             foldBitboardM writeMove idx valid
-
-    _ <- foldBitboardM fillAcc 0 bb
-    return mv
+    in foldBitboardM fillAcc startIdx bb
 
 pieceQuiets :: Board -> GameState -> PieceType -> U.Vector GenMove
 pieceQuiets b gs pt = U.create $ do
-    let c = turn gs
-    let bb = pieceBitboard b c pt
-    let occ = occupiedTotal b
+    let total = countPieceQuiets b gs pt
+    mv <- M.unsafeNew total
+    _ <- fillPieceQuiets b gs pt mv 0
+    return mv
 
-    let getAttacks from = case pt of
+{-# INLINE countPieceQuiets #-}
+countPieceQuiets :: Board -> GameState -> PieceType -> Int
+countPieceQuiets b gs pt =
+    let c = turn gs
+        bb = pieceBitboard b c pt
+        occ = occupiedTotal b
+        getAttacks from = case pt of
              Knight -> knightAttacks from
              Bishop -> bishopAttacks from occ
              Rook   -> rookAttacks from occ
              Queen  -> bishopAttacks from occ .|. rookAttacks from occ
              King   -> kingAttacks from
              _      -> 0
+        countMoves acc from = acc + popCount (getAttacks from .&. complement occ)
+    in foldBitboard countMoves 0 bb
 
-    -- Pass 1: Count
-    let countMoves acc from = acc + popCount (getAttacks from .&. complement occ)
-    let total = foldBitboard countMoves 0 bb
-
-    mv <- M.unsafeNew total
-
-    -- Pass 2: Fill
-    let fillAcc !idx from = do
+{-# INLINE fillPieceQuiets #-}
+fillPieceQuiets :: Board -> GameState -> PieceType -> U.MVector s GenMove -> Int -> ST s Int
+fillPieceQuiets b gs pt mv !startIdx =
+    let c = turn gs
+        bb = pieceBitboard b c pt
+        occ = occupiedTotal b
+        getAttacks from = case pt of
+             Knight -> knightAttacks from
+             Bishop -> bishopAttacks from occ
+             Rook   -> rookAttacks from occ
+             Queen  -> bishopAttacks from occ .|. rookAttacks from occ
+             King   -> kingAttacks from
+             _      -> 0
+        fillAcc !idx from = do
             let att = getAttacks from
             let valid = att .&. complement occ
-
             let writeMove idx2 to = do
                     let gm = GenQuiet from to pt
                     M.unsafeWrite mv idx2 gm
                     return (idx2 + 1)
-
             foldBitboardM writeMove idx valid
-
-    _ <- foldBitboardM fillAcc 0 bb
-    return mv
+    in foldBitboardM fillAcc startIdx bb
 
 pawnMoves :: Board -> GameState -> U.Vector GenMove
 pawnMoves b gs = U.concat [pawnQuiets b gs, pawnCaptures b gs, pawnPromotions b gs]
 
 pawnQuiets :: Board -> GameState -> U.Vector GenMove
 pawnQuiets b gs = U.create $ do
-    let c = turn gs
-    let pawns = pieceBitboard b c Pawn
-    let occ = occupiedTotal b
+    let total = countPawnQuiets b gs
+    mv <- M.unsafeNew total
+    _ <- fillPawnQuiets b gs mv 0
+    return mv
 
-    -- Pass 1: Count
-    let countMoves acc from =
+{-# INLINE countPawnQuiets #-}
+countPawnQuiets :: Board -> GameState -> Int
+countPawnQuiets b gs =
+    let c = turn gs
+        pawns = pieceBitboard b c Pawn
+        occ = occupiedTotal b
+        countMoves acc from =
             let i = unSquare from
             in if c == White
                then
@@ -521,12 +606,15 @@ pawnQuiets b gs = U.create $ do
                           in if i >= 48 && i <= 55 && not (testBit occ to16)
                              then acc1 + 1
                              else acc1
+    in foldBitboard countMoves 0 pawns
 
-    let total = foldBitboard countMoves 0 pawns
-    mv <- M.unsafeNew total
-
-    -- Pass 2: Fill
-    let fillMoves !idx from =
+{-# INLINE fillPawnQuiets #-}
+fillPawnQuiets :: Board -> GameState -> U.MVector s GenMove -> Int -> ST s Int
+fillPawnQuiets b gs mv !startIdx =
+    let c = turn gs
+        pawns = pieceBitboard b c Pawn
+        occ = occupiedTotal b
+        fillMoves !idx from =
             let i = unSquare from
             in if c == White
                then
@@ -557,18 +645,22 @@ pawnQuiets b gs = U.create $ do
                               M.unsafeWrite mv idx1 (GenQuiet from (Square to16) Pawn)
                               return (idx1 + 1)
                           else return idx1
-
-    _ <- foldBitboardM fillMoves 0 pawns
-    return mv
+    in foldBitboardM fillMoves startIdx pawns
 
 pawnPromotions :: Board -> GameState -> U.Vector GenMove
 pawnPromotions b gs = U.create $ do
-    let c = turn gs
-    let pawns = pieceBitboard b c Pawn
-    let occ = occupiedTotal b
+    let total = countPawnPromotions b gs
+    mv <- M.unsafeNew total
+    _ <- fillPawnPromotions b gs mv 0
+    return mv
 
-    -- Pass 1: Count
-    let countMoves acc from =
+{-# INLINE countPawnPromotions #-}
+countPawnPromotions :: Board -> GameState -> Int
+countPawnPromotions b gs =
+    let c = turn gs
+        pawns = pieceBitboard b c Pawn
+        occ = occupiedTotal b
+        countMoves acc from =
             let i = unSquare from
             in if c == White
                then
@@ -577,12 +669,15 @@ pawnPromotions b gs = U.create $ do
                else
                    let to8 = i - 8
                    in if not (testBit occ to8) && to8 <= 7 then acc + 4 else acc
+    in foldBitboard countMoves 0 pawns
 
-    let total = foldBitboard countMoves 0 pawns
-    mv <- M.unsafeNew total
-
-    -- Pass 2: Fill
-    let fillMoves !idx from =
+{-# INLINE fillPawnPromotions #-}
+fillPawnPromotions :: Board -> GameState -> U.MVector s GenMove -> Int -> ST s Int
+fillPawnPromotions b gs mv !startIdx =
+    let c = turn gs
+        pawns = pieceBitboard b c Pawn
+        occ = occupiedTotal b
+        fillMoves !idx from =
             let i = unSquare from
             in if c == White
                then
@@ -607,21 +702,24 @@ pawnPromotions b gs = U.create $ do
                           M.unsafeWrite mv (idx+3) (GenPromotion from dest Knight)
                           return (idx + 4)
                       else return idx
-
-    _ <- foldBitboardM fillMoves 0 pawns
-    return mv
+    in foldBitboardM fillMoves startIdx pawns
 
 pawnCaptures :: Board -> GameState -> U.Vector GenMove
 pawnCaptures b gs = U.create $ do
-    let c = turn gs
-    let pawns = pieceBitboard b c Pawn
-    let enemy = occupiedBy b (oppositeColor c)
-    let oppC = oppositeColor c
-    let ep = epSquare gs
-    let epIdx = unSquare ep
+    let total = countPawnCaptures b gs
+    mv <- M.unsafeNew total
+    _ <- fillPawnCaptures b gs mv 0
+    return mv
 
-    -- Pass 1: Count
-    let countMoves acc from =
+{-# INLINE countPawnCaptures #-}
+countPawnCaptures :: Board -> GameState -> Int
+countPawnCaptures b gs =
+    let c = turn gs
+        pawns = pieceBitboard b c Pawn
+        enemy = occupiedBy b (oppositeColor c)
+        ep = epSquare gs
+        epIdx = unSquare ep
+        countMoves acc from =
             let i = unSquare from
             in if c == White then
                 let
@@ -669,12 +767,18 @@ pawnCaptures b gs = U.create $ do
                                    else cnt2
                            else cnt2
                 in cnt3
+    in foldBitboard countMoves 0 pawns
 
-    let total = foldBitboard countMoves 0 pawns
-    mv <- M.unsafeNew total
-
-    -- Pass 2: Fill
-    let fillMoves !idx from =
+{-# INLINE fillPawnCaptures #-}
+fillPawnCaptures :: Board -> GameState -> U.MVector s GenMove -> Int -> ST s Int
+fillPawnCaptures b gs mv !startIdx =
+    let c = turn gs
+        pawns = pieceBitboard b c Pawn
+        enemy = occupiedBy b (oppositeColor c)
+        oppC = oppositeColor c
+        ep = epSquare gs
+        epIdx = unSquare ep
+        fillMoves !idx from =
             let i = unSquare from
             in if c == White then do
                 -- EP
@@ -766,35 +870,72 @@ pawnCaptures b gs = U.create $ do
                                     return (idx2 + 1)
                         else return idx2
                 else return idx2
-
-    _ <- foldBitboardM fillMoves 0 pawns
-    return mv
+    in foldBitboardM fillMoves startIdx pawns
 
 castlingMoves :: Board -> GameState -> U.Vector GenMove
-castlingMoves b gs = U.fromList (ks ++ qs)
-  where
-    c = turn gs
-    ks = if canCastleKingside gs c && kingsideClear then [mkCastlingMove True] else []
-    qs = if canCastleQueenside gs c && queensideClear then [mkCastlingMove False] else []
+castlingMoves b gs = U.create $ do
+    let total = countCastlingMoves b gs
+    mv <- M.unsafeNew total
+    _ <- fillCastlingMoves b gs mv 0
+    return mv
 
-    rank = if c == White then 0 else 7
-    kingSq = Square (rank * 8 + 4)
+{-# INLINE countCastlingMoves #-}
+countCastlingMoves :: Board -> GameState -> Int
+countCastlingMoves b gs =
+    let c = turn gs
+        rank = if c == White then 0 else 7
+        occ = occupiedTotal b
+        kingsideClear =
+            let f1 = Square (rank * 8 + 5)
+                g1 = Square (rank * 8 + 6)
+            in not (testBit occ (unSquare f1)) && not (testBit occ (unSquare g1))
+        queensideClear =
+            let d1 = Square (rank * 8 + 3)
+                c1 = Square (rank * 8 + 2)
+                b1 = Square (rank * 8 + 1)
+            in not (testBit occ (unSquare d1)) && not (testBit occ (unSquare c1)) && not (testBit occ (unSquare b1))
+        hasKS = canCastleKingside gs c && kingsideClear
+        hasQS = canCastleQueenside gs c && queensideClear
+    in (if hasKS then 1 else 0) + (if hasQS then 1 else 0)
 
-    mkCastlingMove isKingside =
-        let toFile = if isKingside then 6 else 2
-            toSq = Square (rank * 8 + toFile)
-        in GenCastling kingSq toSq
+{-# INLINE fillCastlingMoves #-}
+fillCastlingMoves :: Board -> GameState -> U.MVector s GenMove -> Int -> ST s Int
+fillCastlingMoves b gs mv !startIdx = do
+    let c = turn gs
+        rank = if c == White then 0 else 7
+        occ = occupiedTotal b
+        kingSq = Square (rank * 8 + 4)
 
-    kingsideClear =
-        let f1 = Square (rank * 8 + 5)
-            g1 = Square (rank * 8 + 6)
-        in not (testBit (occupiedTotal b) (unSquare f1)) && not (testBit (occupiedTotal b) (unSquare g1))
+        kingsideClear =
+            let f1 = Square (rank * 8 + 5)
+                g1 = Square (rank * 8 + 6)
+            in not (testBit occ (unSquare f1)) && not (testBit occ (unSquare g1))
+        queensideClear =
+            let d1 = Square (rank * 8 + 3)
+                c1 = Square (rank * 8 + 2)
+                b1 = Square (rank * 8 + 1)
+            in not (testBit occ (unSquare d1)) && not (testBit occ (unSquare c1)) && not (testBit occ (unSquare b1))
 
-    queensideClear =
-        let d1 = Square (rank * 8 + 3)
-            c1 = Square (rank * 8 + 2)
-            b1 = Square (rank * 8 + 1)
-        in not (testBit (occupiedTotal b) (unSquare d1)) && not (testBit (occupiedTotal b) (unSquare c1)) && not (testBit (occupiedTotal b) (unSquare b1))
+        mkCastlingMove isKingside =
+            let toFile = if isKingside then 6 else 2
+                toSq = Square (rank * 8 + toFile)
+            in GenCastling kingSq toSq
+
+        hasKS = canCastleKingside gs c && kingsideClear
+        hasQS = canCastleQueenside gs c && queensideClear
+
+    idx1 <- if hasKS
+            then do
+                M.unsafeWrite mv startIdx (mkCastlingMove True)
+                return (startIdx + 1)
+            else return startIdx
+
+    idx2 <- if hasQS
+            then do
+                M.unsafeWrite mv idx1 (mkCastlingMove False)
+                return (idx1 + 1)
+            else return idx1
+    return idx2
 
 -- | Apply a move to the board (without updating game state like counters).
 applyMoveBoard :: Board -> GameState -> Move -> Board

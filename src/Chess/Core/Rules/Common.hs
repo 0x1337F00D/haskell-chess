@@ -26,6 +26,9 @@ import Data.Bits (setBit, clearBit, (.&.), (.|.), testBit, complement)
 import Data.Word (Word8)
 import qualified Data.Map as Map
 import qualified Data.Vector as V
+import qualified Data.Vector.Unboxed as U
+import qualified Data.Vector.Unboxed.Mutable as UM
+import Control.Monad (forM_)
 
 -- | Convert Core Color to Engine Color
 toColor :: Color -> T.Color
@@ -87,6 +90,12 @@ toBaseBoard b = Base.Board
   , Base.blackOrthogonal = bOrthogonal
   }
   where
+    mmToPieceType :: MajorMinorPiece c -> PieceType
+    mmToPieceType MQueen = Queen
+    mmToPieceType MRook = Rook
+    mmToPieceType MBishop = Bishop
+    mmToPieceType MKnight = Knight
+
     -- Helper to create bitboard from list of squares
     squaresToBB :: [Square] -> BB.Bitboard
     squaresToBB sqs = foldr (\s acc -> setBit acc (T.unSquare (toSquare s))) 0 sqs
@@ -149,20 +158,7 @@ generateLegalMoves :: forall v c s. (KnownColor c, ChessVariant v) => ActiveGame
 generateLegalMoves = generateMoves
 
 toCoreMove :: MG.GenMove -> Move c
-toCoreMove gm =
-  case gm of
-    MG.GenQuiet f t pt ->
-        QuietMove (fromSquare f) (fromSquare t) (fromPieceType pt)
-    MG.GenCapture f t pt cap ->
-        CaptureMove (fromSquare f) (fromSquare t) (fromPieceType pt) (fromPieceType cap)
-    MG.GenEnPassant f t ->
-        EnPassantMove (fromSquare f) (fromSquare t)
-    MG.GenCastling f t ->
-        CastlingMove (fromSquare f) (fromSquare t)
-    MG.GenPromotion f t ppt ->
-        PromotionMove (fromSquare f) (fromSquare t) (fromPieceType ppt)
-    MG.GenPromotionCapture f t ppt cap ->
-        PromotionCaptureMove (fromSquare f) (fromSquare t) (fromPieceType ppt) (fromPieceType cap)
+toCoreMove = Move
 
 isCastlingMove :: T.Piece -> Square -> Square -> Bool
 isCastlingMove p from to =
