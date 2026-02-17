@@ -270,6 +270,10 @@ pseudoLegalQuiets b gs = U.concat
 legalGenQuiets :: Board -> GameState -> U.Vector GenMove
 legalGenQuiets b gs = U.filter (isLegal b gs) (pseudoLegalQuiets b gs)
 
+-- | Generate all legal quiet moves that give check, returning GenMove.
+legalQuietChecks :: Board -> GameState -> U.Vector GenMove
+legalQuietChecks b gs = U.filter (\gm -> givesCheckFast b gs gm && isLegal b gs gm) (pseudoLegalQuiets b gs)
+
 -- | Generate all pseudo-legal promotion moves.
 pseudoLegalPromotions :: Board -> GameState -> U.Vector GenMove
 pseudoLegalPromotions b gs = pawnPromotions b gs

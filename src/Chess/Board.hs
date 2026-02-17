@@ -30,6 +30,7 @@ module Chess.Board
   , legalMovesValidated
   , captureMovesValidated
   , legalQuietsValidated
+  , legalQuietChecksValidated
   , legalPromotionsValidated
   , applyLegalMove
   , moveFrom
@@ -342,6 +343,9 @@ captureMovesValidated (ValidatedBoard b) = map LegalMove (captureGenMoves b)
 
 legalQuietsValidated :: ValidatedBoard -> [LegalMove]
 legalQuietsValidated (ValidatedBoard b) = map LegalMove (legalGenQuiets b)
+
+legalQuietChecksValidated :: ValidatedBoard -> [LegalMove]
+legalQuietChecksValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.legalQuietChecks b gs
 
 legalPromotionsValidated :: ValidatedBoard -> [LegalMove]
 legalPromotionsValidated (ValidatedBoard b) = map LegalMove (legalGenPromotions b)
