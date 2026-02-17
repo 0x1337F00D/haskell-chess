@@ -51,7 +51,7 @@ hordeInitialGame =
       wOcc = wPawns
       bOcc = bPawns .|. bKnights .|. bBishops .|. bRooks .|. bQueens .|. bKings
 
-      baseBoard = Base.Board
+      baseBoard = Base.computeScores $ Base.Board
           { Base.whitePawns   = wPawns
           , Base.blackPawns   = bPawns
           , Base.whiteKnights = 0
@@ -71,6 +71,9 @@ hordeInitialGame =
           , Base.whiteOrthogonal = 0
           , Base.blackDiagonal = bBishops .|. bQueens
           , Base.blackOrthogonal = bRooks .|. bQueens
+          , Base.scoreWhite = 0
+          , Base.scoreBlack = 0
+          , Base.gamePhase = 0
           }
 
       -- Castling Rights: Black only (King Side + Queen Side)

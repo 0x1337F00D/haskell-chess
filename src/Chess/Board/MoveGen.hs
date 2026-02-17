@@ -607,38 +607,7 @@ applyMoveBoardFast b gs gm =
             in unsafePutPiece b2 to (Piece c promoPt)
 
 movePieceFast :: Board -> Square -> Square -> Color -> PieceType -> Board
-movePieceFast b from to c pt =
-    let fromI = unSquare from
-        toI   = unSquare to
-        mask = (1 `shiftL` fromI) `xor` (1 `shiftL` toI)
-
-        b2 = case (c, pt) of
-               (White, Pawn)   -> b { whitePawns   = whitePawns b `xor` mask }
-               (White, Knight) -> b { whiteKnights = whiteKnights b `xor` mask }
-               (White, Bishop) -> b { whiteBishops = whiteBishops b `xor` mask
-                                    , whiteDiagonal = whiteDiagonal b `xor` mask }
-               (White, Rook)   -> b { whiteRooks   = whiteRooks b `xor` mask
-                                    , whiteOrthogonal = whiteOrthogonal b `xor` mask }
-               (White, Queen)  -> b { whiteQueens  = whiteQueens b `xor` mask
-                                    , whiteDiagonal = whiteDiagonal b `xor` mask
-                                    , whiteOrthogonal = whiteOrthogonal b `xor` mask }
-               (White, King)   -> b { whiteKings   = whiteKings b `xor` mask }
-               (Black, Pawn)   -> b { blackPawns   = blackPawns b `xor` mask }
-               (Black, Knight) -> b { blackKnights = blackKnights b `xor` mask }
-               (Black, Bishop) -> b { blackBishops = blackBishops b `xor` mask
-                                    , blackDiagonal = blackDiagonal b `xor` mask }
-               (Black, Rook)   -> b { blackRooks   = blackRooks b `xor` mask
-                                    , blackOrthogonal = blackOrthogonal b `xor` mask }
-               (Black, Queen)  -> b { blackQueens  = blackQueens b `xor` mask
-                                    , blackDiagonal = blackDiagonal b `xor` mask
-                                    , blackOrthogonal = blackOrthogonal b `xor` mask }
-               (Black, King)   -> b { blackKings   = blackKings b `xor` mask }
-
-        whiteOcc = if c == White then occupiedWhite b `xor` mask else occupiedWhite b
-        blackOcc = if c == Black then occupiedBlack b `xor` mask else occupiedBlack b
-        totalOcc = occupiedTotal b `xor` mask
-
-    in b2 { occupiedWhite = whiteOcc, occupiedBlack = blackOcc, occupiedTotal = totalOcc }
+movePieceFast = unsafeMovePiece
 
 castlingRookMove :: Square -> Square -> (Square, Square)
 castlingRookMove kingFrom kingTo

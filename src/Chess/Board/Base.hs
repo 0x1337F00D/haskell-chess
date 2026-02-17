@@ -1,10 +1,12 @@
 {-# LANGUAGE PatternSynonyms #-}
 module Chess.Board.Base where
 
-import Data.Bits ((.|.), (.&.), testBit, setBit, clearBit, xor, shiftL, countTrailingZeros, countLeadingZeros)
+import Data.Bits ((.|.), (.&.), testBit, setBit, clearBit, xor, shiftL, countTrailingZeros, countLeadingZeros, popCount)
 
+import qualified Data.Vector.Unboxed as U
 import Chess.Types
 import Chess.Bitboard
+import Chess.Data.Evaluation
 
 -- | A board representation with bitboards for each piece type and color.
 data Board = Board
@@ -28,11 +30,47 @@ data Board = Board
   , whiteOrthogonal :: {-# UNPACK #-} !Bitboard -- Rooks | Queens
   , blackDiagonal   :: {-# UNPACK #-} !Bitboard -- Bishops | Queens
   , blackOrthogonal :: {-# UNPACK #-} !Bitboard -- Rooks | Queens
+  -- Cached Evaluation Scores
+  , scoreWhite      :: {-# UNPACK #-} !PackedScore
+  , scoreBlack      :: {-# UNPACK #-} !PackedScore
+  , gamePhase       :: {-# UNPACK #-} !Int
   } deriving (Eq, Show)
 
 -- | An empty board.
 empty :: Board
-empty = Board 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+empty = Board 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+
+-- | Compute scores from scratch.
+computeScores :: Board -> Board
+computeScores b =
+    let
+        -- Helper
+        eval :: Bitboard -> PackedScore -> U.Vector PackedScore -> PackedScore
+        eval bb mat table = (popCount bb * mat) + evalPacked bb table
+
+        -- White Scores
+        sw = eval (whitePawns b)   (packedMaterialValue Pawn)   packedPawnTable
+           + eval (whiteKnights b) (packedMaterialValue Knight) packedKnightTable
+           + eval (whiteBishops b) (packedMaterialValue Bishop) packedBishopTable
+           + eval (whiteRooks b)   (packedMaterialValue Rook)   packedRookTable
+           + eval (whiteQueens b)  (packedMaterialValue Queen)  packedQueenTable
+           + eval (whiteKings b)   (packedMaterialValue King)   packedKingTable
+
+        -- Black Scores
+        sb = eval (blackPawns b)   (packedMaterialValue Pawn)   packedPawnTableFlip
+           + eval (blackKnights b) (packedMaterialValue Knight) packedKnightTableFlip
+           + eval (blackBishops b) (packedMaterialValue Bishop) packedBishopTableFlip
+           + eval (blackRooks b)   (packedMaterialValue Rook)   packedRookTableFlip
+           + eval (blackQueens b)  (packedMaterialValue Queen)  packedQueenTableFlip
+           + eval (blackKings b)   (packedMaterialValue King)   packedKingTableFlip
+
+        -- Game Phase
+        phase = (popCount (whiteKnights b) + popCount (blackKnights b)) * phaseValue Knight
+              + (popCount (whiteBishops b) + popCount (blackBishops b)) * phaseValue Bishop
+              + (popCount (whiteRooks b)   + popCount (blackRooks b))   * phaseValue Rook
+              + (popCount (whiteQueens b)  + popCount (blackQueens b))  * phaseValue Queen
+
+    in b { scoreWhite = sw, scoreBlack = sb, gamePhase = phase }
 
 -- | Get the bitboard for a specific piece type and color.
 pieceBitboard :: Board -> Color -> PieceType -> Bitboard
@@ -164,7 +202,18 @@ unsafePutPiece b sq (Piece c pt) =
         white = if c == White then setBit (occupiedWhite b) i else occupiedWhite b
         black = if c == Black then setBit (occupiedBlack b) i else occupiedBlack b
         total = setBit (occupiedTotal b) i
-    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total }
+
+        -- Incremental Scores
+        val = pstValue c pt sq
+        mat = packedMaterialValue pt
+        ph  = phaseValue pt
+
+        newScoreWhite = if c == White then scoreWhite b + val + mat else scoreWhite b
+        newScoreBlack = if c == Black then scoreBlack b + val + mat else scoreBlack b
+        newPhase = gamePhase b + ph
+
+    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total
+          , scoreWhite = newScoreWhite, scoreBlack = newScoreBlack, gamePhase = newPhase }
 
 -- | Remove a piece from the board knowing its color and type.
 -- Does not update other bitboards, so it is faster than removePieceAt.
@@ -199,7 +248,18 @@ unsafeRemovePiece b sq c pt =
         white = if c == White then clearBit (occupiedWhite b) i else occupiedWhite b
         black = if c == Black then clearBit (occupiedBlack b) i else occupiedBlack b
         total = clearBit (occupiedTotal b) i
-    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total }
+
+        -- Incremental Scores
+        val = pstValue c pt sq
+        mat = packedMaterialValue pt
+        ph  = phaseValue pt
+
+        newScoreWhite = if c == White then scoreWhite b - (val + mat) else scoreWhite b
+        newScoreBlack = if c == Black then scoreBlack b - (val + mat) else scoreBlack b
+        newPhase = gamePhase b - ph
+
+    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total
+          , scoreWhite = newScoreWhite, scoreBlack = newScoreBlack, gamePhase = newPhase }
 
 -- | Remove a piece from the board.
 removePieceAt :: Board -> Square -> Board
@@ -270,7 +330,16 @@ movePiece b from to c pt =
         blackOcc = if c == Black then occupiedBlack b1 `xor` mask else occupiedBlack b1
         totalOcc = occupiedTotal b1 `xor` mask
 
-    in b2 { occupiedWhite = whiteOcc, occupiedBlack = blackOcc, occupiedTotal = totalOcc }
+        -- Incremental Scores (Move only, capture handled in b1)
+        pstFrom = pstValue c pt from
+        pstTo   = pstValue c pt to
+
+        newScoreWhite = if c == White then scoreWhite b1 - pstFrom + pstTo else scoreWhite b1
+        newScoreBlack = if c == Black then scoreBlack b1 - pstFrom + pstTo else scoreBlack b1
+        newPhase = gamePhase b1
+
+    in b2 { occupiedWhite = whiteOcc, occupiedBlack = blackOcc, occupiedTotal = totalOcc
+          , scoreWhite = newScoreWhite, scoreBlack = newScoreBlack, gamePhase = newPhase }
 
 -- | Bitboard of all pieces.
 {-# INLINE occupied #-}
@@ -376,7 +445,17 @@ unsafeMovePiece b from to c pt =
         white = if c == White then occupiedWhite b `xor` mask else occupiedWhite b
         black = if c == Black then occupiedBlack b `xor` mask else occupiedBlack b
         total = occupiedTotal b `xor` mask
-    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total }
+
+        -- Incremental Scores
+        pstFrom = pstValue c pt from
+        pstTo   = pstValue c pt to
+
+        newScoreWhite = if c == White then scoreWhite b - pstFrom + pstTo else scoreWhite b
+        newScoreBlack = if c == Black then scoreBlack b - pstFrom + pstTo else scoreBlack b
+        newPhase = gamePhase b
+
+    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total
+          , scoreWhite = newScoreWhite, scoreBlack = newScoreBlack, gamePhase = newPhase }
 
 -- Attackers ------------------------------------------------------------------
 
