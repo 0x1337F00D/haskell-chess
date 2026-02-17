@@ -1,5 +1,4 @@
 {-# LANGUAGE PatternSynonyms #-}
-<<<<<<< HEAD
 module Chess.Board.GameState
   ( GameState(..)
   , CastlingRights
@@ -24,9 +23,6 @@ module Chess.Board.GameState
   , removeColorCastlingRights
   , removeCastlingRight
   ) where
-=======
-module Chess.Board.GameState where
->>>>>>> origin/main
 
 import Data.Word (Word64)
 import Data.Bits
@@ -46,7 +42,6 @@ allCastling :: CastlingRights
 allCastling = BB_A1 .|. BB_H1 .|. BB_A8 .|. BB_H8
 
 -- | State needed to play a game, excluding piece placement.
-<<<<<<< HEAD
 -- Packed GameState
 data GameState = GameState
   { gsHash     :: {-# UNPACK #-} !Word64
@@ -140,44 +135,3 @@ removeColorCastlingRights gs Black = gs { gsCastling = gsCastling gs .&. complem
 
 removeCastlingRight :: GameState -> Square -> GameState
 removeCastlingRight gs sq = gs { gsCastling = gsCastling gs .&. complement (bbFromSquare sq) }
-=======
-data GameState = GameState
-  { turn           :: !Color
-  , castlingRights :: !CastlingRights
-  , epSquare       :: !Square
-  , halfmoveClock  :: !HalfmoveClock
-  , fullmoveNumber :: !FullmoveNumber
-  , zobristHash    :: !Word64
-  } deriving (Eq, Show)
-
--- | Initial game state for standard chess.
--- Note: zobristHash is set to 0 here and should be updated when combined with a board.
-initialGameState :: GameState
-initialGameState = GameState
-  { turn = White
-  , castlingRights = allCastling
-  , epSquare = NoSquare
-  , halfmoveClock = 0
-  , fullmoveNumber = 1
-  , zobristHash = 0
-  }
-
--- | Check if the given side has kingside castling rights.
-canCastleKingside :: GameState -> Color -> Bool
-canCastleKingside gs White = testBit (castlingRights gs) (unSquare H1)
-canCastleKingside gs Black = testBit (castlingRights gs) (unSquare H8)
-
--- | Check if the given side has queenside castling rights.
-canCastleQueenside :: GameState -> Color -> Bool
-canCastleQueenside gs White = testBit (castlingRights gs) (unSquare A1)
-canCastleQueenside gs Black = testBit (castlingRights gs) (unSquare A8)
-
--- | Remove castling rights for a color (e.g. king moved).
-removeColorCastlingRights :: GameState -> Color -> GameState
-removeColorCastlingRights gs White = gs { castlingRights = castlingRights gs .&. complement (BB_A1 .|. BB_H1) }
-removeColorCastlingRights gs Black = gs { castlingRights = castlingRights gs .&. complement (BB_A8 .|. BB_H8) }
-
--- | Remove castling rights for a specific rook square (e.g. rook moved or captured).
-removeCastlingRight :: GameState -> Square -> GameState
-removeCastlingRight gs sq = gs { castlingRights = castlingRights gs .&. complement (bbFromSquare sq) }
->>>>>>> origin/main

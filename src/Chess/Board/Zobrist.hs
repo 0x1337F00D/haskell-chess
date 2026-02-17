@@ -6,11 +6,7 @@ import qualified Data.Vector.Unboxed as U
 
 import Chess.Types
 import Chess.Board.Base (Board, pieceAt)
-<<<<<<< HEAD
 import Chess.Board.GameState (GameState(..), CastlingRights, turn, castlingRights, epSquare)
-=======
-import Chess.Board.GameState (GameState(..), CastlingRights)
->>>>>>> origin/main
 
 -- | Zobrist keys for pieces: [Color][PieceType][Square]
 -- Flattened: color * 6 * 64 + pieceType * 64 + square

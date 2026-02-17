@@ -2,22 +2,14 @@
 module Chess.Board.San where
 
 import Data.List (find)
-<<<<<<< HEAD
 import Data.Maybe (isJust)
-=======
-import Data.Maybe (isJust, fromMaybe)
->>>>>>> origin/main
 import Data.Bits ((.&.), complement, (.|.), testBit)
 
 import Chess.Types
 import Chess.Bitboard (bbFromSquare, pattern BB_A1, pattern BB_H1, pattern BB_A8, pattern BB_H8, scanForward, pawnAttacks)
 import Chess.Board.Base
 import Chess.Board.GameState
-<<<<<<< HEAD
 import Chess.Board.MoveGen (isLegal, applyMoveBoard, GenMove(..))
-=======
-import Chess.Board.MoveGen (isLegal, applyMoveBoard, GenMove(..), pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture)
->>>>>>> origin/main
 import Chess.Board.Validation (isCheck, isCheckmate)
 
 -- | Convert a move to Standard Algebraic Notation (SAN).
@@ -81,17 +73,9 @@ applyMove b gs m@(Move from to _ ) =
              then midSquare from to
              else NoSquare
 
-<<<<<<< HEAD
         gs1 = setTurn gs (oppositeColor c)
         gs2 = setCastlingRights gs1 cr2
         gs' = setEpSquare gs2 ep
-=======
-        gs' = gs
-            { turn = oppositeColor c
-            , castlingRights = cr2
-            , epSquare = ep
-            }
->>>>>>> origin/main
     in (b', gs')
 applyMove b gs _ = (b, gs)
 
@@ -192,10 +176,7 @@ parseSan b gs str =
         -- Helper to check legality of a Move (converting to GenMove first)
         checkLegal m@(Move from to promo) =
             let p = pieceAt b from
-<<<<<<< HEAD
         checkLegal _ = False
-=======
->>>>>>> origin/main
                 pt = maybe Pawn pieceType p
 
                 isEp = pt == Pawn && isEpCapture b gs m

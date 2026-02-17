@@ -39,22 +39,9 @@ parseFenRest s = do
   halfmove <- HalfmoveClock <$> readMaybe halfmoveStr
   fullmove <- FullmoveNumber <$> readMaybe fullmoveStr
 
-<<<<<<< HEAD
   let gsProto = GS.mkGameState turnVal castling ep halfmove fullmove 0
       hash = Zobrist.computeHash board gsProto
       gs = GS.setZobristHash gsProto hash
-=======
-  let gsProto = GameState
-        { turn = turnVal
-        , castlingRights = castling
-        , epSquare = ep
-        , halfmoveClock = halfmove
-        , fullmoveNumber = fullmove
-        , zobristHash = 0
-        }
-      hash = Zobrist.computeHash board gsProto
-      gs = gsProto { zobristHash = hash }
->>>>>>> origin/main
 
   return (board, gs, extra')
 

@@ -37,11 +37,7 @@ instance ChessVariant 'RacingKings where
             let baseNext = applyMoveBase m baseBoard
             in not (Val.isCheck baseNext (dummyGameState oppC))
           where
-<<<<<<< HEAD
             dummyGameState col = GS.setTurn GS.initialGameState (toColor col)
-=======
-            dummyGameState col = GS.initialGameState { GS.turn = toColor col }
->>>>>>> origin/main
 
     in filter noGiveCheck coreMoves
 

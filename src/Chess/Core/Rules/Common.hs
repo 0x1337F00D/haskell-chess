@@ -88,7 +88,6 @@ toBaseBoard b = Base.Board
   , Base.whiteOrthogonal = wOrthogonal
   , Base.blackDiagonal = bDiagonal
   , Base.blackOrthogonal = bOrthogonal
-<<<<<<< HEAD
   , Base.mailbox = mb
   }
   where
@@ -126,10 +125,6 @@ toBaseBoard b = Base.Board
 
         return v
 
-=======
-  }
-  where
->>>>>>> origin/main
     mmToPieceType :: MajorMinorPiece c -> PieceType
     mmToPieceType MQueen = Queen
     mmToPieceType MRook = Rook
@@ -258,11 +253,7 @@ updateCastlingRights gs m =
 
       mask = if c == White then complement BB.bbRank1 else complement BB.bbRank8
   in if isKing
-<<<<<<< HEAD
      then GS.setCastlingRights gs2 (GS.castlingRights gs2 .&. mask)
-=======
-     then gs2 { GS.castlingRights = GS.castlingRights gs2 .&. mask }
->>>>>>> origin/main
      else gs2
 
 -- Apply Move Helper (Base Board update)
@@ -392,7 +383,6 @@ genericApplyMove m ag =
         newHMC = if isPawn || isCapture then 0 else GS.halfmoveClock gs + 1
         newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
 
-<<<<<<< HEAD
         newGS = GS.setZobristHash
           (GS.setFullmoveNumber
             (GS.setHalfmoveClock
@@ -402,15 +392,6 @@ genericApplyMove m ag =
               newHMC)
             newFMN)
           0 -- Reset hash as we don't track it incrementally yet
-=======
-        newGS = gs3
-          { GS.turn = toColor (colorVal @(Opposite c))
-          , GS.epSquare = newEP
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          , GS.zobristHash = 0 -- Reset hash as we don't track it incrementally yet
-          }
->>>>>>> origin/main
 
         nextAg = ActiveGame
           { internalBoard = internalB'
