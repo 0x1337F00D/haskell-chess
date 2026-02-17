@@ -1,7 +1,7 @@
 module Chess.Board.Zobrist where
 
 import Data.Word (Word64)
-import Data.Bits ((.|.), xor, testBit)
+import Data.Bits (xor)
 import qualified Data.Vector.Unboxed as U
 
 import Chess.Types

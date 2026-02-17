@@ -26,8 +26,6 @@ import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
 import Data.Bits (popCount, testBit, setBit, (.|.))
 import Data.Word (Word64)
-import qualified Data.Vector.Unboxed as U
-import qualified Data.Vector.Unboxed.Mutable as UM
 
 -- | Initial Game State for Horde
 hordeInitialGame :: Game 'Horde 'Active
@@ -71,26 +69,7 @@ hordeInitialGame =
           , Base.whiteOrthogonal = 0
           , Base.blackDiagonal = bBishops .|. bQueens
           , Base.blackOrthogonal = bRooks .|. bQueens
-          , Base.mailbox = mb
           }
-
-      mb = U.create $ do
-          v <- UM.replicate 64 0
-
-          let writePiece c pt bb = BB.foldBitboardM (\_ sq -> do
-                  UM.unsafeWrite v (T.unSquare sq) (Base.pieceToWord8 (T.Piece c pt))
-                  return ()
-                  ) () bb
-
-          _ <- writePiece T.White T.Pawn wPawns
-          _ <- writePiece T.Black T.Pawn bPawns
-          _ <- writePiece T.Black T.Knight bKnights
-          _ <- writePiece T.Black T.Bishop bBishops
-          _ <- writePiece T.Black T.Rook bRooks
-          _ <- writePiece T.Black T.Queen bQueens
-          _ <- writePiece T.Black T.King bKings
-
-          return v
 
       -- Castling Rights: Black only (King Side + Queen Side)
       -- White has no King, so no castling rights.

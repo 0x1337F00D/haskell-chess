@@ -445,47 +445,24 @@ kingSafety b us kSq =
         enemyRooks   = Base.pieceBitboard b them Rook
         enemyQueens  = Base.pieceBitboard b them Queen
 
-        loopKnights :: Bitboard -> Int -> Int
-        loopKnights 0 !acc = acc
-        loopKnights bb !acc =
-            let i = countTrailingZeros bb
-                s = Square i
-                !atts = knightAttacks s
-                !hits = popCount (atts .&. zone)
-            in loopKnights (clearBit bb i) (acc + hits * 2)
+        countAttacks :: Bitboard -> (Square -> Bitboard) -> Int -> Int
+        countAttacks 0 _ _ = 0
+        countAttacks bb attacksFn units = go bb 0
+          where
+            go 0 !acc = acc
+            go pieces !acc =
+                let i = countTrailingZeros pieces
+                    sq = Square i
+                    atts = attacksFn sq
+                    -- Count how many squares in the king zone are attacked
+                    hits = popCount (atts .&. zone)
+                in go (clearBit pieces i) (acc + hits * units)
 
-        loopBishops :: Bitboard -> Int -> Int
-        loopBishops 0 !acc = acc
-        loopBishops bb !acc =
-            let i = countTrailingZeros bb
-                s = Square i
-                !atts = bishopAttacks s occ
-                !hits = popCount (atts .&. zone)
-            in loopBishops (clearBit bb i) (acc + hits * 2)
-
-        loopRooks :: Bitboard -> Int -> Int
-        loopRooks 0 !acc = acc
-        loopRooks bb !acc =
-            let i = countTrailingZeros bb
-                s = Square i
-                !atts = rookAttacks s occ
-                !hits = popCount (atts .&. zone)
-            in loopRooks (clearBit bb i) (acc + hits * 3)
-
-        loopQueens :: Bitboard -> Int -> Int
-        loopQueens 0 !acc = acc
-        loopQueens bb !acc =
-            let i = countTrailingZeros bb
-                s = Square i
-                !attB = bishopAttacks s occ
-                !attR = rookAttacks s occ
-                !hits = popCount ((attB .|. attR) .&. zone)
-            in loopQueens (clearBit bb i) (acc + hits * 5)
-
-        !vN = loopKnights enemyKnights 0
-        !vB = loopBishops enemyBishops 0
-        !vR = loopRooks enemyRooks 0
-        !vQ = loopQueens enemyQueens 0
+        -- Accumulate attack units
+        !vN = countAttacks enemyKnights knightAttacks 2
+        !vB = countAttacks enemyBishops (\s -> bishopAttacks s occ) 2
+        !vR = countAttacks enemyRooks   (\s -> rookAttacks s occ) 3
+        !vQ = countAttacks enemyQueens  (\s -> bishopAttacks s occ .|. rookAttacks s occ) 5
 
         !totalUnits = vN + vB + vR + vQ
 

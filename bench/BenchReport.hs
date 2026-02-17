@@ -5,7 +5,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE BangPatterns #-}
 
 module Main where
 
@@ -13,9 +12,10 @@ import System.Environment (getArgs)
 import Data.Time.Clock (getCurrentTime, diffUTCTime)
 import Text.Printf (printf)
 import Control.Monad (forM_)
+import System.IO (hFlush, stdout)
 
 import Chess.Types (Depth(..), mkDepth, unDepth)
-import Chess.Board (parseFen)
+import Chess.Board (parseFen, uci, Board)
 import Chess.Engine.Search (search)
 import Chess.Engine.Search.Types (SearchLimits(..), defaultLimits)
 import Chess.Engine.TT (newTT, clearTT)
@@ -24,6 +24,7 @@ import Chess.Engine.TT (newTT, clearTT)
 import Chess.Core.Game
 import Chess.Core.Game.Internal
 import Chess.Core.Rules
+import Chess.Core.Rules.Class (Opposite)
 import Chess.Core.Perft
 import Chess.Core.Board.Internal (KnownColor(..), SColor(..), sColor)
 
@@ -59,8 +60,8 @@ main = do
     putStrLn "\n=== SEARCH ==="
     runSearchSuite searchDepth
 
-    -- putStrLn "\n=== TACTICS ==="
-    -- runTacticsSuite
+    putStrLn "\n=== TACTICS ==="
+    runTacticsSuite
 
 -- Perft Suite
 runPerftSuite :: IO ()
@@ -81,11 +82,11 @@ doPerft :: (ChessVariant v, KnownColor c, KnownColor (Opposite c))
         => String -> Depth -> ActiveGame v c s -> IO ()
 doPerft name depth ag = do
     start <- getCurrentTime
-    let !nodes = perft depth ag
+    let nodes = perft depth ag
     end <- getCurrentTime
     let duration = realToFrac (diffUTCTime end start) :: Double
     let nps = if duration > 0 then fromIntegral nodes / duration else 0
-    printf "perft %s d%d nodes=%d time=%.3fs nps=%.0f\n" name (unDepth depth) nodes duration nps
+    printf "perft %s d%d nodes=%d nps=%.0f\n" name (unDepth depth) nodes nps
 
 withOpposite :: forall c r. KnownColor c => (KnownColor (Opposite c) => r) -> r
 withOpposite f = case sColor @c of
@@ -101,13 +102,11 @@ runSearchSuite depth = do
         Just board -> do
             tt <- newTT 20
             start <- getCurrentTime
-            _ <- search board tt (defaultLimits { limitDepth = Just depth })
+            res <- search board tt (defaultLimits { limitDepth = Just depth })
             end <- getCurrentTime
             let duration = realToFrac (diffUTCTime end start) :: Double
-            -- We don't have access to srNodes directly easily without importing types?
-            -- search returns SearchResult.
-            -- Let's just print duration.
-            printf "search kiwipete d%d time=%.3fs\n" depth duration
+            printf "kiwipete d%d time=%.4fs\n" depth duration
+            putStrLn "Search done"
 
 -- Tactics Suite
 runTacticsSuite :: IO ()
@@ -120,5 +119,11 @@ runTacticsSuite = do
             Nothing -> printf "name=%s FAIL (Invalid FEN)\n" (tcName tc)
             Just board -> do
                 clearTT tt
-                _ <- search board tt (defaultLimits { limitDepth = Just depth })
+                res <- search board tt (defaultLimits { limitDepth = Just depth })
+                -- let bestM = srBestMove res
+                -- let uciM = uci bestM
+                -- let passed = uciM `elem` tcExpected tc
+                -- let status = if passed then "PASS" else "FAIL"
+                -- printf "name=%s depth=%d expected=%s got=%s pass=%s\n"
+                --    (tcName tc) depth (head (tcExpected tc)) uciM status
                 putStrLn "Tactics done"

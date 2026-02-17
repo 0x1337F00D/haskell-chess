@@ -1,6 +1,6 @@
 module Chess.Board.Fen where
 
-import Control.Monad (foldM, guard)
+import Control.Monad (foldM)
 import Data.Char (isDigit, ord, chr, toLower)
 import Data.List (intercalate)
 import Data.Bits ((.|.), testBit)
@@ -19,11 +19,12 @@ import qualified Chess.Board.Zobrist as Zobrist
 parseFenRest :: String -> Maybe (Board, GameState, [String])
 parseFenRest s = do
   let parts = words s
-  guard (length parts >= 4)
-  let (boardStrFull:turnStr:castlingStr:epStr:rest) = parts
+  (boardStrFull, turnStr, castlingStr, epStr, rest) <- case parts of
+      (b:t:c:e:r) -> Just (b, t, c, e, r)
+      _ -> Nothing
 
       -- Extract pocket if attached to board string (e.g. "RNBQKBNR[P]")
-      (boardStr, pocketPart) = span (/= '[') boardStrFull
+  let (boardStr, pocketPart) = span (/= '[') boardStrFull
 
       (halfmoveStr, fullmoveStr, extra) = case rest of
                                             (h:f:r) -> (h, f, r)

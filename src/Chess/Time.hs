@@ -50,16 +50,16 @@ mkClock tc = case tc of
 -- Returns the updated clock.
 updateClock :: Clock -> Color -> Ms -> Clock
 updateClock c@(Clock _ _ Infinite) _ _ = c
-updateClock c@(Clock w b tc@(Standard _ inc)) col elapsed =
+updateClock c@(Clock w b (Standard _ inc)) col elapsed =
     case col of
         White -> c { cWhiteTime = w - elapsed + inc }
         Black -> c { cBlackTime = b - elapsed + inc }
-updateClock c@(Clock w b tc@(Delay _ delay inc)) col elapsed =
+updateClock c@(Clock w b (Delay _ delay inc)) col elapsed =
     let effectiveElapsed = max 0 (elapsed - delay)
     in case col of
         White -> c { cWhiteTime = w - effectiveElapsed + inc }
         Black -> c { cBlackTime = b - effectiveElapsed + inc }
-updateClock c@(Clock w b tc@(MoveTime perMove)) col elapsed =
+updateClock c@(Clock w b (MoveTime perMove)) col elapsed =
     let
         oldTime = case col of White -> w; Black -> b
         remaining = oldTime - elapsed

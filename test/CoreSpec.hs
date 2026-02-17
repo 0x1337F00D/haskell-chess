@@ -12,7 +12,7 @@ import Chess.Core.Move
 import Chess.Core.Rules
 import Chess.Core.Board.Internal (movePiece)
 import Chess.Core.Game.Internal (ActiveGame(..), Game(..), CastlingRights(..), Pockets(..), CrazyhouseState(..), castlingWhiteKingSide, castlingWhiteQueenSide, castlingBlackKingSide, castlingBlackQueenSide, SCheckStatus(..))
-import Chess.Core.Move.Internal
+import Chess.Core.Move.Internal (Move(..), GameTransition(..))
 import qualified Data.Map as Map
 import Data.Maybe (fromJust)
 import qualified Chess.Core.Board.Internal as CBI
