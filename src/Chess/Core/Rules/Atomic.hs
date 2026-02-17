@@ -24,7 +24,7 @@ import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
-import Data.Bits ((.&.), complement, (.|.))
+import Data.Bits ((.&.), complement)
 
 instance ChessVariant 'Atomic where
   generateMoves (ag :: ActiveGame 'Atomic c s) =

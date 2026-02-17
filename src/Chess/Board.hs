@@ -98,17 +98,17 @@ applyMove board@(Board b gs _) (Move from to promo) =
             -- Resolve pieces efficiently
             pt = Base.findPieceType b c from
             toI = unSquare to
-            isCapture = testBit (Base.occupiedTotal b) toI
+            isCaptureMove = testBit (Base.occupiedTotal b) toI
 
             gm = case promo of
                    Just ppt ->
-                       if isCapture
+                       if isCaptureMove
                        then
                            let capPt = Base.findPieceType b (Base.oppositeColor c) to
                            in MoveGen.GenPromotionCapture from to ppt capPt
                        else MoveGen.GenPromotion from to ppt
                    Nothing ->
-                       if isCapture
+                       if isCaptureMove
                        then
                            let capPt = Base.findPieceType b (Base.oppositeColor c) to
                            in MoveGen.GenCapture from to pt capPt

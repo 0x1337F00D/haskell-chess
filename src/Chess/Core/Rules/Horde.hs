@@ -25,9 +25,6 @@ import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
 import Data.Bits (popCount, testBit, setBit, (.|.))
-import Data.Word (Word64)
-import qualified Data.Vector.Unboxed as U
-import qualified Data.Vector.Unboxed.Mutable as UM
 
 -- | Initial Game State for Horde
 hordeInitialGame :: Game 'Horde 'Active
@@ -102,7 +99,7 @@ instance ChessVariant 'Horde where
         whiteExtraMoves = if c == White
             then
                let
-                   pawns = Base.whitePawns baseBoard
+                   wPawnsBB = Base.whitePawns baseBoard
                    occ = Base.occupiedTotal baseBoard
 
                    -- Pawns on Rank 1 (indices 0-7)
@@ -112,7 +109,7 @@ instance ChessVariant 'Horde where
                        let idx1 = fromIdx + 8
                            idx2 = fromIdx + 16
                        in if fromIdx < 8
-                             && testBit pawns fromIdx
+                             && testBit wPawnsBB fromIdx
                              && not (testBit occ idx1)
                              && not (testBit occ idx2)
                           then [MG.GenQuiet (T.Square fromIdx) (T.Square idx2) T.Pawn]
@@ -207,10 +204,10 @@ instance ChessVariant 'Horde where
                then
                     let standardHasMoves = Val.hasLegalMoves baseBoard nextTurnGS
                         -- Check if any Rank 1 double push is possible
-                        wPawns = Base.whitePawns baseBoard
+                        wPawnsBB = Base.whitePawns baseBoard
                         occ = Base.occupiedTotal baseBoard
                         canPushRank1 i =
-                            testBit wPawns i &&
+                            testBit wPawnsBB i &&
                             not (testBit occ (i+8)) &&
                             not (testBit occ (i+16))
                         extraHasMoves = any canPushRank1 [0..7]

@@ -13,9 +13,7 @@ module Chess.Core.Game.Internal where
 import Chess.Core.Board.Internal
 import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
-import Chess.Types (HalfmoveClock, FullmoveNumber)
 import Data.Word (Word8)
-import Data.Bits ((.|.), (.&.), complement, testBit, setBit, clearBit)
 import Chess.Bitboard (Bitboard)
 
 -- 3. Game Phases as Type States
@@ -132,7 +130,7 @@ viewBoard ag = case fromBaseBoard (internalBoard ag) of
 -- | Transition: Setup -> Active
 -- This allows for board validation logic to be inserted here.
 startGame :: forall v. (VariantState v ~ ()) => Game v 'Setup -> Maybe (Game v 'Active)
-startGame (SetupGame board) =
+startGame (SetupGame _) =
     -- Validation placeholder: Ensure kings exist
     -- In a real implementation, we would convert Board to Base.Board here
     -- and check variant-specific constraints.

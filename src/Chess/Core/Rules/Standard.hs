@@ -19,15 +19,12 @@ import Chess.Core.Game.Internal
 import Chess.Core.Move.Internal
 
 import qualified Chess.Types as T
-import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
-import qualified Chess.Bitboard as BB
 import qualified Chess.Board.Fen as Fen
 import qualified Chess.Board as FastBoard
 import Chess.Board (applyGenMove, legalGenMoves) -- Import fast board ops
-import Data.Bits (testBit, countTrailingZeros, (.|.))
 
 -- | Create the initial game state for Standard chess.
 initialGame :: Game 'Standard 'Active

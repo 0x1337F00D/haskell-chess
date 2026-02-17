@@ -11,7 +11,7 @@ import Data.Kind (Type)
 import Data.Bits (popCount)
 import qualified Chess.Board.Base as Base
 import Chess.Board (Board(..), ValidatedBoard, getBoard)
-import Chess.Board.GameState (GameState(..))
+import Chess.Board.GameState (GameState(..), fullmoveNumber)
 import Chess.Types (FullmoveNumber(..))
 
 -- | Game Phases

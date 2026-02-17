@@ -15,10 +15,9 @@ module Chess.Core.Move
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Builder as B
-import Data.Monoid ((<>))
 
 import Chess.Core.Board
-import Chess.Core.Board.Internal (squareToString, squareToBuilder)
+import Chess.Core.Board.Internal (squareToBuilder)
 import Chess.Core.Move.Internal
 
 moveFrom :: Move c -> Square

@@ -13,7 +13,6 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Bits (countTrailingZeros, popCount, clearBit)
 import Data.Char (toLower)
-import Data.Monoid ((<>))
 import qualified Data.ByteString.Builder as B
 
 import qualified Chess.Board.Fen as Fen

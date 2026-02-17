@@ -25,9 +25,7 @@ import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
 import qualified Chess.Board.Fen as Fen
-import Data.Bits (testBit, countTrailingZeros, (.|.), (.&.), complement, setBit)
-import Data.List (find)
-import Data.Maybe (mapMaybe)
+import Data.Bits (testBit)
 
 -- | Create a game from FEN string (Fischer Random variant).
 fischerRandomGameFromFEN :: String -> Maybe (Game 'FischerRandom 'Active)
@@ -208,4 +206,3 @@ isCastlingValid b c kSq rSq isKSide =
         isSafe s = not (Base.isAttackedBy b oppC s)
 
     in all isEmpty checkSquares && all isSafe safeCheckSquares
-

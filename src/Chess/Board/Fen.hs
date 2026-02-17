@@ -20,7 +20,9 @@ parseFenRest :: String -> Maybe (Board, GameState, [String])
 parseFenRest s = do
   let parts = words s
   guard (length parts >= 4)
-  let (boardStrFull:turnStr:castlingStr:epStr:rest) = parts
+  let (boardStrFull:turnStr:castlingStr:epStr:rest) = case parts of
+        (b:t:c:e:r) -> (b:t:c:e:r)
+        _ -> error "Impossible: guard checks length >= 4"
 
       -- Extract pocket if attached to board string (e.g. "RNBQKBNR[P]")
       (boardStr, pocketPart) = span (/= '[') boardStrFull
