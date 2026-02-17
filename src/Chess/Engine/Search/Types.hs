@@ -4,7 +4,7 @@
 module Chess.Engine.Search.Types where
 
 import qualified Data.Vector.Unboxed.Mutable as UM
-import Chess.Types (Move)
+import Chess.Types (Move, CheckStatus(..))
 import Chess.Board.Phase (Phase)
 
 -- | Search Constants
@@ -23,10 +23,6 @@ stepScore s
 
 -- | Node Type for Search
 data NodeKind = Root | PV | NonPV
-    deriving (Show, Eq)
-
--- | Check Status for Search
-data CheckState = InCheck | NotInCheck
     deriving (Show, Eq)
 
 -- | Search Phase
@@ -63,7 +59,7 @@ data SearchResources = SearchResources
 data SearchContext (p :: Phase) = SearchContext
     { scResources     :: !SearchResources
     , scNodeKind      :: !NodeKind
-    , scCheckState    :: !CheckState
+    , scCheckState    :: !CheckStatus
     , scPhase         :: !SearchPhase
     , scPly           :: !Int
     , scNullMoveState :: !NullMoveState

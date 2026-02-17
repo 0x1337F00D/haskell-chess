@@ -7,7 +7,7 @@ import Control.Monad (replicateM_)
 import Data.Time.Clock (getCurrentTime, diffUTCTime)
 import qualified Data.Vector.Unboxed as U
 
-import Chess.Board (parseFen, trustBoard, legalMovesValidated, ValidatedBoard)
+import Chess.Board (parseFen, trustBoard, legalMovesValidated, ValidatedBoard, SomeValidatedBoard(..), MoveGenerator)
 import Chess.Engine.Search.Ordering (orderGenMoves)
 import Chess.Types (Move)
 
@@ -16,17 +16,21 @@ main = do
     let fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
     case parseFen fen of
         Nothing -> putStrLn "Failed to parse FEN"
-        Just board -> do
-            let vBoard = trustBoard board
-            let moves = legalMovesValidated vBoard
+        Just board -> case trustBoard board of
+            InCheckBoard vb -> runBench vb
+            NotInCheckBoard vb -> runBench vb
 
-            putStrLn $ "Number of moves: " ++ show (length moves)
+runBench :: MoveGenerator s => ValidatedBoard s -> IO ()
+runBench vBoard = do
+    let moves = legalMovesValidated vBoard
 
-            start <- getCurrentTime
-            replicateM_ 200000 $ do
-                let !sorted = orderGenMoves vBoard moves Nothing
-                return ()
-            end <- getCurrentTime
+    putStrLn $ "Number of moves: " ++ show (length moves)
 
-            let duration = diffUTCTime end start
-            putStrLn $ "Time for 200k sorts: " ++ show duration
+    start <- getCurrentTime
+    replicateM_ 200000 $ do
+        let !sorted = orderGenMoves vBoard moves Nothing
+        return ()
+    end <- getCurrentTime
+
+    let duration = diffUTCTime end start
+    putStrLn $ "Time for 200k sorts: " ++ show duration

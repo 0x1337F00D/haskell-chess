@@ -35,7 +35,7 @@ type PackedScore = Int
 
 -- | Evaluation Typeclass
 class Evaluate (p :: Phase) where
-    evaluatePos :: Position p -> Score
+    evaluatePos :: Position p s -> Score
 
 instance Evaluate 'Opening where
     {-# INLINE evaluatePos #-}
@@ -228,7 +228,7 @@ evalMopUp b =
 
 -- | Evaluate the board position from the perspective of the side to move.
 -- Now composed of helper functions.
-evaluate :: ValidatedBoard -> Score
+evaluate :: ValidatedBoard s -> Score
 evaluate vBoard =
     let (Board b gs _) = getBoard vBoard
 

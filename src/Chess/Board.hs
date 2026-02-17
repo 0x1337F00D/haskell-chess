@@ -1,3 +1,10 @@
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PatternSynonyms #-}
 module Chess.Board
   ( -- * The Board Type
@@ -23,14 +30,12 @@ module Chess.Board
   , outcome
     -- * Safe Interface
   , ValidatedBoard
+  , SomeValidatedBoard(..)
   , LegalMove
   , trustBoard
   , getBoard
   , getGenMove
-  , legalMovesValidated
-  , captureMovesValidated
-  , legalQuietsValidated
-  , legalPromotionsValidated
+  , MoveGenerator(..)
   , applyLegalMove
   , moveFrom
   , moveTo
@@ -322,29 +327,44 @@ fromUci = Uci.fromUci
 
 -- Safe Interface
 
-newtype ValidatedBoard = ValidatedBoard Board deriving (Eq, Show)
+newtype ValidatedBoard (s :: CheckStatus) = ValidatedBoard Board deriving (Eq, Show)
+data SomeValidatedBoard where
+    InCheckBoard :: ValidatedBoard 'InCheck -> SomeValidatedBoard
+    NotInCheckBoard :: ValidatedBoard 'NotInCheck -> SomeValidatedBoard
+
+deriving instance Show SomeValidatedBoard
+
 newtype LegalMove = LegalMove MoveGen.GenMove deriving (Eq, Show)
 
-trustBoard :: Board -> ValidatedBoard
-trustBoard = ValidatedBoard
+trustBoard :: Board -> SomeValidatedBoard
+trustBoard b@(Board bb gs _) =
+    if Val.isCheck bb gs
+    then InCheckBoard (ValidatedBoard b)
+    else NotInCheckBoard (ValidatedBoard b)
 
-getBoard :: ValidatedBoard -> Board
+getBoard :: ValidatedBoard s -> Board
 getBoard (ValidatedBoard b) = b
 
 getGenMove :: LegalMove -> MoveGen.GenMove
 getGenMove (LegalMove gm) = gm
 
-legalMovesValidated :: ValidatedBoard -> [LegalMove]
-legalMovesValidated (ValidatedBoard b) = map LegalMove (legalGenMoves b)
+class MoveGenerator (s :: CheckStatus) where
+    legalMovesValidated :: ValidatedBoard s -> [LegalMove]
+    captureMovesValidated :: ValidatedBoard s -> [LegalMove]
+    legalQuietsValidated :: ValidatedBoard s -> [LegalMove]
+    legalPromotionsValidated :: ValidatedBoard s -> [LegalMove]
 
-captureMovesValidated :: ValidatedBoard -> [LegalMove]
-captureMovesValidated (ValidatedBoard b) = map LegalMove (captureGenMoves b)
+instance MoveGenerator 'InCheck where
+    legalMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.generateEvasions b gs
+    captureMovesValidated vb = filter isCapture (legalMovesValidated vb)
+    legalQuietsValidated vb = filter (not . isCapture) (legalMovesValidated vb)
+    legalPromotionsValidated vb = filter isPromotion (legalMovesValidated vb)
 
-legalQuietsValidated :: ValidatedBoard -> [LegalMove]
-legalQuietsValidated (ValidatedBoard b) = map LegalMove (legalGenQuiets b)
-
-legalPromotionsValidated :: ValidatedBoard -> [LegalMove]
-legalPromotionsValidated (ValidatedBoard b) = map LegalMove (legalGenPromotions b)
+instance MoveGenerator 'NotInCheck where
+    legalMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.legalGenMoves b gs
+    captureMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.legalGenCaptures b gs
+    legalQuietsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.legalGenQuiets b gs
+    legalPromotionsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.legalGenPromotions b gs
 
 mkLegalMove :: MoveGen.GenMove -> LegalMove
 mkLegalMove = LegalMove
@@ -355,8 +375,10 @@ toGenMove (Board b gs _) m = MoveGen.toGenMove b gs m
 isLegalMove :: Board -> Move -> Bool
 isLegalMove (Board b gs _) m = MoveGen.isLegalMove b gs m
 
-applyLegalMove :: ValidatedBoard -> LegalMove -> ValidatedBoard
-applyLegalMove (ValidatedBoard b) (LegalMove gm) = ValidatedBoard (applyGenMove b gm)
+applyLegalMove :: ValidatedBoard s -> LegalMove -> SomeValidatedBoard
+applyLegalMove (ValidatedBoard b) (LegalMove gm) =
+    let b' = applyGenMove b gm
+    in trustBoard b'
 
 -- Safe Accessors for LegalMove
 

@@ -3,6 +3,8 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
 
 module Chess.Engine.Search.Ordering where
 
@@ -16,7 +18,7 @@ import Chess.Engine.SEE (see, seeGen)
 import Chess.Engine.Search.Types (SearchContext(..), SearchResources(..))
 
 -- | Move Ordering
-orderGenMoves :: ValidatedBoard -> [LegalMove] -> Maybe Move -> [LegalMove]
+orderGenMoves :: ValidatedBoard s -> [LegalMove] -> Maybe Move -> [LegalMove]
 orderGenMoves vBoard moves ttM =
     let (Board b gs _) = getBoard vBoard
         turn = GS.turn gs
@@ -45,7 +47,7 @@ orderGenMoves vBoard moves ttM =
 
 -- | Specialized move ordering for Quiescence Search.
 -- Avoids concatenating lists and re-partitioning.
-orderQSMoves :: ValidatedBoard -> [LegalMove] -> [LegalMove] -> [LegalMove] -> [LegalMove]
+orderQSMoves :: ValidatedBoard s -> [LegalMove] -> [LegalMove] -> [LegalMove] -> [LegalMove]
 orderQSMoves vBoard caps proms quietChecks =
     let (Board b gs _) = getBoard vBoard
         turn = GS.turn gs
@@ -82,7 +84,7 @@ pieceValue Rook = 5
 pieceValue Queen = 9
 pieceValue King = 100
 
-partitionSEE :: ValidatedBoard -> [LegalMove] -> ([LegalMove], [LegalMove])
+partitionSEE :: ValidatedBoard s -> [LegalMove] -> ([LegalMove], [LegalMove])
 partitionSEE vb moves = partition isGood moves
   where
     (Board b gs _) = getBoard vb

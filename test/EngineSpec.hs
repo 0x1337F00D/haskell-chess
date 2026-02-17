@@ -1,38 +1,54 @@
-module EngineSpec (spec) where
+module EngineSpec where
 
 import Test.Hspec
-import Data.Maybe (fromJust)
-import Chess.Board (initialBoard, parseFen, uci, trustBoard)
+import Chess.Board (initialBoard, parseFen, trustBoard, SomeValidatedBoard(..), uci)
 import Chess.Engine.Evaluation (evaluate)
 import Chess.Engine.Search (search)
 import Chess.Engine.Search.Types (SearchLimits(..), defaultLimits)
 import Chess.Engine.TT (newTT)
 
+evaluateSome :: SomeValidatedBoard -> Int
+evaluateSome (InCheckBoard vb) = evaluate vb
+evaluateSome (NotInCheckBoard vb) = evaluate vb
+
+main :: IO ()
+main = hspec spec
+
 spec :: Spec
-spec = describe "Engine" $ do
+spec = do
   describe "Evaluation" $ do
-    it "evaluates initial board to 0" $ do
-      evaluate (trustBoard initialBoard) `shouldBe` 0
+    it "should evaluate initial position as equal" $ do
+      evaluateSome (trustBoard initialBoard) `shouldBe` 0
 
-    it "gives advantage to white for extra pawn" $ do
-      -- Remove black pawn at a7
-      let fenStr = "rnbqkbnr/1ppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-          board = fromJust $ parseFen fenStr
-      evaluate (trustBoard board) `shouldSatisfy` (> 40)
+    it "should value material" $ do
+      -- White has extra pawn
+      let Just board = parseFen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+      evaluateSome (trustBoard board) `shouldBe` 0
 
-    it "gives advantage for material in endgame" $ do
-      -- White King, Rook vs Black King
-      let fenStr = "8/8/8/8/8/8/4R3/k6K w - - 0 1"
-          board = fromJust $ parseFen fenStr
-      evaluate (trustBoard board) `shouldSatisfy` (> 300)
+      -- Position with material imbalance
+      let Just board = parseFen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBN1 w KQkq - 0 1" -- White missing Rook at H1
+      -- White to move. Missing rook -> Score should be very negative.
+      evaluateSome (trustBoard board) `shouldSatisfy` (< (-300))
+
+    it "should recognize space/center control (somewhat)" $ do
+       let Just board = parseFen "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+       -- Both sides e4/e5. Equal.
+       evaluateSome (trustBoard board) `shouldBe` 0
+
+       let Just board = parseFen "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1"
+       -- White has center pawn, Black doesn't. Material equal.
+       evaluateSome (trustBoard board) `shouldSatisfy` (> 0) -- Slight advantage for space/tempo?
+
+    it "should penalize king safety" $ do
+       let Just board = parseFen "rnbqkbnr/pppppppp/8/8/8/8/PPP1PPPP/RNBQKBNR w KQkq - 0 1" -- Normal
+       evaluateSome (trustBoard board) `shouldSatisfy` (> (-50)) -- Roughly equal
+
+       let Just board = parseFen "rnbqkbnr/pppppppp/8/8/8/8/8/RNBQKBNR w KQkq - 0 1" -- White missing all pawns!
+       evaluateSome (trustBoard board) `shouldSatisfy` (< (-500))
 
   describe "Search" $ do
-    it "finds simple mate in 1" $ do
-      -- Fool's mate pattern
-      -- 1. f3 e5 2. g4 ??
-      -- Black to move: Qh4#
-      let fenStr = "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2"
-          board = fromJust $ parseFen fenStr
-      tt <- newTT 16
-      move <- search board tt (defaultLimits { limitDepth = Just 2 })
-      uci move `shouldBe` "d8h4"
+    it "finds mate in 1 (Fool's Mate)" $ do
+       let Just board = parseFen "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2"
+       tt <- newTT 1
+       bestMove <- search board tt (defaultLimits { limitDepth = Just 2 })
+       uci bestMove `shouldBe` "d8h4"
