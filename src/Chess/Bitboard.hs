@@ -533,8 +533,9 @@ findMagic :: Square -> Bitboard -> (Square -> Bitboard -> Bitboard) -> IO (Maybe
 findMagic sq mask attackFn = do
     let bits = popcount mask
         size = 1 `shiftL` bits
-        occs = [getOccupancy i mask | i <- [0..size-1]]
-        attacks = [attackFn sq occ | occ <- occs]
+        -- Use unboxed vectors for O(1) access during magic verification
+        occs = U.generate size (`getOccupancy` mask)
+        attacks = U.map (attackFn sq) occs
 
     table <- UM.replicate size 0
 
@@ -543,8 +544,8 @@ findMagic sq mask attackFn = do
         check magic sh idx valid = do
            if idx >= size then return valid
            else do
-               let occ = occs !! idx
-                   att = attacks !! idx
+               let occ = occs `U.unsafeIndex` idx
+                   att = attacks `U.unsafeIndex` idx
                    magicIdx = (fromIntegral ((occ * magic) `unsafeShiftR` sh)) :: Int
 
                existing <- UM.read table magicIdx
