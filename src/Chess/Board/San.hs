@@ -9,6 +9,7 @@ import Chess.Types
 import Chess.Bitboard (bbFromSquare, pattern BB_A1, pattern BB_H1, pattern BB_A8, pattern BB_H8, scanForward, pawnAttacks)
 import Chess.Board.Base
 import Chess.Board.GameState
+import qualified Chess.Board.GameState as GS
 import Chess.Board.MoveGen (isLegal, applyMoveBoard, GenMove(..), pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture)
 import Chess.Board.Validation (isCheck, isCheckmate)
 
@@ -73,11 +74,9 @@ applyMove b gs m@(Move from to _ ) =
              then midSquare from to
              else NoSquare
 
-        gs' = gs
-            { turn = oppositeColor c
-            , castlingRights = cr2
-            , epSquare = ep
-            }
+        gs' = GS.setEpSquare ep $
+              GS.setCastlingRights cr2 $
+              GS.setTurn (oppositeColor c) gs
     in (b', gs')
 applyMove b gs _ = (b, gs)
 
@@ -121,8 +120,9 @@ getCandidates b gs (Piece c pt) target =
                 else case capPt of
                         Just cp -> GenCapture from target pt cp
                         Nothing -> GenQuiet from target pt
+      where
+        promo = if pt == Pawn && isPromotionRank target then Just Queen else Nothing
 
-    promo = if pt == Pawn && isPromotionRank target then Just Queen else Nothing
     isPromotionRank s = (c == White && squareRank s == 7) || (c == Black && squareRank s == 0)
 
     isPawnMove :: Square -> Bool

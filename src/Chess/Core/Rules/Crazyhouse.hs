@@ -248,13 +248,11 @@ instance ChessVariant 'Crazyhouse where
         newHMC = if resetClock then 0 else GS.halfmoveClock gs + 1
         newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
 
-        newGS = gsUpdated
-          { GS.turn = toColor (colorVal @(Opposite c))
-          , GS.epSquare = newEP
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          , GS.zobristHash = 0
-          }
+        newGS = GS.setZobristHash 0 $
+                GS.setFullmoveNumber newFMN $
+                GS.setHalfmoveClock newHMC $
+                GS.setEpSquare newEP $
+                GS.setTurn (toColor (colorVal @(Opposite c))) gsUpdated
 
         newState = CrazyhouseState wPocket' bPocket' promoted'
 
