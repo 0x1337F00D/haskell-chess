@@ -55,11 +55,11 @@ parseFen s = do
 fen :: Board -> GameState -> String
 fen board gs = unwords
   [ showBoard board
-  , showTurn (turn gs)
-  , showCastling (castlingRights gs)
-  , showEp (epSquare gs)
-  , show (halfmoveClock gs)
-  , show (fullmoveNumber gs)
+  , showTurn (GS.turn gs)
+  , showCastling (GS.castlingRights gs)
+  , showEp (GS.epSquare gs)
+  , show (GS.halfmoveClock gs)
+  , show (GS.fullmoveNumber gs)
   ]
 
 -- Helper functions for parsing

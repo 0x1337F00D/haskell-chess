@@ -386,8 +386,7 @@ applyMoveBoardFast b gs gm =
             in unsafePutPiece b2 to (Piece c promoPt)
 
         GenDrop p t ->
-            let c = turn gs
-            in unsafePutPiece b t (Piece c p)
+            unsafePutPiece b t (Piece (turn gs) p)
 
         GenCastling960 f t ->
             let c = turn gs

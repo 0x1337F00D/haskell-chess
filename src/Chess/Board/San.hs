@@ -176,7 +176,6 @@ parseSan b gs str =
         -- Helper to check legality of a Move (converting to GenMove first)
         checkLegal m@(Move from to promo) =
             let p = pieceAt b from
-        checkLegal _ = False
                 pt = maybe Pawn pieceType p
 
                 isEp = pt == Pawn && isEpCapture b gs m
@@ -196,6 +195,7 @@ parseSan b gs str =
                                 Just cp -> GenCapture from to pt cp
                                 Nothing -> GenQuiet from to pt
             in isLegal b gs gm
+        checkLegal _ = False
 
         findMatch candidates = find (\m -> checkLegal m && (san b gs m == str || san b gs m == cleanStr)) candidates
 
