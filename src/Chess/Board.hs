@@ -352,18 +352,21 @@ class MoveGenerator (s :: CheckStatus) where
     legalMovesValidated :: ValidatedBoard s -> [LegalMove]
     captureMovesValidated :: ValidatedBoard s -> [LegalMove]
     legalQuietsValidated :: ValidatedBoard s -> [LegalMove]
+    legalQuietChecksValidated :: ValidatedBoard s -> [LegalMove]
     legalPromotionsValidated :: ValidatedBoard s -> [LegalMove]
 
 instance MoveGenerator 'InCheck where
     legalMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.generateEvasions b gs
     captureMovesValidated vb = filter isCapture (legalMovesValidated vb)
     legalQuietsValidated vb = filter (not . isCapture) (legalMovesValidated vb)
+    legalQuietChecksValidated vb = filter (\lm -> MoveGen.givesCheckFast (pieces (getBoard vb)) (state (getBoard vb)) (getGenMove lm)) (legalQuietsValidated vb)
     legalPromotionsValidated vb = filter isPromotion (legalMovesValidated vb)
 
 instance MoveGenerator 'NotInCheck where
     legalMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.legalGenMoves b gs
     captureMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.legalGenCaptures b gs
     legalQuietsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.legalGenQuiets b gs
+    legalQuietChecksValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.legalQuietChecks b gs
     legalPromotionsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.legalGenPromotions b gs
 
 mkLegalMove :: MoveGen.GenMove -> LegalMove
