@@ -6,10 +6,6 @@ import Data.Bits
 import Data.Word (Word64)
 import Data.List (foldl')
 import qualified Data.Vector.Unboxed as U
-import qualified Data.Vector.Unboxed.Mutable as UM
-import qualified Data.Vector as V
-import System.IO.Unsafe (unsafePerformIO)
-import Control.Monad (forM, when)
 
 import Chess.Types (Square(..), Color(..), squares)
 
@@ -423,18 +419,12 @@ generateRay (Square i) df dr = go (f+df) (r+dr) 0
       | cf < 0 || cf > 7 || cr < 0 || cr > 7 = acc
       | otherwise = go (cf+df) (cr+dr) (setBit acc (cr*8 + cf))
 
--- | Xorshift64 RNG
-xorShift64 :: Word64 -> Word64
-xorShift64 x =
-  let x1 = x `xor` (x `shiftR` 12)
-      x2 = x1 `xor` (x1 `shiftL` 25)
-      x3 = x2 `xor` (x2 `shiftR` 27)
-  in x3 * 0x2545F4914F6CDD1D
-
 -- | Get attacks for a sliding piece in a specific direction.
--- Slow version used for magic bitboard generation.
-getRayAttacksSlow :: Square -> Int -> Bitboard -> Bitboard
-getRayAttacksSlow (Square sq) dirIdx occ =
+-- Marked INLINE to allow constant folding of 'dirIdx' when called from bishopAttacks/rookAttacks.
+-- This removes runtime checks and allows fusion of bitwise operations.
+getRayAttacks :: Square -> Int -> Bitboard -> Bitboard
+{-# INLINE getRayAttacks #-}
+getRayAttacks (Square sq) dirIdx occ =
     let mask = bbRays `U.unsafeIndex` (sq * 8 + dirIdx)
         blockers = mask .&. occ
     in if blockers == 0
@@ -446,177 +436,22 @@ getRayAttacksSlow (Square sq) dirIdx occ =
             in mask `xor` blockerMask
 
 -- | Generate bishop attacks (diagonal).
--- Magic Bitboards -----------------------------------------------------------
-
-data Magic = Magic
-    { mMask   :: !Bitboard
-    , mMagic  :: !Word64
-    , mShift  :: !Int
-    , mOffset :: !Int     -- Offset into the global attack table
-    } deriving (Show)
-
--- | Generate occupancy from index and mask.
--- Iterates over set bits in mask. If bit n of index is set, set the n-th set bit of mask.
-getOccupancy :: Int -> Bitboard -> Bitboard
-getOccupancy idx mask = go idx mask 0
-  where
-    go _ 0 acc = acc
-    go i m acc =
-        let b = countTrailingZeros m
-            m' = clearBit m b
-            acc' = if testBit i 0 then setBit acc b else acc
-        in go (i `shiftR` 1) m' acc'
-
--- | Try to find a magic number for a square and mask.
-findMagic :: Square -> Bitboard -> (Square -> Bitboard -> Bitboard) -> IO (Maybe (Magic, U.Vector Bitboard))
-findMagic sq mask attackFn = do
-    let bits = popcount mask
-        size = 1 `shiftL` bits
-        occs = [getOccupancy i mask | i <- [0..size-1]]
-        attacks = [attackFn sq occ | occ <- occs]
-
-    table <- UM.replicate size 0
-
-    -- Try random numbers
-    let check :: Word64 -> Int -> Int -> Bool -> IO Bool
-        check magic sh idx valid = do
-           if idx >= size then return valid
-           else do
-               let occ = occs !! idx
-                   att = attacks !! idx
-                   magicIdx = (fromIntegral ((occ * magic) `unsafeShiftR` sh)) :: Int
-
-               existing <- UM.read table magicIdx
-               if existing == 0 then do
-                   UM.write table magicIdx att
-                   check magic sh (idx + 1) True
-               else if existing /= att then
-                   return False -- Collision with different attack set
-               else
-                   check magic sh (idx + 1) True -- Collision with same attack set (okay)
-
-    let attempt :: Int -> Word64 -> IO (Maybe (Magic, U.Vector Bitboard))
-        attempt 0 _ = return Nothing
-        attempt n seed = do
-            let s1 = xorShift64 seed
-                s2 = xorShift64 s1
-                s3 = xorShift64 s2
-                magic = s1 .&. s2 .&. s3 -- Sparse magic
-                sh = 64 - bits
-
-            UM.set table 0
-            valid <- check magic sh 0 True
-
-            if valid then do
-                frozen <- U.freeze table
-                return $ Just (Magic mask magic sh 0, frozen)
-            else
-                attempt (n-1) s3
-
-    attempt 10000000 (fromIntegral (unSquare sq) * 0x9e3779b97f4a7c15 + 0xDEADBEEF)
-
--- | Initialize magic tables.
-initMagics :: Bool -> IO (V.Vector Magic, V.Vector Magic, U.Vector Bitboard)
-initMagics verbose = do
-    when verbose $ putStrLn "Initializing Magic Bitboards..."
-
-    let getBishopMask sq =
-          let att = getRayAttacksSlow sq 4 0 .|. getRayAttacksSlow sq 5 0 .|. getRayAttacksSlow sq 6 0 .|. getRayAttacksSlow sq 7 0
-          in att .&. complement (bbFileA .|. bbFileH .|. bbRank1 .|. bbRank8)
-
-    let getRookMask sq =
-            let r = unSquare sq `div` 8
-                f = unSquare sq `mod` 8
-                maskRank = (bbRank1 `shiftL` (r*8)) .&. complement (bbFileA .|. bbFileH)
-                maskFile = (bbFileA `shiftL` f) .&. complement (bbRank1 .|. bbRank8)
-            in maskRank .|. maskFile
-
-    let solve isRook = do
-            res <- forM squares $ \sq -> do
-                let mask = if isRook then getRookMask sq else getBishopMask sq
-                let attFn = if isRook
-                            then (\s o -> getRayAttacksSlow s 0 o .|. getRayAttacksSlow s 1 o .|. getRayAttacksSlow s 2 o .|. getRayAttacksSlow s 3 o)
-                            else (\s o -> getRayAttacksSlow s 4 o .|. getRayAttacksSlow s 5 o .|. getRayAttacksSlow s 6 o .|. getRayAttacksSlow s 7 o)
-
-                mb <- findMagic sq mask attFn
-                case mb of
-                    Just (m, t) -> return (m, t)
-                    Nothing -> error $ "Failed to find magic for " ++ show sq ++ " bits=" ++ show (popcount mask)
-            return res
-
-    bishopRes <- solve False
-    rookRes <- solve True
-
-    -- Flatten tables
-    let (bishopMagicsList, bishopTables) = unzip bishopRes
-        (rookMagicsList, rookTables) = unzip rookRes
-
-    let startOffset = 0
-    let (bishopMagics, nextOffset, allBishopTables) = foldl' (\(ms, off, tabs) (m, t) ->
-            (ms ++ [m { mOffset = off }], off + U.length t, tabs ++ [t])) ([], startOffset, []) (zip bishopMagicsList bishopTables)
-
-    let (rookMagics, _, allRookTables) = foldl' (\(ms, off, tabs) (m, t) ->
-            (ms ++ [m { mOffset = off }], off + U.length t, tabs ++ [t])) ([], nextOffset, []) (zip rookMagicsList rookTables)
-
-    let hugeTable = U.concat (allBishopTables ++ allRookTables)
-
-    return (V.fromList bishopMagics, V.fromList rookMagics, hugeTable)
-
--- Global Magic Tables
-{-# NOINLINE magicData #-}
-magicData :: (V.Vector Magic, V.Vector Magic, U.Vector Bitboard)
-magicData = unsafePerformIO (initMagics False)
-
-{-# NOINLINE bbBishopMagics #-}
-bbBishopMagics :: V.Vector Magic
-bbBishopMagics = let (b, _, _) = magicData in b
-
-{-# NOINLINE bbRookMagics #-}
-bbRookMagics :: V.Vector Magic
-bbRookMagics = let (_, r, _) = magicData in r
-
-{-# NOINLINE bbMagicTable #-}
-bbMagicTable :: U.Vector Bitboard
-bbMagicTable = let (_, _, t) = magicData in t
-
--- | Magic attack lookup.
-magicAttack :: Magic -> Bitboard -> Bitboard
-{-# INLINE magicAttack #-}
-magicAttack (Magic mask magic sh offset) occ =
-    let idx = ((occ .&. mask) * magic) `unsafeShiftR` sh
-    in bbMagicTable `U.unsafeIndex` (offset + fromIntegral idx)
-
--- | Generate bishop attacks (diagonal) using Magic Bitboards.
 bishopAttacks :: Square -> Bitboard -> Bitboard
 {-# INLINE bishopAttacks #-}
-bishopAttacks (Square sq) occ =
-    let m = bbBishopMagics `V.unsafeIndex` sq
-    in magicAttack m occ
+bishopAttacks sq occ =
+    getRayAttacks sq 4 occ .|.
+    getRayAttacks sq 5 occ .|.
+    getRayAttacks sq 6 occ .|.
+    getRayAttacks sq 7 occ
 
--- | Generate rook attacks (orthogonal) using Magic Bitboards.
+-- | Generate rook attacks (orthogonal).
 rookAttacks :: Square -> Bitboard -> Bitboard
 {-# INLINE rookAttacks #-}
-rookAttacks (Square sq) occ =
-    let m = bbRookMagics `V.unsafeIndex` sq
-    in magicAttack m occ
-
--- | Get attacks for a sliding piece in a specific direction.
--- Uses Magic Bitboards by masking the full attack set.
-getRayAttacks :: Square -> Int -> Bitboard -> Bitboard
-{-# INLINE getRayAttacks #-}
-getRayAttacks sq dirIdx occ =
-    let attacks = case dirIdx of
-            0 -> rookAttacks sq occ
-            1 -> rookAttacks sq occ
-            2 -> rookAttacks sq occ
-            3 -> rookAttacks sq occ
-            4 -> bishopAttacks sq occ
-            5 -> bishopAttacks sq occ
-            6 -> bishopAttacks sq occ
-            7 -> bishopAttacks sq occ
-            _ -> 0
-        mask = bbRays `U.unsafeIndex` (unSquare sq * 8 + dirIdx)
-    in attacks .&. mask
+rookAttacks sq occ =
+    getRayAttacks sq 0 occ .|.
+    getRayAttacks sq 1 occ .|.
+    getRayAttacks sq 2 occ .|.
+    getRayAttacks sq 3 occ
 
 -- Rays ----------------------------------------------------------------------
 
