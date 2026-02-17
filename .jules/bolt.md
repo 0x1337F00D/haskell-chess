@@ -43,10 +43,6 @@
 **Action:** Replaced list comprehensions with `U.create` and a two-pass "count-then-fill" strategy using direct bitwise logic and `M.unsafeWrite`. This eliminates the intermediate list allocation entirely for pawns.
 **Impact:** Allocations reduced by ~16.2% (7.6GB saved on benchmark run). Runtime improved by ~9.3%.
 
-## 2026-02-09 – Quiet Check Allocation Bottleneck
-**Learning:** Quiescence search generated *all* legal quiet moves as a list before filtering for checks. This allocated ~24MB of short-lived list nodes (Cons) and `LegalMove` wrappers per search (Depth 6).
-**Action:** Implemented `legalQuietChecks` in `MoveGen` to filter directly on the unboxed vector using `U.filter`, avoiding intermediate list allocation. Reduced total allocation by ~1.3%.
-
-## 2026-02-09 – Performance Anomaly
-**Learning:** The engine runs at ~1000 nodes/sec (338s for 370k nodes) even with -O2. Profiling indicates it is MUT-bound with low allocation rate (5MB/s), suggesting inefficient tight loops (likely `Magic` bitboard lookups involving boxed vectors or lack of fusion).
-**Action:** Investigate `Magic` bitboard implementation and potentially unbox `Magic` struct or use SOA layout to avoid pointer chasing in `attack` functions.
+## 2026-02-07 – [GenMove-Based SEE]
+**Learning:** The move ordering logic was converting `GenMove` back to `Move` to call `see`. This caused allocation of `Move` objects and redundant `pieceAt` lookups (checking moving piece and target piece types), which `GenMove` already contains.
+**Action:** Implemented `seeGen` which operates directly on `GenMove`. It extracts piece types from `GenCapture` and `GenEnPassant` constructors, avoiding `Move` allocation and board lookups. Updated `Ordering.hs` to use `seeGen`. This optimizes the hot path of move sorting.
