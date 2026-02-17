@@ -26,6 +26,8 @@ import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
 import Data.Bits (popCount, testBit, setBit, (.|.))
 import Data.Word (Word64)
+import qualified Data.Vector.Unboxed as U
+import qualified Data.Vector.Unboxed.Mutable as UM
 
 -- | Initial Game State for Horde
 hordeInitialGame :: Game 'Horde 'Active
