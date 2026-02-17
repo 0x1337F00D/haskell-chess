@@ -10,7 +10,7 @@ import Data.List (sortOn, partition)
 import qualified Data.Vector.Unboxed.Mutable as UM
 
 import Chess.Types
-import Chess.Board (Board(..), ValidatedBoard, LegalMove, GenMove(..), pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture, getBoard, pieces, getGenMove)
+import Chess.Board (Board(..), ValidatedBoard, LegalMove, GenMove(..), pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture, pattern GenDrop, pattern GenCastling960, getBoard, pieces, getGenMove)
 import qualified Chess.Board.GameState as GS
 import Chess.Engine.SEE (see, seeGen)
 import Chess.Engine.Search.Types (SearchContext(..), SearchResources(..))
@@ -26,7 +26,16 @@ orderGenMoves vBoard moves ttM =
             Just tm -> foldr (\lm (t, o) -> if getMove (getGenMove lm) == tm then (lm:t, o) else (t, lm:o)) ([], []) moves
 
         (capProms, capsAll, proms, quiets) = partitionMoves rest
+<<<<<<< HEAD
         (goodCaps, badCaps) = partition (\lm -> seeGen b turn (getGenMove lm) >= 0) capsAll
+=======
+        (goodCaps, badCaps) = partition isGoodCap capsAll
+
+        isGoodCap lm = case getGenMove lm of
+            GenCapture _ _ pt capPt -> pieceValue capPt >= pieceValue pt || seeGen b turn (getGenMove lm) >= 0
+            GenEnPassant {} -> True
+            _ -> True
+>>>>>>> origin/main
 
         sortDesc = sortOn (negate . scoreMove . getGenMove)
     in ttMoves ++ sortDesc capProms ++ sortDesc goodCaps ++ sortDesc proms ++ quiets ++ sortDesc badCaps
@@ -37,6 +46,8 @@ orderGenMoves vBoard moves ttM =
     getMove (GenCastling f t) = Move f t Nothing
     getMove (GenPromotion f t p) = Move f t (Just p)
     getMove (GenPromotionCapture f t p _) = Move f t (Just p)
+    getMove (GenDrop p t) = DropMove p t
+    getMove (GenCastling960 f t) = Move f t Nothing
 
 -- | Specialized move ordering for Quiescence Search.
 -- Avoids concatenating lists and re-partitioning.
@@ -50,8 +61,13 @@ orderQSMoves vBoard caps proms quietChecks =
 
         processCap lm (pc, gc, bc) = case getGenMove lm of
             GenPromotionCapture {} -> (lm:pc, gc, bc)
+<<<<<<< HEAD
             GenCapture _ _ _ _ ->
                 if seeGen b turn (getGenMove lm) >= 0
+=======
+            GenCapture _ _ pt capPt ->
+                if pieceValue capPt >= pieceValue pt || seeGen b turn (getGenMove lm) >= 0
+>>>>>>> origin/main
                 then (pc, lm:gc, bc)
                 else (pc, gc, lm:bc)
             GenEnPassant {} -> (pc, lm:gc, bc) -- En Passant is generally good
@@ -85,7 +101,11 @@ partitionSEE vb moves = partition isGood moves
     isGood lm = case getGenMove lm of
         GenPromotionCapture {} -> True
         GenEnPassant {} -> True
+<<<<<<< HEAD
         GenCapture {} -> seeGen b turn (getGenMove lm) >= 0
+=======
+        GenCapture _ _ pt capPt -> pieceValue capPt >= pieceValue pt || seeGen b turn (getGenMove lm) >= 0
+>>>>>>> origin/main
         _ -> True
 
 partitionMoves :: [LegalMove] -> ([LegalMove], [LegalMove], [LegalMove], [LegalMove])
@@ -98,6 +118,8 @@ partitionMoves moves = foldr part ([], [], [], []) moves
         GenPromotion {} -> (cp, c, lm:p, q)
         GenQuiet {} -> (cp, c, p, lm:q)
         GenCastling {} -> (cp, c, p, lm:q)
+        GenDrop {} -> (cp, c, p, lm:q)
+        GenCastling960 {} -> (cp, c, p, lm:q)
 
 updateKillers :: forall p. SearchContext p -> Depth -> Move -> IO ()
 updateKillers ctx depth m = do
@@ -225,3 +247,5 @@ pickAndSort moves (Just ttM) =
     getMove (GenCastling f t) = Move f t Nothing
     getMove (GenPromotion f t p) = Move f t (Just p)
     getMove (GenPromotionCapture f t p _) = Move f t (Just p)
+    getMove (GenDrop p t) = DropMove p t
+    getMove (GenCastling960 f t) = Move f t Nothing

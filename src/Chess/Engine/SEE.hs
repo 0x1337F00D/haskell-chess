@@ -1,7 +1,10 @@
 module Chess.Engine.SEE (see, seeGen, attackersTo, pieceValue) where
 
 import Data.Bits
+<<<<<<< HEAD
 import Data.List (foldl')
+=======
+>>>>>>> origin/main
 import Chess.Types
 import Chess.Bitboard
 import Chess.Board.Base
@@ -46,9 +49,12 @@ see board (Move from to _) =
         valAttacker = pieceValue (pieceType (unsafePieceAt board from))
 
         -- Side to move (attacker)
+<<<<<<< HEAD
         -- We don't have 'Color' passed to 'see', so we infer it from the moving piece.
         -- unsafePieceAt uses pieceAt which checks occupancy.
         -- But since we are moving from 'from', it must be occupied.
+=======
+>>>>>>> origin/main
         c = pieceColor (unsafePieceAt board from)
 
     in runSeeStart board from to c valAttacker valTarget
@@ -57,6 +63,7 @@ see board (Move from to _) =
 runSeeStart :: Board -> Square -> Square -> Color -> Int -> Int -> Int
 runSeeStart b from to c valAttacker valTarget =
     let
+<<<<<<< HEAD
         -- Initial gains list: [Target]
         initialGain = [valTarget]
 
@@ -80,6 +87,29 @@ runSEE b sq side occ atts gains =
         Just (from, pt) ->
             let val = pieceValue pt
                 newGains = val : gains
+=======
+        -- Remove moving piece from occupancy
+        occ = occupied b `clearBit` (unSquare from)
+
+        -- Compute attackers to 'to' square.
+        -- We must remove 'from' from attackers because the piece at 'from' is the one moving to 'to'.
+        -- (It would be included in attackersTo because the board bitboards still have it at 'from').
+        atts = attackersTo b to occ `clearBit` (unSquare from)
+
+        side = oppositeColor c
+
+        -- Run swap. Pass valAttacker as the next victim.
+        score = runSEERec b to side occ atts valAttacker
+
+    in valTarget - score
+
+runSEERec :: Board -> Square -> Color -> Bitboard -> Bitboard -> Int -> Int
+runSEERec b sq side occ atts valVictim =
+    case getLeastValuableAttacker b side atts of
+        Nothing -> 0
+        Just (from, pt) ->
+            let valAttacker = pieceValue pt
+>>>>>>> origin/main
 
                 -- Remove piece from occ
                 newOcc = occ `clearBit` (unSquare from)
@@ -88,6 +118,7 @@ runSEE b sq side occ atts gains =
                 newAtts = (atts `clearBit` (unSquare from)) .|. getXRayAttacker b sq from newOcc
 
                 nextSide = oppositeColor side
+<<<<<<< HEAD
             in runSEE b sq nextSide newOcc newAtts newGains
 
 negamax :: [Int] -> Int
@@ -97,6 +128,13 @@ negamax (_:rest) =
     case reverse rest of
         [] -> 0
         (vTarget:victims) -> vTarget - foldl' (\s v -> max 0 (v - s)) 0 victims
+=======
+
+                -- Recurse
+                scoreNext = runSEERec b sq nextSide newOcc newAtts valAttacker
+
+            in max 0 (valVictim - scoreNext)
+>>>>>>> origin/main
 
 getLeastValuableAttacker :: Board -> Color -> Bitboard -> Maybe (Square, PieceType)
 getLeastValuableAttacker b side atts =

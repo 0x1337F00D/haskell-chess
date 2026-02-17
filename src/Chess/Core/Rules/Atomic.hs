@@ -152,6 +152,7 @@ instance ChessVariant 'Atomic where
         newHMC = if isPawn || isCapture then 0 else GS.halfmoveClock gs + 1
         newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
 
+<<<<<<< HEAD
         newGS = GS.setZobristHash
           (GS.setFullmoveNumber
             (GS.setHalfmoveClock
@@ -161,6 +162,15 @@ instance ChessVariant 'Atomic where
               newHMC)
             newFMN)
           0
+=======
+        newGS = gsUpdated
+          { GS.turn = toColor (colorVal @(Opposite c))
+          , GS.epSquare = newEP
+          , GS.halfmoveClock = newHMC
+          , GS.fullmoveNumber = newFMN
+          , GS.zobristHash = 0
+          }
+>>>>>>> origin/main
 
         nextAg = ActiveGame bFinal newGS () SUnchecked
 

@@ -71,6 +71,7 @@ hordeInitialGame =
           , Base.whiteOrthogonal = 0
           , Base.blackDiagonal = bBishops .|. bQueens
           , Base.blackOrthogonal = bRooks .|. bQueens
+<<<<<<< HEAD
           , Base.mailbox = mb
           }
 
@@ -92,12 +93,23 @@ hordeInitialGame =
 
           return v
 
+=======
+          }
+
+>>>>>>> origin/main
       -- Castling Rights: Black only (King Side + Queen Side)
       -- White has no King, so no castling rights.
       -- Black Rooks at A8 (56) and H8 (63).
       crBB = BB.BB_A8 .|. BB.BB_H8
 
+<<<<<<< HEAD
       gs = GS.setTurn (GS.setCastlingRights GS.initialGameState crBB) T.White
+=======
+      gs = GS.initialGameState
+           { GS.castlingRights = crBB
+           , GS.turn = T.White
+           }
+>>>>>>> origin/main
 
       ag = ActiveGame
            { internalBoard = baseBoard
@@ -194,6 +206,7 @@ instance ChessVariant 'Horde where
         newHMC = if isPawn || isCapture then 0 else GS.halfmoveClock gs + 1
         newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
 
+<<<<<<< HEAD
         newGS = GS.setZobristHash
           (GS.setFullmoveNumber
             (GS.setHalfmoveClock
@@ -203,6 +216,15 @@ instance ChessVariant 'Horde where
               newHMC)
             newFMN)
           0
+=======
+        newGS = gsUpdated
+          { GS.turn = toColor (colorVal @(Opposite c))
+          , GS.epSquare = newEP
+          , GS.halfmoveClock = newHMC
+          , GS.fullmoveNumber = newFMN
+          , GS.zobristHash = 0
+          }
+>>>>>>> origin/main
 
         nextAg = ActiveGame internalB' newGS () SUnchecked
 

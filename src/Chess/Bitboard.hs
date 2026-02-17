@@ -7,10 +7,18 @@ module Chess.Bitboard where
 import Data.Bits
 import Data.Word (Word64)
 import Data.List (foldl')
+<<<<<<< HEAD
 import qualified Data.Vector.Unboxed.Mutable as UM
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable as M
 import qualified Data.Vector.Unboxed as U
+=======
+import qualified Data.Vector.Unboxed as U
+import qualified Data.Vector.Unboxed.Mutable as UM
+import qualified Data.Vector.Generic as G
+import qualified Data.Vector.Generic.Mutable as M
+import qualified Data.Vector as V
+>>>>>>> origin/main
 import System.IO.Unsafe (unsafePerformIO)
 import Control.Monad (forM, when, liftM)
 
@@ -483,11 +491,21 @@ instance M.MVector U.MVector Magic where
     basicOverlaps (MV_Magic v1) (MV_Magic v2) = M.basicOverlaps v1 v2
     basicUnsafeNew n = MV_Magic `liftM` M.basicUnsafeNew n
     basicInitialize (MV_Magic v) = M.basicInitialize v
+<<<<<<< HEAD
     basicUnsafeReplicate n x = MV_Magic `liftM` M.basicUnsafeReplicate n (magicToTuple x)
     basicUnsafeRead (MV_Magic v) i = tupleToMagic `liftM` M.basicUnsafeRead v i
     basicUnsafeWrite (MV_Magic v) i x = M.basicUnsafeWrite v i (magicToTuple x)
     basicClear (MV_Magic v) = M.basicClear v
     basicSet (MV_Magic v) x = M.basicSet v (magicToTuple x)
+=======
+    basicUnsafeReplicate n (Magic m g s o) = MV_Magic `liftM` M.basicUnsafeReplicate n (m, g, s, o)
+    basicUnsafeRead (MV_Magic v) i = do
+        (m, g, s, o) <- M.basicUnsafeRead v i
+        return (Magic m g s o)
+    basicUnsafeWrite (MV_Magic v) i (Magic m g s o) = M.basicUnsafeWrite v i (m, g, s, o)
+    basicClear (MV_Magic v) = M.basicClear v
+    basicSet (MV_Magic v) (Magic m g s o) = M.basicSet v (m, g, s, o)
+>>>>>>> origin/main
     basicUnsafeCopy (MV_Magic v1) (MV_Magic v2) = M.basicUnsafeCopy v1 v2
     basicUnsafeMove (MV_Magic v1) (MV_Magic v2) = M.basicUnsafeMove v1 v2
     basicUnsafeGrow (MV_Magic v) n = MV_Magic `liftM` M.basicUnsafeGrow v n
@@ -504,6 +522,7 @@ instance G.Vector U.Vector Magic where
     basicUnsafeThaw (V_Magic v) = MV_Magic `liftM` G.basicUnsafeThaw v
     basicLength (V_Magic v) = G.basicLength v
     basicUnsafeSlice i n (V_Magic v) = V_Magic (G.basicUnsafeSlice i n v)
+<<<<<<< HEAD
     basicUnsafeIndexM (V_Magic v) i = tupleToMagic `liftM` G.basicUnsafeIndexM v i
     basicUnsafeCopy (MV_Magic mv) (V_Magic v) = G.basicUnsafeCopy mv v
     elemseq _ = seq
@@ -515,6 +534,16 @@ magicToTuple (Magic a b c d) = (a, b, c, d)
 tupleToMagic :: (Word64, Word64, Int, Int) -> Magic
 {-# INLINE tupleToMagic #-}
 tupleToMagic (a, b, c, d) = Magic a b c d
+=======
+    basicUnsafeIndexM (V_Magic v) i = do
+        (m, g, s, o) <- G.basicUnsafeIndexM v i
+        return (Magic m g s o)
+    basicUnsafeCopy (MV_Magic mv) (V_Magic v) = G.basicUnsafeCopy mv v
+    elemseq _ (Magic m g s o) z = G.elemseq (undefined :: U.Vector Word64) m
+                               $ G.elemseq (undefined :: U.Vector Word64) g
+                               $ G.elemseq (undefined :: U.Vector Int) s
+                               $ G.elemseq (undefined :: U.Vector Int) o z
+>>>>>>> origin/main
 
 -- | Generate occupancy from index and mask.
 -- Iterates over set bits in mask. If bit n of index is set, set the n-th set bit of mask.

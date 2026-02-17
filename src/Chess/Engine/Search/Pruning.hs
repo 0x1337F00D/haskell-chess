@@ -14,4 +14,8 @@ lmrTable = U.generate (64 * 64) gen
             idx = i `mod` 64
         in if d < 3 || idx < 2
            then 0
+<<<<<<< HEAD
            else floor $ (0.75 + log (fromIntegral d) * log (fromIntegral idx) / 2.25 :: Double)
+=======
+           else floor $ 0.75 + log (fromIntegral d) * log (fromIntegral idx) / 2.25
+>>>>>>> origin/main
