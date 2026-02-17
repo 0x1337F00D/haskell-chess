@@ -113,8 +113,8 @@ zobristHash (GameState _ h) = h
 {-# INLINE setTurn #-}
 setTurn :: Color -> GameState -> GameState
 setTurn c (GameState p h) =
-    let bit = case c of White -> 0; Black -> 1
-        p' = (p .&. complement 1) .|. bit
+    let bitVal = case c of White -> 0; Black -> 1
+        p' = (p .&. complement 1) .|. bitVal
     in GameState p' h
 
 {-# INLINE setCastlingRights #-}
@@ -195,12 +195,12 @@ removeColorCastlingRights gs Black =
 removeCastlingRight :: GameState -> Square -> GameState
 removeCastlingRight gs sq =
     let p = gsPacked gs
-        bit = case sq of
+        bitIdx = case sq of
                 A1 -> 0
                 H1 -> 1
                 A8 -> 2
                 H8 -> 3
                 _  -> -1
-    in if bit == -1
+    in if bitIdx == -1
        then gs
-       else gs { gsPacked = p `clearBit` (1 + bit) }
+       else gs { gsPacked = p `clearBit` (1 + bitIdx) }

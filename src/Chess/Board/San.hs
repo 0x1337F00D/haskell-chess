@@ -2,7 +2,7 @@
 module Chess.Board.San where
 
 import Data.List (find)
-import Data.Maybe (isJust, fromMaybe)
+import Data.Maybe (isJust)
 import Data.Bits ((.&.), complement, (.|.), testBit)
 
 import Chess.Types
@@ -176,27 +176,29 @@ parseSan b gs str =
         c = turn gs
 
         -- Helper to check legality of a Move (converting to GenMove first)
-        checkLegal m@(Move from to promo) =
-            let p = pieceAt b from
-                pt = maybe Pawn pieceType p
+        checkLegal m = case m of
+            Move from to promo ->
+                let p = pieceAt b from
+                    pt = maybe Pawn pieceType p
 
-                isEp = pt == Pawn && isEpCapture b gs m
-                isCastling = pt == King && abs (unSquare from - unSquare to) == 2
+                    isEp = pt == Pawn && isEpCapture b gs m
+                    isCastling = pt == King && abs (unSquare from - unSquare to) == 2
 
-                capturedPt = fmap pieceType (pieceAt b to)
+                    capturedPt = fmap pieceType (pieceAt b to)
 
-                gm = if isCastling then GenCastling from to
-                     else case promo of
-                        Just ppt ->
-                            case capturedPt of
-                                Just cp -> GenPromotionCapture from to ppt cp
-                                Nothing -> GenPromotion from to ppt
-                        Nothing ->
-                            if isEp then GenEnPassant from to
-                            else case capturedPt of
-                                Just cp -> GenCapture from to pt cp
-                                Nothing -> GenQuiet from to pt
-            in isLegal b gs gm
+                    gm = if isCastling then GenCastling from to
+                         else case promo of
+                            Just ppt ->
+                                case capturedPt of
+                                    Just cp -> GenPromotionCapture from to ppt cp
+                                    Nothing -> GenPromotion from to ppt
+                            Nothing ->
+                                if isEp then GenEnPassant from to
+                                else case capturedPt of
+                                    Just cp -> GenCapture from to pt cp
+                                    Nothing -> GenQuiet from to pt
+                in isLegal b gs gm
+            _ -> False
 
         findMatch candidates = find (\m -> checkLegal m && (san b gs m == str || san b gs m == cleanStr)) candidates
 
