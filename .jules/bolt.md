@@ -42,6 +42,7 @@
 **Learning:** `pawnMoves` helpers (`pawnQuiets`, `pawnCaptures`, etc.) were using list comprehensions to generate moves before converting to `U.Vector`. This created millions of short-lived list nodes (cons cells + boxed GenMoves) per second, dominating GC.
 **Action:** Replaced list comprehensions with `U.create` and a two-pass "count-then-fill" strategy using direct bitwise logic and `M.unsafeWrite`. This eliminates the intermediate list allocation entirely for pawns.
 **Impact:** Allocations reduced by ~16.2% (7.6GB saved on benchmark run). Runtime improved by ~9.3%.
+<<<<<<< bolt-perft-delegation-zobrist-6834189005929218309
 
 ## 2026-02-07 – [GenMove-Based SEE]
 **Learning:** The move ordering logic was converting `GenMove` back to `Move` to call `see`. This caused allocation of `Move` objects and redundant `pieceAt` lookups (checking moving piece and target piece types), which `GenMove` already contains.
@@ -51,3 +52,5 @@
 **Learning:** `Chess.Core.Perft.perft` was using a default recursive implementation that allocated boxed `Move` objects and `ActiveGame` states, ignoring the optimized `perftVariant` implementation available for `Standard` chess (which uses `GenMove` and `FastBoard`). Also, `zobristCastling` was iterating 0-63 (O(64)) to update hash, called twice per move (128 iterations).
 **Action:** Updated `perft` to delegate to `perftVariant` to enable fast path dispatch. Optimized `zobristCastling` to use `foldBitboard` (O(bits set), typically 4) instead of linear scan.
 **Impact:** ~8% speedup on KiwiPete perft (0.713s -> 0.654s, 5.7M -> 6.2M NPS). Confirmed correctness with tests.
+=======
+>>>>>>> main
