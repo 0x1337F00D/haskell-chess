@@ -13,6 +13,7 @@ import Data.Bits
 import Data.Word (Word64)
 import Foreign.Storable (Storable)
 import Control.Monad (liftM)
+import Data.Maybe (fromMaybe)
 import Control.Monad.ST (ST)
 import Data.Coerce (coerce)
 
@@ -277,6 +278,240 @@ pseudoLegalPromotions b gs = pawnPromotions b gs
 -- | Generate all legal promotion moves returning GenMove.
 legalGenPromotions :: Board -> GameState -> U.Vector GenMove
 legalGenPromotions b gs = U.filter (isLegal b gs) (pseudoLegalPromotions b gs)
+
+-- | Generate only legal moves when the king is in check.
+generateEvasions :: Board -> GameState -> U.Vector GenMove
+generateEvasions b gs = U.create $ do
+    let c = turn gs
+    let kingSq = case kingSquare b c of
+                    Just k -> k
+                    Nothing -> Square 0 -- Should not happen
+
+    let occ = occupiedTotal b
+    let enemies = occupiedBy b (oppositeColor c)
+
+    let attackers = attackersTo b kingSq occ .&. enemies
+    let numAttackers = popCount attackers
+
+    -- Allocate sufficient space.
+    -- Max chess moves is ~218.
+    mv <- M.unsafeNew 256
+
+    if numAttackers == 0
+    then return (M.slice 0 0 mv) -- Should not happen if called correctly
+    else do
+        -- 1. King Moves (always allowed if safe)
+        idx0 <- fillKingEvasions b gs mv 0
+
+        if numAttackers > 1
+        then return (M.slice 0 idx0 mv) -- Double check: only king moves
+        else do
+            -- Single check
+            let attackerSq = Square (fromMaybe 0 (lsb attackers))
+            let r = ray kingSq attackerSq
+            -- Target mask: capture attacker or block ray
+            let targetMask = if r == 0 then bbFromSquare attackerSq else r
+
+            -- Handle En Passant:
+            -- If the capture is EP, the pawn moves to epSquare but captures piece at (epSquare +/- 8).
+            -- If attacker is the pawn at (epSquare +/- 8), we can capture it by moving to epSquare.
+            let ep = epSquare gs
+            let realTargetMask = case ep of
+                    NoSquare -> targetMask
+                    Square e ->
+                         let captureSq = if c == White then Square (e - 8) else Square (e + 8)
+                         in if captureSq == attackerSq
+                            then targetMask `setBit` e
+                            else targetMask
+
+            -- Generate evasions for other pieces
+            idx1 <- fillPawnEvasions b gs realTargetMask mv idx0
+            idx2 <- fillPieceEvasions b gs Knight realTargetMask mv idx1
+            idx3 <- fillPieceEvasions b gs Bishop realTargetMask mv idx2
+            idx4 <- fillPieceEvasions b gs Rook realTargetMask mv idx3
+            idx5 <- fillPieceEvasions b gs Queen realTargetMask mv idx4
+
+            return (M.slice 0 idx5 mv)
+
+{-# INLINE fillKingEvasions #-}
+fillKingEvasions :: Board -> GameState -> U.MVector s GenMove -> Int -> ST s Int
+fillKingEvasions b gs mv !startIdx =
+    let c = turn gs
+        bb = pieceBitboard b c King
+        occ = occupiedTotal b
+        friends = occupiedBy b c
+        fillAcc !idx from = do
+            let att = kingAttacks from
+            let valid = att .&. complement friends
+            let writeMove idx2 to = do
+                    let toI = unSquare to
+                    -- Must verify safety!
+                    -- We can assume the King moves out of check?
+                    -- No, we must check if 'to' is attacked.
+                    -- Note: 'isLegal' checks this.
+                    -- We can generate pseudo-legal and filter manually or rely on 'isLegal'.
+                    -- Since we want 'generateEvasions' to be strict, we check here.
+                    -- However, 'isAttackedBy' is expensive.
+                    -- We can defer or do it here.
+                    -- Let's do it here to ensure strictness.
+
+                    let isCap = testBit (occupiedBy b (oppositeColor c)) toI
+                    let gm = if isCap
+                             then GenCapture from to King (findPieceType b (oppositeColor c) to)
+                             else GenQuiet from to King
+
+                    -- Check legality
+                    if isLegal b gs gm
+                    then do
+                        M.unsafeWrite mv idx2 gm
+                        return (idx2 + 1)
+                    else return idx2
+            foldBitboardM writeMove idx valid
+    in foldBitboardM fillAcc startIdx bb
+
+{-# INLINE fillPieceEvasions #-}
+fillPieceEvasions :: Board -> GameState -> PieceType -> Bitboard -> U.MVector s GenMove -> Int -> ST s Int
+fillPieceEvasions b gs pt targetMask mv !startIdx =
+    let c = turn gs
+        bb = pieceBitboard b c pt
+        occ = occupiedTotal b
+        friends = occupiedBy b c
+        enemies = occupiedBy b (oppositeColor c)
+        oppC = oppositeColor c
+        getAttacks from = case pt of
+             Knight -> knightAttacks from
+             Bishop -> bishopAttacks from occ
+             Rook   -> rookAttacks from occ
+             Queen  -> bishopAttacks from occ .|. rookAttacks from occ
+             _      -> 0
+        fillAcc !idx from = do
+            let att = getAttacks from
+            let valid = att .&. complement friends .&. targetMask
+            let writeMove idx2 to = do
+                    -- We know we are blocking or capturing.
+                    -- But we must still ensure we don't expose king to another check (pinned pieces).
+                    -- So we must check isLegal.
+                    let toI = unSquare to
+                    let isCap = testBit enemies toI
+                    let gm = if isCap
+                             then GenCapture from to pt (findPieceType b oppC to)
+                             else GenQuiet from to pt
+
+                    if isLegal b gs gm
+                    then do
+                        M.unsafeWrite mv idx2 gm
+                        return (idx2 + 1)
+                    else return idx2
+            foldBitboardM writeMove idx valid
+    in foldBitboardM fillAcc startIdx bb
+
+{-# INLINE fillPawnEvasions #-}
+fillPawnEvasions :: Board -> GameState -> Bitboard -> U.MVector s GenMove -> Int -> ST s Int
+fillPawnEvasions b gs targetMask mv !startIdx =
+    let c = turn gs
+        pawns = pieceBitboard b c Pawn
+        occ = occupiedTotal b
+        enemies = occupiedBy b (oppositeColor c)
+        oppC = oppositeColor c
+        ep = epSquare gs
+        epIdx = unSquare ep
+
+        fillMoves !idx from = do
+            let i = unSquare from
+            -- Quiets
+            idx1 <- if c == White
+               then do
+                   let to8 = i + 8
+                   if to8 < 64 && not (testBit occ to8) && testBit targetMask to8
+                   then do
+                       -- Promotion?
+                       if to8 >= 56
+                       then do
+                           let dest = Square to8
+                           if isLegal b gs (GenPromotion from dest Queen) then do
+                               M.unsafeWrite mv idx     (GenPromotion from dest Queen)
+                               M.unsafeWrite mv (idx+1) (GenPromotion from dest Rook)
+                               M.unsafeWrite mv (idx+2) (GenPromotion from dest Bishop)
+                               M.unsafeWrite mv (idx+3) (GenPromotion from dest Knight)
+                               return (idx + 4)
+                           else return idx
+                       else do
+                           let gm = GenQuiet from (Square to8) Pawn
+                           if isLegal b gs gm then do M.unsafeWrite mv idx gm; return (idx+1) else return idx
+                   else return idx
+               else do
+                   let to8 = i - 8
+                   if to8 >= 0 && not (testBit occ to8) && testBit targetMask to8
+                   then do
+                       if to8 <= 7
+                       then do
+                           let dest = Square to8
+                           if isLegal b gs (GenPromotion from dest Queen) then do
+                               M.unsafeWrite mv idx     (GenPromotion from dest Queen)
+                               M.unsafeWrite mv (idx+1) (GenPromotion from dest Rook)
+                               M.unsafeWrite mv (idx+2) (GenPromotion from dest Bishop)
+                               M.unsafeWrite mv (idx+3) (GenPromotion from dest Knight)
+                               return (idx + 4)
+                           else return idx
+                       else do
+                           let gm = GenQuiet from (Square to8) Pawn
+                           if isLegal b gs gm then do M.unsafeWrite mv idx gm; return (idx+1) else return idx
+                   else return idx
+
+            -- Double Push
+            idx2 <- if c == White
+               then do
+                   let to8 = i + 8
+                       to16 = i + 16
+                   if i >= 8 && i <= 15 && not (testBit occ to8) && not (testBit occ to16) && testBit targetMask to16
+                   then do
+                       let gm = GenQuiet from (Square to16) Pawn
+                       if isLegal b gs gm then do M.unsafeWrite mv idx1 gm; return (idx1+1) else return idx1
+                   else return idx1
+               else do
+                   let to8 = i - 8
+                       to16 = i - 16
+                   if i >= 48 && i <= 55 && not (testBit occ to8) && not (testBit occ to16) && testBit targetMask to16
+                   then do
+                       let gm = GenQuiet from (Square to16) Pawn
+                       if isLegal b gs gm then do M.unsafeWrite mv idx1 gm; return (idx1+1) else return idx1
+                   else return idx1
+
+            -- Captures
+            let checkCapture !ix toSq = do
+                    if testBit enemies (unSquare toSq) && testBit targetMask (unSquare toSq)
+                    then do
+                        let dest = toSq
+                            capPt = findPieceType b oppC dest
+                        if unSquare dest >= 56 || unSquare dest <= 7
+                        then do -- Promotion Capture
+                            if isLegal b gs (GenPromotionCapture from dest Queen capPt) then do
+                                M.unsafeWrite mv ix     (GenPromotionCapture from dest Queen capPt)
+                                M.unsafeWrite mv (ix+1) (GenPromotionCapture from dest Rook capPt)
+                                M.unsafeWrite mv (ix+2) (GenPromotionCapture from dest Bishop capPt)
+                                M.unsafeWrite mv (ix+3) (GenPromotionCapture from dest Knight capPt)
+                                return (ix + 4)
+                            else return ix
+                        else do
+                            let gm = GenCapture from dest Pawn capPt
+                            if isLegal b gs gm then do M.unsafeWrite mv ix gm; return (ix+1) else return ix
+                    else if ep /= NoSquare && toSq == ep && testBit targetMask (unSquare toSq)
+                         then do
+                             let gm = GenEnPassant from ep
+                             if isLegal b gs gm then do M.unsafeWrite mv ix gm; return (ix+1) else return ix
+                         else return ix
+
+            idx3 <- if c == White
+                    then do
+                        i3 <- if (i `mod` 8) /= 7 then checkCapture idx2 (Square (i+9)) else return idx2
+                        if (i `mod` 8) /= 0 then checkCapture i3 (Square (i+7)) else return i3
+                    else do
+                        i3 <- if (i `mod` 8) /= 7 then checkCapture idx2 (Square (i-7)) else return idx2
+                        if (i `mod` 8) /= 0 then checkCapture i3 (Square (i-9)) else return i3
+
+            return idx3
+
+    in foldBitboardM fillMoves startIdx pawns
 
 -- | Check if a move is legal.
 isLegal :: Board -> GameState -> GenMove -> Bool

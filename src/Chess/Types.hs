@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -337,6 +338,10 @@ startingBoardFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
 
 startingFEN :: String
 startingFEN = startingBoardFEN ++ " w KQkq - 0 1"
+
+-- | Check Status of the King.
+data CheckStatus = InCheck | NotInCheck
+    deriving (Eq, Show)
 
 -- | Status of a board after validation. Only a subset of the Python
 -- chess library statuses are represented for now.
