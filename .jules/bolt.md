@@ -43,6 +43,11 @@
 **Action:** Replaced list comprehensions with `U.create` and a two-pass "count-then-fill" strategy using direct bitwise logic and `M.unsafeWrite`. This eliminates the intermediate list allocation entirely for pawns.
 **Impact:** Allocations reduced by ~16.2% (7.6GB saved on benchmark run). Runtime improved by ~9.3%.
 
+## 2026-02-12 – [Unboxed Magic Bitboards]
+**Learning:** `Chess.Bitboard` stored Magic Bitboard constants in a boxed `V.Vector Magic`. This caused an extra pointer dereference and cache miss for *every* sliding piece attack lookup (millions/sec). The `Magic` struct itself was small (4 words) but boxed.
+**Action:** Defined `Unbox` instance for `Magic` and switched `bbBishopMagics`/`bbRookMagics` to `U.Vector Magic`. This packs the constants contiguously in memory, removing indirection.
+**Impact:** `bench-magic` speedup from 52.8 M/s to 68.0 M/s (~28.8%).
+
 ## 2026-02-01 – Magic Bitboard Initialization
 **Learning:** Initializing Magic Bitboards via brute force with list-based verification (`!!`) is (N^2)$ per trial, leading to massive startup overhead (350s).
 **Action:** Always use O(1) random access structures (like Unboxed Vectors) for inner loops in initialization code, even if it runs "only once". "Only once" can be 5 minutes.
