@@ -2,11 +2,11 @@
 module Chess.Board.Base where
 
 import Data.Bits ((.|.), (.&.), testBit, setBit, clearBit, xor, shiftL, countTrailingZeros, countLeadingZeros, popCount)
+import qualified Data.Vector.Unboxed as U
 
 import Chess.Types
 import Chess.Bitboard
 import qualified Chess.Data.Evaluation as E
-import qualified Data.Vector.Unboxed as U
 
 -- | A board representation with bitboards for each piece type and color.
 data Board = Board
@@ -297,6 +297,55 @@ movePiece b from to c pt =
 
     in b2 { occupiedWhite = whiteOcc, occupiedBlack = blackOcc, occupiedTotal = totalOcc, scoreWhite = sw', scoreBlack = sb' }
 
+-- | Move a piece assuming the target square is empty.
+-- It updates the specific piece bitboard and the occupancy bitboards.
+{-# INLINE unsafeMovePiece #-}
+unsafeMovePiece :: Board -> Square -> Square -> Color -> PieceType -> Board
+unsafeMovePiece b from to c pt =
+    let fromI = unSquare from
+        toI   = unSquare to
+        mask = (1 `shiftL` fromI) `xor` (1 `shiftL` toI)
+
+        b' = case (c, pt) of
+               (White, Pawn)   -> b { whitePawns   = whitePawns b `xor` mask }
+               (White, Knight) -> b { whiteKnights = whiteKnights b `xor` mask }
+               (White, Bishop) -> b { whiteBishops = whiteBishops b `xor` mask
+                                    , whiteDiagonal = whiteDiagonal b `xor` mask }
+               (White, Rook)   -> b { whiteRooks   = whiteRooks b `xor` mask
+                                    , whiteOrthogonal = whiteOrthogonal b `xor` mask }
+               (White, Queen)  -> b { whiteQueens  = whiteQueens b `xor` mask
+                                    , whiteDiagonal = whiteDiagonal b `xor` mask
+                                    , whiteOrthogonal = whiteOrthogonal b `xor` mask }
+               (White, King)   -> b { whiteKings   = whiteKings b `xor` mask }
+
+               (Black, Pawn)   -> b { blackPawns   = blackPawns b `xor` mask }
+               (Black, Knight) -> b { blackKnights = blackKnights b `xor` mask }
+               (Black, Bishop) -> b { blackBishops = blackBishops b `xor` mask
+                                    , blackDiagonal = blackDiagonal b `xor` mask }
+               (Black, Rook)   -> b { blackRooks   = blackRooks b `xor` mask
+                                    , blackOrthogonal = blackOrthogonal b `xor` mask }
+               (Black, Queen)  -> b { blackQueens  = blackQueens b `xor` mask
+                                    , blackDiagonal = blackDiagonal b `xor` mask
+                                    , blackOrthogonal = blackOrthogonal b `xor` mask }
+               (Black, King)   -> b { blackKings   = blackKings b `xor` mask }
+
+        white = if c == White then occupiedWhite b `xor` mask else occupiedWhite b
+        black = if c == Black then occupiedBlack b `xor` mask else occupiedBlack b
+        total = occupiedTotal b `xor` mask
+
+        -- Update scores (Phase doesn't change on move)
+        scoreFrom = getPieceScore c pt from
+        scoreTo   = getPieceScore c pt to
+
+        sw = scoreWhite b
+        sb = scoreBlack b
+
+        (sw', sb') = if c == White
+                     then (sw - scoreFrom + scoreTo, sb)
+                     else (sw, sb - scoreFrom + scoreTo)
+
+    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total, scoreWhite = sw', scoreBlack = sb' }
+
 -- | Bitboard of all pieces.
 {-# INLINE occupied #-}
 occupied :: Board -> Bitboard
@@ -366,109 +415,6 @@ findPieceType b c sq =
       else if testBit (blackQueens b) i then Queen
       else King
 
--- Helper to get score contribution of a piece
-{-# INLINE getPieceScore #-}
-getPieceScore :: Color -> PieceType -> Square -> PackedScore
-getPieceScore c pt (Square i) =
-    case pt of
-        Pawn   -> if c == White then E.scorePawnTable   `U.unsafeIndex` i else E.scorePawnTableFlip   `U.unsafeIndex` i
-        Knight -> if c == White then E.scoreKnightTable `U.unsafeIndex` i else E.scoreKnightTableFlip `U.unsafeIndex` i
-        Bishop -> if c == White then E.scoreBishopTable `U.unsafeIndex` i else E.scoreBishopTableFlip `U.unsafeIndex` i
-        Rook   -> if c == White then E.scoreRookTable   `U.unsafeIndex` i else E.scoreRookTableFlip   `U.unsafeIndex` i
-        Queen  -> if c == White then E.scoreQueenTable  `U.unsafeIndex` i else E.scoreQueenTableFlip  `U.unsafeIndex` i
-        King   -> if c == White then E.scoreKingTable   `U.unsafeIndex` i else E.scoreKingTableFlip   `U.unsafeIndex` i
-
--- Helper to get phase contribution of a piece
-{-# INLINE getPiecePhase #-}
-getPiecePhase :: PieceType -> Int
-getPiecePhase Pawn   = E.phasePawn
-getPiecePhase Knight = E.phaseKnight
-getPiecePhase Bishop = E.phaseBishop
-getPiecePhase Rook   = E.phaseRook
-getPiecePhase Queen  = E.phaseQueen
-getPiecePhase King   = 0
-
--- | Recompute evaluation scores and phase from scratch.
-computeScores :: Board -> Board
-computeScores b =
-    let
-        -- Helper to sum scores for a piece type and color
-        sumScore :: Color -> PieceType -> PackedScore
-        sumScore c pt =
-            let bb = pieceBitboard b c pt
-            in foldBitboard (\acc sq -> acc + getPieceScore c pt sq) 0 bb
-
-        -- Helper to sum phase
-        sumPhase :: Int
-        sumPhase =
-            let wn = popCount (whiteKnights b)
-                wb = popCount (whiteBishops b)
-                wr = popCount (whiteRooks b)
-                wq = popCount (whiteQueens b)
-                bn = popCount (blackKnights b)
-                bb = popCount (blackBishops b)
-                br = popCount (blackRooks b)
-                bq = popCount (blackQueens b)
-            in wn * E.phaseKnight + wb * E.phaseBishop + wr * E.phaseRook + wq * E.phaseQueen +
-               bn * E.phaseKnight + bb * E.phaseBishop + br * E.phaseRook + bq * E.phaseQueen
-
-        sw = sumScore White Pawn + sumScore White Knight + sumScore White Bishop +
-             sumScore White Rook + sumScore White Queen + sumScore White King
-
-        sb = sumScore Black Pawn + sumScore Black Knight + sumScore Black Bishop +
-             sumScore Black Rook + sumScore Black Queen + sumScore Black King
-
-    in b { scoreWhite = sw, scoreBlack = sb, gamePhase = sumPhase }
-
--- | Move a piece assuming the target square is empty.
--- It updates the specific piece bitboard and the occupancy bitboards.
-{-# INLINE unsafeMovePiece #-}
-unsafeMovePiece :: Board -> Square -> Square -> Color -> PieceType -> Board
-unsafeMovePiece b from to c pt =
-    let fromI = unSquare from
-        toI   = unSquare to
-        mask = (1 `shiftL` fromI) `xor` (1 `shiftL` toI)
-
-        b' = case (c, pt) of
-               (White, Pawn)   -> b { whitePawns   = whitePawns b `xor` mask }
-               (White, Knight) -> b { whiteKnights = whiteKnights b `xor` mask }
-               (White, Bishop) -> b { whiteBishops = whiteBishops b `xor` mask
-                                    , whiteDiagonal = whiteDiagonal b `xor` mask }
-               (White, Rook)   -> b { whiteRooks   = whiteRooks b `xor` mask
-                                    , whiteOrthogonal = whiteOrthogonal b `xor` mask }
-               (White, Queen)  -> b { whiteQueens  = whiteQueens b `xor` mask
-                                    , whiteDiagonal = whiteDiagonal b `xor` mask
-                                    , whiteOrthogonal = whiteOrthogonal b `xor` mask }
-               (White, King)   -> b { whiteKings   = whiteKings b `xor` mask }
-
-               (Black, Pawn)   -> b { blackPawns   = blackPawns b `xor` mask }
-               (Black, Knight) -> b { blackKnights = blackKnights b `xor` mask }
-               (Black, Bishop) -> b { blackBishops = blackBishops b `xor` mask
-                                    , blackDiagonal = blackDiagonal b `xor` mask }
-               (Black, Rook)   -> b { blackRooks   = blackRooks b `xor` mask
-                                    , blackOrthogonal = blackOrthogonal b `xor` mask }
-               (Black, Queen)  -> b { blackQueens  = blackQueens b `xor` mask
-                                    , blackDiagonal = blackDiagonal b `xor` mask
-                                    , blackOrthogonal = blackOrthogonal b `xor` mask }
-               (Black, King)   -> b { blackKings   = blackKings b `xor` mask }
-
-        white = if c == White then occupiedWhite b `xor` mask else occupiedWhite b
-        black = if c == Black then occupiedBlack b `xor` mask else occupiedBlack b
-        total = occupiedTotal b `xor` mask
-
-        -- Update scores (Phase doesn't change on move)
-        scoreFrom = getPieceScore c pt from
-        scoreTo   = getPieceScore c pt to
-
-        sw = scoreWhite b
-        sb = scoreBlack b
-
-        (sw', sb') = if c == White
-                     then (sw - scoreFrom + scoreTo, sb)
-                     else (sw, sb - scoreFrom + scoreTo)
-
-    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total, scoreWhite = sw', scoreBlack = sb' }
-
 -- Attackers ------------------------------------------------------------------
 
 -- | Returns a bitboard of all pieces attacking a square.
@@ -524,3 +470,57 @@ compatible pt sq from =
         Bishop -> sameDiag
         Queen -> sameRank || sameFile || sameDiag
         _ -> False
+
+-- Helper to get score contribution of a piece
+{-# INLINE getPieceScore #-}
+getPieceScore :: Color -> PieceType -> Square -> PackedScore
+getPieceScore c pt (Square i) =
+    case pt of
+        Pawn   -> if c == White then E.scorePawnTable   `U.unsafeIndex` i else E.scorePawnTableFlip   `U.unsafeIndex` i
+        Knight -> if c == White then E.scoreKnightTable `U.unsafeIndex` i else E.scoreKnightTableFlip `U.unsafeIndex` i
+        Bishop -> if c == White then E.scoreBishopTable `U.unsafeIndex` i else E.scoreBishopTableFlip `U.unsafeIndex` i
+        Rook   -> if c == White then E.scoreRookTable   `U.unsafeIndex` i else E.scoreRookTableFlip   `U.unsafeIndex` i
+        Queen  -> if c == White then E.scoreQueenTable  `U.unsafeIndex` i else E.scoreQueenTableFlip  `U.unsafeIndex` i
+        King   -> if c == White then E.scoreKingTable   `U.unsafeIndex` i else E.scoreKingTableFlip   `U.unsafeIndex` i
+
+-- Helper to get phase contribution of a piece
+{-# INLINE getPiecePhase #-}
+getPiecePhase :: PieceType -> Int
+getPiecePhase Pawn   = E.phasePawn
+getPiecePhase Knight = E.phaseKnight
+getPiecePhase Bishop = E.phaseBishop
+getPiecePhase Rook   = E.phaseRook
+getPiecePhase Queen  = E.phaseQueen
+getPiecePhase King   = 0
+
+-- | Recompute evaluation scores and phase from scratch.
+computeScores :: Board -> Board
+computeScores b =
+    let
+        -- Helper to sum scores for a piece type and color
+        sumScore :: Color -> PieceType -> PackedScore
+        sumScore c pt =
+            let bb = pieceBitboard b c pt
+            in foldBitboard (\acc sq -> acc + getPieceScore c pt sq) 0 bb
+
+        -- Helper to sum phase
+        sumPhase :: Int
+        sumPhase =
+            let wn = popCount (whiteKnights b)
+                wb = popCount (whiteBishops b)
+                wr = popCount (whiteRooks b)
+                wq = popCount (whiteQueens b)
+                bn = popCount (blackKnights b)
+                bb = popCount (blackBishops b)
+                br = popCount (blackRooks b)
+                bq = popCount (blackQueens b)
+            in wn * E.phaseKnight + wb * E.phaseBishop + wr * E.phaseRook + wq * E.phaseQueen +
+               bn * E.phaseKnight + bb * E.phaseBishop + br * E.phaseRook + bq * E.phaseQueen
+
+        sw = sumScore White Pawn + sumScore White Knight + sumScore White Bishop +
+             sumScore White Rook + sumScore White Queen + sumScore White King
+
+        sb = sumScore Black Pawn + sumScore Black Knight + sumScore Black Bishop +
+             sumScore Black Rook + sumScore Black Queen + sumScore Black King
+
+    in b { scoreWhite = sw, scoreBlack = sb, gamePhase = sumPhase }

@@ -26,6 +26,8 @@ import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
 import Data.Bits (popCount, testBit, setBit, (.|.))
 import Data.Word (Word64)
+import qualified Data.Vector.Unboxed as U
+import qualified Data.Vector.Unboxed.Mutable as UM
 
 -- | Initial Game State for Horde
 hordeInitialGame :: Game 'Horde 'Active
@@ -62,9 +64,9 @@ hordeInitialGame =
           , Base.blackQueens  = bQueens
           , Base.whiteKings   = 0
           , Base.blackKings   = bKings
-          , Base.scoreWhite = 0
-          , Base.scoreBlack = 0
-          , Base.gamePhase = 0
+          , Base.scoreWhite   = 0
+          , Base.scoreBlack   = 0
+          , Base.gamePhase    = 0
           , Base.occupiedWhite = wOcc
           , Base.occupiedBlack = bOcc
           , Base.occupiedTotal = wOcc .|. bOcc

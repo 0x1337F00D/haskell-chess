@@ -6,14 +6,15 @@ module Chess.Engine.Search.Quiescence where
 
 import Data.IORef (IORef, modifyIORef')
 import Chess.Types (Depth(..), unDepth, decDepth, depthZero)
-import Chess.Board (ValidatedBoard, getBoard, state, applyLegalMove, isCheck, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated)
+import Chess.Board (ValidatedBoard, getBoard, state, pieces, applyLegalMove, isCheck, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated, getGenMove)
 import qualified Chess.Board
+import Chess.Board.MoveGen (givesCheckFast)
 import qualified Chess.Board.GameState as GS
 import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
 import Chess.Board.Phase (Position(..))
 import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
 import Chess.Engine.Search.Types (mateValue, SearchContext(..), CheckState(..))
-import Chess.Engine.Search.Ordering (orderGenMoves)
+import Chess.Engine.Search.Ordering (orderGenMoves, orderQSMoves)
 import Chess.Types (Move, nullMove)
 
 -- | Quiescence Search.
@@ -71,14 +72,13 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
                                return $ filter (givesCheck vBoard) quiets
                            else return []
 
-            let allMoves = caps ++ proms ++ quietChecks
-            let sortedMoves = orderGenMoves vBoard allMoves Nothing
+            let sortedMoves = orderQSMoves vBoard caps proms quietChecks
 
             go sortedMoves a
   where
     givesCheck vb lm =
-        let newVBoard = applyLegalMove vb lm
-        in isCheck (getBoard newVBoard)
+        let b = getBoard vb
+        in givesCheckFast (pieces b) (state b) (getGenMove lm)
 
     go [] a = return a
     go (lm:lms) a = do

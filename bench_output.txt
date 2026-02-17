@@ -1,0 +1,28 @@
+Resolving dependencies...
+Build profile: -w ghc-9.4.7 -O1
+In order, the following will be built (use -v for more details):
+ - haskell-chess-0.1.0.0 (exe:bench-ray) (file bench/RayBench.hs changed)
+Preprocessing executable 'bench-ray' for haskell-chess-0.1.0.0..
+Building executable 'bench-ray' for haskell-chess-0.1.0.0..
+[1 of 1] Compiling Main             ( bench/RayBench.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/x/bench-ray/build/bench-ray/bench-ray-tmp/Main.o ) [Source file changed]
+
+bench/RayBench.hs:7:1: warning: [-Wunused-imports]
+    The import of ‘Control.Monad’ is redundant
+      except perhaps to import instances from ‘Control.Monad’
+    To import instances alone, use: import Control.Monad()
+  |
+7 | import Control.Monad (replicateM_)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+bench/RayBench.hs:9:1: warning: [-Wunused-imports]
+    The import of ‘Data.Word’ is redundant
+      except perhaps to import instances from ‘Data.Word’
+    To import instances alone, use: import Data.Word()
+  |
+9 | import Data.Word (Word64)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^
+[2 of 2] Linking /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/x/bench-ray/build/bench-ray/bench-ray [Objects changed]
+Benchmarking 'ray' function...
+Result: 11
+Time: 2.8669s
+Iterations: 102400000
