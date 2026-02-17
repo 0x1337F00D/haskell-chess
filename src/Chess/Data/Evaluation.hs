@@ -4,7 +4,7 @@
 module Chess.Data.Evaluation where
 
 import qualified Data.Vector.Unboxed as U
-import Data.Bits ((.|.), (.&.), shiftL, shiftR)
+import Data.Bits ((.|.), (.&.), shiftL)
 import Chess.Types (Score, PackedScore)
 
 -- | Pack two scores into one 64-bit integer (assuming 64-bit Int).

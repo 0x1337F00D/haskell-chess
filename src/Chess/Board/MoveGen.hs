@@ -7,7 +7,39 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BangPatterns #-}
 
-module Chess.Board.MoveGen where
+module Chess.Board.MoveGen (
+    GenMove(..),
+    pattern GenQuiet,
+    pattern GenCapture,
+    pattern GenEnPassant,
+    pattern GenCastling,
+    pattern GenPromotion,
+    pattern GenPromotionCapture,
+    pattern GenDrop,
+    pattern GenCastling960,
+    pseudoLegalMoves,
+    pseudoLegalMovesList,
+    legalMoves,
+    legalGenMoves,
+    legalGenMovesList,
+    pseudoLegalCaptures,
+    legalCaptures,
+    legalGenCaptures,
+    pseudoLegalQuiets,
+    legalGenQuiets,
+    pseudoLegalPromotions,
+    legalGenPromotions,
+    isLegal,
+    isLegalMove,
+    applyMoveBoard,
+    applyMoveBoardFast,
+    movePieceFast,
+    givesCheckFast,
+    pawnMovesList,
+    pieceMovesList,
+    castlingMovesList,
+    toGenMove
+) where
 
 import Data.Bits
 import Data.Word (Word64)
@@ -883,67 +915,78 @@ fillPawnCaptures b gs mv !startIdx =
                 else return idx2
     in foldBitboardM fillMoves startIdx pawns
 
-castlingMoves :: Board -> GameState -> U.Vector GenMove
-castlingMoves b gs = U.create $ do
-    let total = countCastlingMoves b gs
-    mv <- M.unsafeNew total
-    _ <- fillCastlingMoves b gs mv 0
-    return mv
+-- | Apply a move to the board (without updating game state like counters).
+applyMoveBoard :: Board -> GameState -> Move -> Board
+applyMoveBoard b gs m =
+    case toGenMove b gs m of
+        Just gm -> applyMoveBoardFast b gs gm
+        Nothing -> b
 
-{-# INLINE countCastlingMoves #-}
-countCastlingMoves :: Board -> GameState -> Int
-countCastlingMoves b gs =
+-- | Check if a move gives check without fully applying it.
+-- This is a fast path for quiet moves and castling.
+givesCheckFast :: Board -> GameState -> GenMove -> Bool
+givesCheckFast b gs gm =
     let c = turn gs
-        rank = if c == White then 0 else 7
+        oppC = oppositeColor c
+        kingSq = case kingSquare b oppC of
+                   Just k -> k
+                   Nothing -> Square 0
         occ = occupiedTotal b
-        kingsideClear =
-            let f1 = Square (rank * 8 + 5)
-                g1 = Square (rank * 8 + 6)
-            in not (testBit occ (unSquare f1)) && not (testBit occ (unSquare g1))
-        queensideClear =
-            let d1 = Square (rank * 8 + 3)
-                c1 = Square (rank * 8 + 2)
-                b1 = Square (rank * 8 + 1)
-            in not (testBit occ (unSquare d1)) && not (testBit occ (unSquare c1)) && not (testBit occ (unSquare b1))
-        hasKS = canCastleKingside gs c && kingsideClear
-        hasQS = canCastleQueenside gs c && queensideClear
-    in (if hasKS then 1 else 0) + (if hasQS then 1 else 0)
+    in case gm of
+        GenQuiet from to pt ->
+            let
+                fromI = unSquare from
+                toI = unSquare to
+                occ' = (occ `clearBit` fromI) `setBit` toI
 
-{-# INLINE fillCastlingMoves #-}
-fillCastlingMoves :: Board -> GameState -> U.MVector s GenMove -> Int -> ST s Int
-fillCastlingMoves b gs mv !startIdx = do
-    let c = turn gs
-        rank = if c == White then 0 else 7
-        occ = occupiedTotal b
-        kingSq = Square (rank * 8 + 4)
+                -- Magic Lookups from King (Symmetric)
+                bAtt = bishopAttacks kingSq occ'
+                rAtt = rookAttacks kingSq occ'
 
-        kingsideClear =
-            let f1 = Square (rank * 8 + 5)
-                g1 = Square (rank * 8 + 6)
-            in not (testBit occ (unSquare f1)) && not (testBit occ (unSquare g1))
-        queensideClear =
-            let d1 = Square (rank * 8 + 3)
-                c1 = Square (rank * 8 + 2)
-                b1 = Square (rank * 8 + 1)
-            in not (testBit occ (unSquare d1)) && not (testBit occ (unSquare c1)) && not (testBit occ (unSquare b1))
+                -- 1. Direct Check from 'to'
+                direct = case pt of
+                    Pawn -> testBit (pawnAttacks c to) (unSquare kingSq)
+                    Knight -> testBit (knightAttacks to) (unSquare kingSq)
+                    Bishop -> testBit bAtt toI
+                    Rook -> testBit rAtt toI
+                    Queen -> testBit bAtt toI || testBit rAtt toI
+                    King -> False
 
-        mkCastlingMove isKingside =
-            let toFile = if isKingside then 6 else 2
-                toSq = Square (rank * 8 + toFile)
-            in GenCastling kingSq toSq
+                -- 2. Discovered Check from other sliders
+                (fDiag, fOrth) = if c == White
+                                 then (whiteDiagonal b, whiteOrthogonal b)
+                                 else (blackDiagonal b, blackOrthogonal b)
 
-        hasKS = canCastleKingside gs c && kingsideClear
-        hasQS = canCastleQueenside gs c && queensideClear
+                fDiag' = fDiag `clearBit` fromI
+                fOrth' = fOrth `clearBit` fromI
 
-    idx1 <- if hasKS
-            then do
-                M.unsafeWrite mv startIdx (mkCastlingMove True)
-                return (startIdx + 1)
-            else return startIdx
+                discovered = (bAtt .&. fDiag' /= 0) || (rAtt .&. fOrth' /= 0)
 
-    idx2 <- if hasQS
-            then do
-                M.unsafeWrite mv idx1 (mkCastlingMove False)
-                return (idx1 + 1)
-            else return idx1
-    return idx2
+            in direct || discovered
+
+        GenCastling _ _ ->
+             let b' = applyMoveBoardFast b gs gm
+             in isAttackedBy b' c kingSq
+
+        _ -> False
+
+-- List Adapters for Core
+{-# INLINE pseudoLegalMovesList #-}
+pseudoLegalMovesList :: Board -> GameState -> [GenMove]
+pseudoLegalMovesList b gs = U.toList (pseudoLegalMoves b gs)
+
+{-# INLINE legalGenMovesList #-}
+legalGenMovesList :: Board -> GameState -> [GenMove]
+legalGenMovesList b gs = U.toList (legalGenMoves b gs)
+
+{-# INLINE pawnMovesList #-}
+pawnMovesList :: Board -> GameState -> [GenMove]
+pawnMovesList b gs = U.toList (pawnMoves b gs)
+
+{-# INLINE pieceMovesList #-}
+pieceMovesList :: Board -> GameState -> PieceType -> [GenMove]
+pieceMovesList b gs pt = U.toList (pieceMoves b gs pt)
+
+{-# INLINE castlingMovesList #-}
+castlingMovesList :: Board -> GameState -> [GenMove]
+castlingMovesList b gs = U.toList (castlingMoves b gs)

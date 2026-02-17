@@ -20,26 +20,38 @@ parseFenRest :: String -> Maybe (Board, GameState, [String])
 parseFenRest s = do
   let parts = words s
   guard (length parts >= 4)
-  let (boardStrFull:turnStr:castlingStr:epStr:rest) = parts
-
+  case parts of
+    (boardStrFull:turnStr:castlingStr:epStr:rest) -> do
       -- Extract pocket if attached to board string (e.g. "RNBQKBNR[P]")
-      (boardStr, pocketPart) = span (/= '[') boardStrFull
+      let (boardStr, pocketPart) = span (/= '[') boardStrFull
 
-      (halfmoveStr, fullmoveStr, extra) = case rest of
-                                            (h:f:r) -> (h, f, r)
-                                            [h] -> (h, "1", [])
-                                            [] -> ("0", "1", [])
+          (halfmoveStr, fullmoveStr, extra) = case rest of
+                                                (h:f:r) -> (h, f, r)
+                                                [h] -> (h, "1", [])
+                                                [] -> ("0", "1", [])
 
-      extra' = if null pocketPart then extra else pocketPart : extra
+          extra' = if null pocketPart then extra else pocketPart : extra
 
-  board <- parseBoard boardStr
-  turnVal <- parseTurn turnStr
-  castling <- parseCastling castlingStr
-  ep <- parseEp epStr
-  halfmove <- HalfmoveClock <$> readMaybe halfmoveStr
-  fullmove <- FullmoveNumber <$> readMaybe fullmoveStr
+      board <- parseBoard boardStr
+      turnVal <- parseTurn turnStr
+      castling <- parseCastling castlingStr
+      ep <- parseEp epStr
+      halfmove <- HalfmoveClock <$> readMaybe halfmoveStr
+      fullmove <- FullmoveNumber <$> readMaybe fullmoveStr
 
-  let gsProto = GameState
+      let gsProto = GameState
+            { turn = turnVal
+            , castlingRights = castling
+            , epSquare = ep
+            , halfmoveClock = halfmove
+            , fullmoveNumber = fullmove
+            , zobristHash = 0
+            }
+          hash = Zobrist.computeHash board gsProto
+          gs = gsProto { zobristHash = hash }
+
+      return (board, gs, extra')
+    _ -> Nothing
         { turn = turnVal
         , castlingRights = castling
         , epSquare = ep
