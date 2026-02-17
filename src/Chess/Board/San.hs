@@ -2,7 +2,7 @@
 module Chess.Board.San where
 
 import Data.List (find)
-import Data.Maybe (isJust, fromMaybe)
+import Data.Maybe (isJust)
 import Data.Bits ((.&.), complement, (.|.), testBit)
 
 import Chess.Types
@@ -73,11 +73,9 @@ applyMove b gs m@(Move from to _ ) =
              then midSquare from to
              else NoSquare
 
-        gs' = gs
-            { turn = oppositeColor c
-            , castlingRights = cr2
-            , epSquare = ep
-            }
+        gs1 = setTurn gs (oppositeColor c)
+        gs2 = setCastlingRights gs1 cr2
+        gs' = setEpSquare gs2 ep
     in (b', gs')
 applyMove b gs _ = (b, gs)
 

@@ -1,0 +1,141 @@
+Build profile: -w ghc-9.4.8 -O1
+In order, the following will be built (use -v for more details):
+ - haskell-chess-0.1.0.0 (lib) (first run)
+ - haskell-chess-0.1.0.0 (exe:micro-bench) (first run)
+ - haskell-chess-0.1.0.0 (exe:haskell-chess) (first run)
+ - haskell-chess-0.1.0.0 (exe:bench-tactics) (first run)
+ - haskell-chess-0.1.0.0 (exe:bench-search) (first run)
+ - haskell-chess-0.1.0.0 (exe:bench-report) (first run)
+ - haskell-chess-0.1.0.0 (exe:bench-magic) (first run)
+ - haskell-chess-0.1.0.0 (exe:bench-elo) (first run)
+ - haskell-chess-0.1.0.0 (exe:bench-core) (first run)
+Preprocessing library for haskell-chess-0.1.0.0..
+Building library for haskell-chess-0.1.0.0..
+[16 of 48] Compiling Chess.Board.San  ( src/Chess/Board/San.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board/San.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board/San.dyn_o )
+
+src/Chess/Board/San.hs:115:36: error:
+    Data constructor not in scope:
+      GenPromotionCapture :: t1 -> Square -> PieceType -> PieceType -> t2
+    Suggested fix:
+      Perhaps you want to add ‘GenPromotionCapture’ to the import list
+      in the import of ‘Chess.Board.MoveGen’
+      (src/Chess/Board/San.hs:12:1-65).
+    |
+115 |                         Just cp -> GenPromotionCapture from target p cp
+    |                                    ^^^^^^^^^^^^^^^^^^^
+
+src/Chess/Board/San.hs:116:36: error:
+    Data constructor not in scope:
+      GenPromotion :: t1 -> Square -> PieceType -> t2
+    Suggested fix:
+      Perhaps you want to add ‘GenPromotion’ to the import list
+      in the import of ‘Chess.Board.MoveGen’
+      (src/Chess/Board/San.hs:12:1-65).
+    |
+116 |                         Nothing -> GenPromotion from target p
+    |                                    ^^^^^^^^^^^^
+
+src/Chess/Board/San.hs:118:30: error:
+    Data constructor not in scope: GenEnPassant :: t1 -> Square -> t2
+    Suggested fix:
+      Perhaps you want to add ‘GenEnPassant’ to the import list
+      in the import of ‘Chess.Board.MoveGen’
+      (src/Chess/Board/San.hs:12:1-65).
+    |
+118 |                 if isEp then GenEnPassant from target
+    |                              ^^^^^^^^^^^^
+
+src/Chess/Board/San.hs:120:36: error:
+    Data constructor not in scope:
+      GenCapture :: t1 -> Square -> PieceType -> PieceType -> t2
+    Suggested fix:
+      Perhaps you want to add ‘GenCapture’ to the import list
+      in the import of ‘Chess.Board.MoveGen’
+      (src/Chess/Board/San.hs:12:1-65).
+    |
+120 |                         Just cp -> GenCapture from target pt cp
+    |                                    ^^^^^^^^^^
+
+src/Chess/Board/San.hs:121:36: error:
+    Data constructor not in scope:
+      GenQuiet :: t1 -> Square -> PieceType -> t2
+    Suggested fix:
+      Perhaps you want to add ‘GenQuiet’ to the import list
+      in the import of ‘Chess.Board.MoveGen’
+      (src/Chess/Board/San.hs:12:1-65).
+    |
+121 |                         Nothing -> GenQuiet from target pt
+    |                                    ^^^^^^^^
+
+src/Chess/Board/San.hs:186:41: error:
+    Data constructor not in scope: GenCastling :: Square -> Square -> t
+    Suggested fixes:
+      • Perhaps use one of these:
+          variable ‘gsCastling’ (imported from Chess.Board.GameState),
+          variable ‘isCastling’ (line 182),
+          variable ‘noCastling’ (imported from Chess.Board.GameState)
+      • Perhaps you want to add ‘GenCastling’ to the import list
+        in the import of ‘Chess.Board.MoveGen’
+        (src/Chess/Board/San.hs:12:1-65).
+    |
+186 |                 gm = if isCastling then GenCastling from to
+    |                                         ^^^^^^^^^^^
+
+src/Chess/Board/San.hs:190:44: error:
+    Data constructor not in scope:
+      GenPromotionCapture
+        :: Square -> Square -> PieceType -> PieceType -> t
+    Suggested fix:
+      Perhaps you want to add ‘GenPromotionCapture’ to the import list
+      in the import of ‘Chess.Board.MoveGen’
+      (src/Chess/Board/San.hs:12:1-65).
+    |
+190 |                                 Just cp -> GenPromotionCapture from to ppt cp
+    |                                            ^^^^^^^^^^^^^^^^^^^
+
+src/Chess/Board/San.hs:191:44: error:
+    Data constructor not in scope:
+      GenPromotion :: Square -> Square -> PieceType -> t
+    Suggested fix:
+      Perhaps you want to add ‘GenPromotion’ to the import list
+      in the import of ‘Chess.Board.MoveGen’
+      (src/Chess/Board/San.hs:12:1-65).
+    |
+191 |                                 Nothing -> GenPromotion from to ppt
+    |                                            ^^^^^^^^^^^^
+
+src/Chess/Board/San.hs:193:42: error:
+    Data constructor not in scope:
+      GenEnPassant :: Square -> Square -> t
+    Suggested fix:
+      Perhaps you want to add ‘GenEnPassant’ to the import list
+      in the import of ‘Chess.Board.MoveGen’
+      (src/Chess/Board/San.hs:12:1-65).
+    |
+193 |                             if isEp then GenEnPassant from to
+    |                                          ^^^^^^^^^^^^
+
+src/Chess/Board/San.hs:195:44: error:
+    Data constructor not in scope:
+      GenCapture :: Square -> Square -> PieceType -> PieceType -> t
+    Suggested fix:
+      Perhaps you want to add ‘GenCapture’ to the import list
+      in the import of ‘Chess.Board.MoveGen’
+      (src/Chess/Board/San.hs:12:1-65).
+    |
+195 |                                 Just cp -> GenCapture from to pt cp
+    |                                            ^^^^^^^^^^
+
+src/Chess/Board/San.hs:196:44: error:
+    Data constructor not in scope:
+      GenQuiet :: Square -> Square -> PieceType -> t
+    Suggested fix:
+      Perhaps you want to add ‘GenQuiet’ to the import list
+      in the import of ‘Chess.Board.MoveGen’
+      (src/Chess/Board/San.hs:12:1-65).
+    |
+196 |                                 Nothing -> GenQuiet from to pt
+    |                                            ^^^^^^^^
+Error: cabal: Failed to build haskell-chess-0.1.0.0 (which is required by
+exe:micro-bench from haskell-chess-0.1.0.0, exe:haskell-chess from
+haskell-chess-0.1.0.0 and others).

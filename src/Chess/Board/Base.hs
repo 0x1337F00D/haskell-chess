@@ -1,7 +1,10 @@
 {-# LANGUAGE PatternSynonyms #-}
 module Chess.Board.Base where
 
-import Data.Bits ((.|.), (.&.), testBit, setBit, clearBit, xor, shiftL, countTrailingZeros, countLeadingZeros)
+import Data.Bits ((.|.), (.&.), setBit, clearBit, xor, shiftL, shiftR, countTrailingZeros, countLeadingZeros)
+import Data.Word (Word8)
+import qualified Data.Vector.Unboxed as U
+import qualified Data.Vector.Unboxed.Mutable as UM
 
 import Chess.Types
 import Chess.Bitboard
@@ -28,11 +31,41 @@ data Board = Board
   , whiteOrthogonal :: {-# UNPACK #-} !Bitboard -- Rooks | Queens
   , blackDiagonal   :: {-# UNPACK #-} !Bitboard -- Bishops | Queens
   , blackOrthogonal :: {-# UNPACK #-} !Bitboard -- Rooks | Queens
+  , mailbox         :: !(U.Vector Word8)
   } deriving (Eq, Show)
 
 -- | An empty board.
 empty :: Board
-empty = Board 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+empty = Board 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 emptyMailbox
+
+emptyMailbox :: U.Vector Word8
+emptyMailbox = U.replicate 64 0
+
+-- | Helper to convert Piece to Word8 for mailbox.
+-- Format: (Color << 3) | (PieceType + 1)
+-- Color: White=0, Black=1
+-- PieceType: Pawn=0 .. King=5
+{-# INLINE pieceToWord8 #-}
+pieceToWord8 :: Piece -> Word8
+pieceToWord8 (Piece c pt) =
+    let cVal = fromIntegral (fromEnum c) :: Word8
+        ptVal = fromIntegral (fromEnum pt) :: Word8
+    in (cVal `shiftL` 3) .|. (ptVal + 1)
+
+-- | Helper to convert Word8 to Piece.
+{-# INLINE word8ToPiece #-}
+word8ToPiece :: Word8 -> Maybe Piece
+word8ToPiece w
+    | w == 0    = Nothing
+    | otherwise =
+        let c = toEnum (fromIntegral ((w `shiftR` 3) .&. 1))
+            pt = toEnum (fromIntegral ((w .&. 7) - 1))
+        in Just (Piece c pt)
+
+-- | Helper to convert Word8 to PieceType (assuming valid piece).
+{-# INLINE word8ToPieceType #-}
+word8ToPieceType :: Word8 -> PieceType
+word8ToPieceType w = toEnum (fromIntegral ((w .&. 7) - 1))
 
 -- | Get the bitboard for a specific piece type and color.
 pieceBitboard :: Board -> Color -> PieceType -> Bitboard
@@ -50,20 +83,6 @@ pieceBitboard b Black Queen  = blackQueens b
 pieceBitboard b Black King   = blackKings b
 
 -- | Set the bitboard for a specific piece type and color.
-setPieceBitboard :: Board -> Color -> PieceType -> Bitboard -> Board
-setPieceBitboard b c pt bb = updateOccupancy $ case (c, pt) of
-  (White, Pawn)   -> b { whitePawns   = bb }
-  (White, Knight) -> b { whiteKnights = bb }
-  (White, Bishop) -> b { whiteBishops = bb }
-  (White, Rook)   -> b { whiteRooks   = bb }
-  (White, Queen)  -> b { whiteQueens  = bb }
-  (White, King)   -> b { whiteKings   = bb }
-  (Black, Pawn)   -> b { blackPawns   = bb }
-  (Black, Knight) -> b { blackKnights = bb }
-  (Black, Bishop) -> b { blackBishops = bb }
-  (Black, Rook)   -> b { blackRooks   = bb }
-  (Black, Queen)  -> b { blackQueens  = bb }
-  (Black, King)   -> b { blackKings   = bb }
 
 -- | Update cached occupancy and aggregated bitboards.
 updateOccupancy :: Board -> Board
@@ -94,23 +113,7 @@ updateOccupancy b =
 -- | Get the piece at a square, if any.
 {-# INLINE pieceAt #-}
 pieceAt :: Board -> Square -> Maybe Piece
-pieceAt b sq
-  | not (testBit (occupiedTotal b) i) = Nothing
-  | testBit (occupiedWhite b) i =
-      if testBit (whitePawns b) i then Just (Piece White Pawn)
-      else if testBit (whiteKnights b) i then Just (Piece White Knight)
-      else if testBit (whiteBishops b) i then Just (Piece White Bishop)
-      else if testBit (whiteRooks b) i then Just (Piece White Rook)
-      else if testBit (whiteQueens b) i then Just (Piece White Queen)
-      else Just (Piece White King)
-  | otherwise =
-      if testBit (blackPawns b) i then Just (Piece Black Pawn)
-      else if testBit (blackKnights b) i then Just (Piece Black Knight)
-      else if testBit (blackBishops b) i then Just (Piece Black Bishop)
-      else if testBit (blackRooks b) i then Just (Piece Black Rook)
-      else if testBit (blackQueens b) i then Just (Piece Black Queen)
-      else Just (Piece Black King)
-  where i = unSquare sq
+pieceAt b sq = word8ToPiece (U.unsafeIndex (mailbox b) (unSquare sq))
 
 -- | Get the color of the piece at a square, if any.
 {-# INLINE colorAt #-}
@@ -122,8 +125,8 @@ colorAt b sq = fmap pieceColor (pieceAt b sq)
 putPiece :: Board -> Square -> Piece -> Board
 putPiece b sq piece =
   let i = unSquare sq
-      -- Check if occupied (fast check)
-      captured = if testBit (occupiedTotal b) i then pieceAt b sq else Nothing
+      -- Check if occupied (fast check using mailbox would be valid too)
+      captured = pieceAt b sq
 
       -- Remove captured piece if any
       b1 = case captured of
@@ -164,7 +167,11 @@ unsafePutPiece b sq (Piece c pt) =
         white = if c == White then setBit (occupiedWhite b) i else occupiedWhite b
         black = if c == Black then setBit (occupiedBlack b) i else occupiedBlack b
         total = setBit (occupiedTotal b) i
-    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total }
+
+        -- Update mailbox
+        mb = U.modify (\v -> UM.unsafeWrite v i (pieceToWord8 (Piece c pt))) (mailbox b)
+
+    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total, mailbox = mb }
 
 -- | Remove a piece from the board knowing its color and type.
 -- Does not update other bitboards, so it is faster than removePieceAt.
@@ -199,25 +206,32 @@ unsafeRemovePiece b sq c pt =
         white = if c == White then clearBit (occupiedWhite b) i else occupiedWhite b
         black = if c == Black then clearBit (occupiedBlack b) i else occupiedBlack b
         total = clearBit (occupiedTotal b) i
-    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total }
+
+        -- Update mailbox
+        mb = U.modify (\v -> UM.unsafeWrite v i 0) (mailbox b)
+
+    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total, mailbox = mb }
 
 -- | Remove a piece from the board.
 removePieceAt :: Board -> Square -> Board
-removePieceAt b sq = updateOccupancy $ b
-  { whitePawns   = clearBit (whitePawns b) i
-  , whiteKnights = clearBit (whiteKnights b) i
-  , whiteBishops = clearBit (whiteBishops b) i
-  , whiteRooks   = clearBit (whiteRooks b) i
-  , whiteQueens  = clearBit (whiteQueens b) i
-  , whiteKings   = clearBit (whiteKings b) i
-  , blackPawns   = clearBit (blackPawns b) i
-  , blackKnights = clearBit (blackKnights b) i
-  , blackBishops = clearBit (blackBishops b) i
-  , blackRooks   = clearBit (blackRooks b) i
-  , blackQueens  = clearBit (blackQueens b) i
-  , blackKings   = clearBit (blackKings b) i
-  }
-  where i = unSquare sq
+removePieceAt b sq =
+  let i = unSquare sq
+      b1 = updateOccupancy $ b
+          { whitePawns   = clearBit (whitePawns b) i
+          , whiteKnights = clearBit (whiteKnights b) i
+          , whiteBishops = clearBit (whiteBishops b) i
+          , whiteRooks   = clearBit (whiteRooks b) i
+          , whiteQueens  = clearBit (whiteQueens b) i
+          , whiteKings   = clearBit (whiteKings b) i
+          , blackPawns   = clearBit (blackPawns b) i
+          , blackKnights = clearBit (blackKnights b) i
+          , blackBishops = clearBit (blackBishops b) i
+          , blackRooks   = clearBit (blackRooks b) i
+          , blackQueens  = clearBit (blackQueens b) i
+          , blackKings   = clearBit (blackKings b) i
+          }
+      mb = U.modify (\v -> UM.unsafeWrite v i 0) (mailbox b)
+  in b1 { mailbox = mb }
 
 -- | Move a piece from one square to another.
 -- Handles capturing if the target square is occupied.
@@ -227,9 +241,7 @@ movePiece b from to c pt =
         toI   = unSquare to
 
         -- Check capture
-        captured = if testBit (occupiedTotal b) toI
-                   then pieceAt b to
-                   else Nothing
+        captured = pieceAt b to -- Use optimized pieceAt
 
         -- Remove captured piece (if any)
         b1 = case captured of
@@ -270,7 +282,14 @@ movePiece b from to c pt =
         blackOcc = if c == Black then occupiedBlack b1 `xor` mask else occupiedBlack b1
         totalOcc = occupiedTotal b1 `xor` mask
 
-    in b2 { occupiedWhite = whiteOcc, occupiedBlack = blackOcc, occupiedTotal = totalOcc }
+        -- Update mailbox
+        -- Set from to 0, Set to to Piece
+        mb = U.modify (\v -> do
+            UM.unsafeWrite v fromI 0
+            UM.unsafeWrite v toI (pieceToWord8 (Piece c pt))
+            ) (mailbox b1)
+
+    in b2 { occupiedWhite = whiteOcc, occupiedBlack = blackOcc, occupiedTotal = totalOcc, mailbox = mb }
 
 -- | Bitboard of all pieces.
 {-# INLINE occupied #-}
@@ -323,23 +342,8 @@ oppositeColor Black = White
 -- | Find the piece type at a square, assuming it is occupied by a piece of the given color.
 {-# INLINE findPieceType #-}
 findPieceType :: Board -> Color -> Square -> PieceType
-findPieceType b c sq =
-  let i = unSquare sq
-  in case c of
-    White ->
-      if testBit (whitePawns b) i then Pawn
-      else if testBit (whiteKnights b) i then Knight
-      else if testBit (whiteBishops b) i then Bishop
-      else if testBit (whiteRooks b) i then Rook
-      else if testBit (whiteQueens b) i then Queen
-      else King
-    Black ->
-      if testBit (blackPawns b) i then Pawn
-      else if testBit (blackKnights b) i then Knight
-      else if testBit (blackBishops b) i then Bishop
-      else if testBit (blackRooks b) i then Rook
-      else if testBit (blackQueens b) i then Queen
-      else King
+findPieceType b _ sq =
+  word8ToPieceType (U.unsafeIndex (mailbox b) (unSquare sq))
 
 -- | Move a piece assuming the target square is empty.
 -- It updates the specific piece bitboard and the occupancy bitboards.
@@ -376,7 +380,14 @@ unsafeMovePiece b from to c pt =
         white = if c == White then occupiedWhite b `xor` mask else occupiedWhite b
         black = if c == Black then occupiedBlack b `xor` mask else occupiedBlack b
         total = occupiedTotal b `xor` mask
-    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total }
+
+        -- Update mailbox
+        mb = U.modify (\v -> do
+            UM.unsafeWrite v fromI 0
+            UM.unsafeWrite v toI (pieceToWord8 (Piece c pt))
+            ) (mailbox b)
+
+    in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total, mailbox = mb }
 
 -- Attackers ------------------------------------------------------------------
 

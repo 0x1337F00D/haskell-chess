@@ -75,7 +75,7 @@ import qualified Chess.Board.Zobrist as Zobrist
 -- | The primary board type combining piece placement and game state.
 data Board = Board
   { pieces :: !Base.Board
-  , state  :: !GS.GameState
+  , state  :: {-# UNPACK #-} !GS.GameState
   , history :: ![Word64]
   } deriving (Eq, Show)
 
@@ -227,12 +227,13 @@ applyMoveHelper (Board b gs hist) gm =
         -- Optimization: Clear history if halfmove clock resets (pawn move or capture)
         histFinal = if halfmove' == 0 then [] else hist'
 
-    in Board b' (gs2 { GS.turn = nextTurn
-                     , GS.epSquare = ep'
-                     , GS.halfmoveClock = halfmove'
-                     , GS.fullmoveNumber = fullmove'
-                     , GS.zobristHash = hFinal
-                     }) histFinal
+        gs3 = GS.setTurn gs2 nextTurn
+        gs4 = GS.setEpSquare gs3 ep'
+        gs5 = GS.setHalfmoveClock gs4 halfmove'
+        gs6 = GS.setFullmoveNumber gs5 fullmove'
+        gsFinal = GS.setZobristHash gs6 hFinal
+
+    in Board b' gsFinal histFinal
 
 -- | Generate all legal moves for the current position.
 legalMoves :: Board -> [Move]

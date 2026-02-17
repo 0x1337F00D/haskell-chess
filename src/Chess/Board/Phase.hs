@@ -12,6 +12,7 @@ import Data.Bits (popCount)
 import qualified Chess.Board.Base as Base
 import Chess.Board (Board(..), ValidatedBoard, getBoard)
 import Chess.Board.GameState (GameState(..))
+import qualified Chess.Board.GameState as GS
 import Chess.Types (FullmoveNumber(..))
 
 -- | Game Phases
@@ -61,7 +62,7 @@ classifyPhase vb =
         phase = wn * phaseKnight + wb * phaseBishop + wr * phaseRook + wq * phaseQueen +
                 bn * phaseKnight + bb * phaseBishop + br * phaseRook + bq * phaseQueen
 
-        fm = unFullmoveNumber (fullmoveNumber gs)
+        fm = unFullmoveNumber (GS.fullmoveNumber gs)
 
     in if fm < 10
        then SomePhase SOpening (Position vb)

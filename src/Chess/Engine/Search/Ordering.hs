@@ -26,12 +26,7 @@ orderGenMoves vBoard moves ttM =
             Just tm -> foldr (\lm (t, o) -> if getMove (getGenMove lm) == tm then (lm:t, o) else (t, lm:o)) ([], []) moves
 
         (capProms, capsAll, proms, quiets) = partitionMoves rest
-        (goodCaps, badCaps) = partition isGoodCap capsAll
-
-        isGoodCap lm = case getGenMove lm of
-            GenCapture _ _ pt capPt -> pieceValue capPt >= pieceValue pt || seeGen b turn (getGenMove lm) >= 0
-            GenEnPassant {} -> True
-            _ -> True
+        (goodCaps, badCaps) = partition (\lm -> seeGen b turn (getGenMove lm) >= 0) capsAll
 
         sortDesc = sortOn (negate . scoreMove . getGenMove)
     in ttMoves ++ sortDesc capProms ++ sortDesc goodCaps ++ sortDesc proms ++ quiets ++ sortDesc badCaps
@@ -55,8 +50,8 @@ orderQSMoves vBoard caps proms quietChecks =
 
         processCap lm (pc, gc, bc) = case getGenMove lm of
             GenPromotionCapture {} -> (lm:pc, gc, bc)
-            GenCapture _ _ pt capPt ->
-                if pieceValue capPt >= pieceValue pt || seeGen b turn (getGenMove lm) >= 0
+            GenCapture _ _ _ _ ->
+                if seeGen b turn (getGenMove lm) >= 0
                 then (pc, lm:gc, bc)
                 else (pc, gc, lm:bc)
             GenEnPassant {} -> (pc, lm:gc, bc) -- En Passant is generally good
@@ -90,7 +85,7 @@ partitionSEE vb moves = partition isGood moves
     isGood lm = case getGenMove lm of
         GenPromotionCapture {} -> True
         GenEnPassant {} -> True
-        GenCapture _ _ pt capPt -> pieceValue capPt >= pieceValue pt || seeGen b turn (getGenMove lm) >= 0
+        GenCapture {} -> seeGen b turn (getGenMove lm) >= 0
         _ -> True
 
 partitionMoves :: [LegalMove] -> ([LegalMove], [LegalMove], [LegalMove], [LegalMove])

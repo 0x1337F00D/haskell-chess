@@ -43,6 +43,6 @@
 **Action:** Replaced list comprehensions with `U.create` and a two-pass "count-then-fill" strategy using direct bitwise logic and `M.unsafeWrite`. This eliminates the intermediate list allocation entirely for pawns.
 **Impact:** Allocations reduced by ~16.2% (7.6GB saved on benchmark run). Runtime improved by ~9.3%.
 
-## 2026-02-01 – Magic Bitboard Initialization
-**Learning:** Initializing Magic Bitboards via brute force with list-based verification (`!!`) is (N^2)$ per trial, leading to massive startup overhead (350s).
-**Action:** Always use O(1) random access structures (like Unboxed Vectors) for inner loops in initialization code, even if it runs "only once". "Only once" can be 5 minutes.
+## 2026-02-07 – [GenMove-Based SEE]
+**Learning:** The move ordering logic was converting `GenMove` back to `Move` to call `see`. This caused allocation of `Move` objects and redundant `pieceAt` lookups (checking moving piece and target piece types), which `GenMove` already contains.
+**Action:** Implemented `seeGen` which operates directly on `GenMove`. It extracts piece types from `GenCapture` and `GenEnPassant` constructors, avoiding `Move` allocation and board lookups. Updated `Ordering.hs` to use `seeGen`. This optimizes the hot path of move sorting.

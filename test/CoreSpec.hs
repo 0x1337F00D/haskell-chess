@@ -165,7 +165,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights True False False False }
+               , gameState = GS.setCastlingRights GS.initialGameState (mkCastlingRights True False False False)
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -187,10 +187,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Standard 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , gameState = GS.initialGameState
-                   { GS.castlingRights = mkCastlingRights False False False False
-                   , GS.epSquare = toSquare (Square FileF Rank6)
-                   }
+               , gameState = GS.setEpSquare (GS.setCastlingRights GS.initialGameState (mkCastlingRights False False False False)) (toSquare (Square FileF Rank6))
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -213,7 +210,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'Atomic 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights False False False False }
+               , gameState = GS.setCastlingRights GS.initialGameState (mkCastlingRights False False False False)
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -239,7 +236,7 @@ spec = describe "Core Architecture" $ do
       let ag :: ActiveGame 'KingOfTheHill 'White 'Safe
           ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights False False False False }
+               , gameState = GS.setCastlingRights GS.initialGameState (mkCastlingRights False False False False)
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -261,7 +258,7 @@ spec = describe "Core Architecture" $ do
         let ag :: ActiveGame 'RacingKings 'White 'Safe
             ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights False False False False }
+               , gameState = GS.setCastlingRights GS.initialGameState (mkCastlingRights False False False False)
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -281,7 +278,7 @@ spec = describe "Core Architecture" $ do
        let ag :: ActiveGame 'RacingKings 'White 'Safe
            ag = ActiveGame
                { internalBoard = toBaseBoard b
-               , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights False False False False }
+               , gameState = GS.setCastlingRights GS.initialGameState (mkCastlingRights False False False False)
                , variantState = ()
                , checkStatus = SSafe
                }
@@ -304,7 +301,7 @@ spec = describe "Core Architecture" $ do
        let ag :: ActiveGame 'ThreeCheck 'White 'Safe
            ag = ActiveGame
                 { internalBoard = toBaseBoard b
-                , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights False False False False }
+                , gameState = GS.setCastlingRights GS.initialGameState (mkCastlingRights False False False False)
                 , variantState = (0, 0)
                 , checkStatus = SSafe
                 }
@@ -320,7 +317,7 @@ spec = describe "Core Architecture" $ do
        let agTwo :: ActiveGame 'ThreeCheck 'White 'Safe
            agTwo = ActiveGame
                 { internalBoard = toBaseBoard b
-                , gameState = GS.initialGameState { GS.castlingRights = mkCastlingRights False False False False }
+                , gameState = GS.setCastlingRights GS.initialGameState (mkCastlingRights False False False False)
                 , variantState = (2, 0)
                 , checkStatus = SSafe
                 }

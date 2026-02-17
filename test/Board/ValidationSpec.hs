@@ -51,7 +51,7 @@ spec = do
       Validation.outcome b gs history `shouldBe` Just (Outcome ThreefoldRepetition Nothing)
 
     it "detects fifty moves" $ do
-      let gs = GS.initialGameState { GS.halfmoveClock = 100 }
+      let gs = GS.setHalfmoveClock GS.initialGameState 100
       Validation.isFiftyMoves gs `shouldBe` True
       -- Use starting board which has legal moves, so not stalemate
       let (b, _) = fromJust $ Fen.parseFen startingFEN

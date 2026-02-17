@@ -76,13 +76,15 @@ instance ChessVariant 'ThreeCheck where
         newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
 
         baseBoard = internalB'
-        nextTurnGS = gsUpdated
-          { GS.turn = toColor oppC
-          , GS.epSquare = newEP
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          , GS.zobristHash = 0
-          }
+        nextTurnGS = GS.setZobristHash
+          (GS.setFullmoveNumber
+            (GS.setHalfmoveClock
+              (GS.setEpSquare
+                (GS.setTurn gsUpdated (toColor oppC))
+                newEP)
+              newHMC)
+            newFMN)
+          0
 
         isChecked = Val.isCheck baseBoard nextTurnGS
 

@@ -88,8 +88,43 @@ toBaseBoard b = Base.Board
   , Base.whiteOrthogonal = wOrthogonal
   , Base.blackDiagonal = bDiagonal
   , Base.blackOrthogonal = bOrthogonal
+  , Base.mailbox = mb
   }
   where
+    mb = U.create $ do
+        v <- UM.replicate 64 0
+
+        -- White King
+        let wkIdx = T.unSquare (toSquare (whiteKing b))
+        UM.unsafeWrite v wkIdx (Base.pieceToWord8 (T.Piece T.White T.King))
+
+        -- Black King
+        let bkIdx = T.unSquare (toSquare (blackKing b))
+        UM.unsafeWrite v bkIdx (Base.pieceToWord8 (T.Piece T.Black T.King))
+
+        -- Pawns
+        forM_ (Map.toList (pawns b)) $ \((f, pr), c) -> do
+             let sq = Square f (toRank pr)
+             let idx = T.unSquare (toSquare sq)
+             let pc = T.Piece (toColor c) T.Pawn
+             UM.unsafeWrite v idx (Base.pieceToWord8 pc)
+
+        -- White Pieces
+        forM_ (Map.toList (whitePieces b)) $ \(sq, mp) -> do
+             let idx = T.unSquare (toSquare sq)
+             let pt = toPieceType (mmToPieceType mp)
+             let pc = T.Piece T.White pt
+             UM.unsafeWrite v idx (Base.pieceToWord8 pc)
+
+        -- Black Pieces
+        forM_ (Map.toList (blackPieces b)) $ \(sq, mp) -> do
+             let idx = T.unSquare (toSquare sq)
+             let pt = toPieceType (mmToPieceType mp)
+             let pc = T.Piece T.Black pt
+             UM.unsafeWrite v idx (Base.pieceToWord8 pc)
+
+        return v
+
     mmToPieceType :: MajorMinorPiece c -> PieceType
     mmToPieceType MQueen = Queen
     mmToPieceType MRook = Rook
@@ -151,7 +186,7 @@ epRank Black = Rank3
 isCheck :: Board -> Color -> Bool
 isCheck b c = Val.isCheck (toBaseBoard b) (dummyGameState c)
   where
-    dummyGameState col = GS.initialGameState { GS.turn = toColor col }
+    dummyGameState col = GS.setTurn GS.initialGameState (toColor col)
 
 -- Generate Legal Moves
 generateLegalMoves :: forall v c s. (KnownColor c, ChessVariant v) => ActiveGame v c s -> [Move c]
@@ -218,7 +253,7 @@ updateCastlingRights gs m =
 
       mask = if c == White then complement BB.bbRank1 else complement BB.bbRank8
   in if isKing
-     then gs2 { GS.castlingRights = GS.castlingRights gs2 .&. mask }
+     then GS.setCastlingRights gs2 (GS.castlingRights gs2 .&. mask)
      else gs2
 
 -- Apply Move Helper (Base Board update)
@@ -348,13 +383,15 @@ genericApplyMove m ag =
         newHMC = if isPawn || isCapture then 0 else GS.halfmoveClock gs + 1
         newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
 
-        newGS = gs3
-          { GS.turn = toColor (colorVal @(Opposite c))
-          , GS.epSquare = newEP
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          , GS.zobristHash = 0 -- Reset hash as we don't track it incrementally yet
-          }
+        newGS = GS.setZobristHash
+          (GS.setFullmoveNumber
+            (GS.setHalfmoveClock
+              (GS.setEpSquare
+                (GS.setTurn gs3 (toColor (colorVal @(Opposite c))))
+                newEP)
+              newHMC)
+            newFMN)
+          0 -- Reset hash as we don't track it incrementally yet
 
         nextAg = ActiveGame
           { internalBoard = internalB'
