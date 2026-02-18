@@ -94,6 +94,7 @@ instance Evaluate 'Endgame where
 -- Returns (White Safety Penalty, Black Safety Penalty). Positive means penalty (bad for that side).
 -- We return (WSafety, BSafety).
 evalKingSafety :: Base.Board -> (Score, Score)
+{-# INLINE evalKingSafety #-}
 evalKingSafety b =
     let wKingSq = countTrailingZeros (Base.whiteKings b)
         bKingSq = countTrailingZeros (Base.blackKings b)
@@ -104,6 +105,7 @@ evalKingSafety b =
 -- | Calculate MopUp Score (EG bias).
 -- Returns score from White's perspective.
 evalMopUp :: Base.Board -> Score
+{-# INLINE evalMopUp #-}
 evalMopUp b =
     let wKingSq = countTrailingZeros (Base.whiteKings b)
         bKingSq = countTrailingZeros (Base.blackKings b)
@@ -149,15 +151,13 @@ evaluate vBoard =
 -- | Calculate King Safety Penalty
 kingSafety :: Base.Board -> Color -> Square -> Score
 kingSafety b us kSq =
-    let them = if us == White then Black else White
-        zone = kingAttacks kSq
+    let zone = kingAttacks kSq
         occ = Base.occupied b
 
-        -- Enemy pieces
-        enemyKnights = Base.pieceBitboard b them Knight
-        enemyBishops = Base.pieceBitboard b them Bishop
-        enemyRooks   = Base.pieceBitboard b them Rook
-        enemyQueens  = Base.pieceBitboard b them Queen
+        -- Enemy pieces (unpacked directly)
+        (enemyKnights, enemyBishops, enemyRooks, enemyQueens) = case us of
+            Black -> (Base.whiteKnights b, Base.whiteBishops b, Base.whiteRooks b, Base.whiteQueens b)
+            White -> (Base.blackKnights b, Base.blackBishops b, Base.blackRooks b, Base.blackQueens b)
 
         loopKnights :: Bitboard -> Int -> Int
         loopKnights 0 !acc = acc
@@ -203,4 +203,4 @@ kingSafety b us kSq =
 
         !totalUnits = vN + vB + vR + vQ
 
-    in if totalUnits == 0 then 0 else safetyTable U.! (min 99 totalUnits)
+    in if totalUnits == 0 then 0 else safetyTable `U.unsafeIndex` (min 99 totalUnits)
