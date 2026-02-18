@@ -21,15 +21,10 @@ main = do
 
             let n = 10000000
 
-            case svBoard of
-              InCheckBoard vb ->
-                replicateM_ n $ do
-                    let !_ = evaluate vb
-                    return ()
-              NotInCheckBoard vb ->
-                replicateM_ n $ do
-                    let !_ = evaluate vb
-                    return ()
+            replicateM_ n $ do
+                case vBoard of
+                    InCheckBoard vb -> let !_ = evaluate vb in return ()
+                    NotInCheckBoard vb -> let !_ = evaluate vb in return ()
 
             end <- getCurrentTime
             let duration = diffUTCTime end start
