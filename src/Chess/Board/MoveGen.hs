@@ -24,7 +24,7 @@ import qualified Data.Vector.Unboxed         as U
 import Chess.Types
 import Chess.Bitboard
 import Chess.Board.Base
-import Chess.Board.GameState
+import Chess.Board.GameState hiding (unpackCastling)
 
 -- | A move coupled with explicit semantics, packed into a Word64.
 -- Layout:

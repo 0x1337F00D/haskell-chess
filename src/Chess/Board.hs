@@ -80,7 +80,7 @@ import qualified Chess.Board.Zobrist as Zobrist
 -- | The primary board type combining piece placement and game state.
 data Board = Board
   { pieces :: !Base.Board
-  , state  :: !GS.GameState
+  , state  :: {-# UNPACK #-} !GS.GameState
   , history :: ![Word64]
   } deriving (Eq, Show)
 

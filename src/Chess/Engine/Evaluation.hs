@@ -20,7 +20,7 @@ import Data.Bits (countTrailingZeros, clearBit, popCount, (.&.), (.|.))
 import Chess.Types
 import Chess.Bitboard
 import qualified Chess.Board.Base as Base
-import Chess.Board.GameState (GameState(..))
+import Chess.Board.GameState
 import Chess.Board (Board(..), ValidatedBoard, getBoard)
 import Chess.Board.Phase (Phase(..), Position(..))
 import Chess.Data.Evaluation
