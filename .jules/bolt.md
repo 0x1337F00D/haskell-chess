@@ -51,3 +51,8 @@
 ## 2026-02-01 – Magic Bitboard Initialization
 **Learning:** Initializing Magic Bitboards via brute force with list-based verification (`!!`) is (N^2)$ per trial, leading to massive startup overhead (350s).
 **Action:** Always use O(1) random access structures (like Unboxed Vectors) for inner loops in initialization code, even if it runs "only once". "Only once" can be 5 minutes.
+
+## 2026-02-18 – [King Safety Optimization]
+**Learning:** `evalKingSafety` was returning a tuple `(Score, Score)` which GHC didn't always unbox, causing heap allocation per node. Also `kingSafety` loop used bounds-checked `!` on a 100-element table.
+**Action:** Added `{-# INLINE evalKingSafety #-}` to force unboxing of the tuple via case-of-known-constructor. Refactored `kingSafety` to unpack bitboards directly (avoiding 4 helper calls) and used `unsafeIndex` for table lookup.
+**Impact:** Minor/Neutral speedup (~1.03 MNPS -> 1.02 MNPS), but ensures no heap allocation for safety scores. Important: Over-inlining (inlining the loop body `kingSafety` itself) caused code bloat and regression, so only the wrapper was inlined.
