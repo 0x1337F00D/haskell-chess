@@ -20,26 +20,21 @@ main = do
     let boards = map (\f -> case parseFen f of Just b -> b; Nothing -> error "bad fen") fens
     let vBoards = map trustBoard boards
 
-    -- Flatten the validated boards into a list of "SomeValidatedBoard"
-    -- We'll just loop over this list many times.
-    -- To avoid "lifting", we need the list to be long or loop over it.
-
-    let n = 1000000 -- 1 million iterations total
-    let infiniteBoards = cycle vBoards
-    let testBoards = take n infiniteBoards
+    let n = 1000000 :: Int -- 1 million iterations total
 
     putStrLn $ "Benchmarking evaluate on " ++ show (length fens) ++ " positions, " ++ show n ++ " times..."
 
     start <- getCurrentTime
 
-    let loop [] !acc = return acc
-        loop (vb:rest) !acc = do
+    let loop 0 _ !acc = return acc
+        loop k [] !acc = loop k vBoards acc
+        loop k (vb:rest) !acc = do
             let score = case vb of
                           InCheckBoard b -> evaluate b
                           NotInCheckBoard b -> evaluate b
-            loop rest (acc + score)
+            loop (k-1) rest (acc + score)
 
-    totalScore <- loop testBoards 0
+    totalScore <- loop n vBoards 0
 
     end <- getCurrentTime
     let duration = diffUTCTime end start
