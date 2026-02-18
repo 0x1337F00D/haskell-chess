@@ -104,10 +104,10 @@ packCastling cr =
 {-# INLINE unpackCastling #-}
 unpackCastling :: Word64 -> CastlingRights
 unpackCastling w =
-    let unpackSlot offset shift =
+    let unpackSlot offset shiftVal =
             let s = (w `shiftR` offset) .&. 0xF
             in if testBit s 3 -- Present
-               then bit (fromIntegral (s .&. 0x7) + shift)
+               then bit (fromIntegral (s .&. 0x7) + shiftVal)
                else 0
     in unpackSlot 0 0 .|.     -- White Slot 1 (Rank 1, shift 0)
        unpackSlot 4 0 .|.     -- White Slot 2
@@ -130,8 +130,8 @@ initialGameState = GameState
 {-# INLINE canCastleKingside #-}
 canCastleKingside :: GameState -> Color -> Bool
 canCastleKingside (GameStatePacked p _) c =
-    let shift = if c == White then 1 else 9
-        p' = p `shiftR` shift
+    let shiftVal = if c == White then 1 else 9
+        p' = p `shiftR` shiftVal
         s1 = p' .&. 0xF
         s2 = (p' `shiftR` 4) .&. 0xF
         target = 15 -- Present(8) | File 7(H)
@@ -142,8 +142,8 @@ canCastleKingside (GameStatePacked p _) c =
 {-# INLINE canCastleQueenside #-}
 canCastleQueenside :: GameState -> Color -> Bool
 canCastleQueenside (GameStatePacked p _) c =
-    let shift = if c == White then 1 else 9
-        p' = p `shiftR` shift
+    let shiftVal = if c == White then 1 else 9
+        p' = p `shiftR` shiftVal
         s1 = p' .&. 0xF
         s2 = (p' `shiftR` 4) .&. 0xF
         target = 8 -- Present(8) | File 0(A)
