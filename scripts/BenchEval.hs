@@ -4,7 +4,7 @@ module Main where
 
 import Control.Monad (replicateM_)
 import Data.Time.Clock (getCurrentTime, diffUTCTime)
-import Chess.Board (parseFen, trustBoard, SomeValidatedBoard(..))
+import Chess.Board (parseFen, trustBoard)
 import Chess.Engine.Evaluation (evaluate)
 
 main :: IO ()
@@ -14,22 +14,16 @@ main = do
     case parseFen fen of
         Nothing -> putStrLn "Failed to parse FEN"
         Just board -> do
-            let svBoard = trustBoard board
+            let vBoard = trustBoard board
 
             putStrLn "Benchmarking evaluate..."
             start <- getCurrentTime
 
             let n = 10000000
 
-            case svBoard of
-                InCheckBoard vb ->
-                    replicateM_ n $ do
-                        let !_ = evaluate vb
-                        return ()
-                NotInCheckBoard vb ->
-                    replicateM_ n $ do
-                        let !_ = evaluate vb
-                        return ()
+            replicateM_ n $ do
+                let !_ = evaluate vBoard
+                return ()
 
             end <- getCurrentTime
             let duration = diffUTCTime end start
