@@ -188,6 +188,7 @@ test-suite haskell-chess-test
                     , Board.GameStateSpec
                     , Board.FenSpec
                     , Board.MoveGenSpec
+                    , Board.MoveGenOptimSpec
                     , Board.ValidationSpec
                     , Board.UciSpec
                     , Board.SanSpec

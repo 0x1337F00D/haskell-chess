@@ -4,7 +4,7 @@ module Main where
 
 import Control.Monad (replicateM_)
 import Data.Time.Clock (getCurrentTime, diffUTCTime)
-import Chess.Board (parseFen, trustBoard)
+import Chess.Board (parseFen, trustBoard, SomeValidatedBoard(..))
 import Chess.Engine.Evaluation (evaluate)
 
 main :: IO ()
@@ -22,8 +22,9 @@ main = do
             let n = 10000000
 
             replicateM_ n $ do
-                let !_ = evaluate vBoard
-                return ()
+                case vBoard of
+                    InCheckBoard vb -> let !_ = evaluate vb in return ()
+                    NotInCheckBoard vb -> let !_ = evaluate vb in return ()
 
             end <- getCurrentTime
             let duration = diffUTCTime end start

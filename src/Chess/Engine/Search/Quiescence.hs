@@ -6,16 +6,14 @@ module Chess.Engine.Search.Quiescence where
 
 import Data.IORef (IORef, modifyIORef')
 import Chess.Types (Depth(..), unDepth, decDepth, depthZero, CheckStatus(..))
-import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, pieces, applyLegalMove, isCheck, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated, getGenMove, MoveGenerator(..))
-import qualified Chess.Board
-import Chess.Board.MoveGen (givesCheckFast)
+import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, applyLegalMove, captureMovesValidated, legalPromotionsValidated, legalQuietChecksValidated, legalMovesValidated, MoveGenerator(..))
 import qualified Chess.Board.GameState as GS
 import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
 import Chess.Board.Phase (Position(..))
 import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
 import Chess.Engine.Search.Types (mateValue, SearchContext(..))
 import Chess.Engine.Search.Ordering (orderGenMoves, orderQSMoves)
-import Chess.Types (Move, nullMove)
+import Chess.Types (nullMove)
 
 -- | Quiescence Search.
 quiescence :: forall p s. (Evaluate p, MoveGenerator s) => SearchContext p -> ValidatedBoard s -> TT -> Int -> Int -> IORef Int -> Depth -> IO Int
@@ -68,18 +66,13 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
             -- Only generate if depth > -1
             quietChecks <- if unDepth depth > -1
                            then do
-                               let quiets = legalQuietsValidated vBoard
-                               return $ filter (givesCheck vBoard) quiets
+                               return $ legalQuietChecksValidated vBoard
                            else return []
 
             let sortedMoves = orderQSMoves vBoard caps proms quietChecks
 
             go sortedMoves a
   where
-    givesCheck vb lm =
-        let b = getBoard vb
-        in givesCheckFast (pieces b) (state b) (getGenMove lm)
-
     go [] a = return a
     go (lm:lms) a = do
         score <- case applyLegalMove vBoard lm of
