@@ -10,7 +10,7 @@ import Chess.Types
 import Chess.Bitboard
 import Chess.Board.Base (Board)
 import qualified Chess.Board.Base as Board
-import Chess.Board.GameState (GameState(..), CastlingRights)
+import Chess.Board.GameState
 import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.Zobrist as Zobrist
 

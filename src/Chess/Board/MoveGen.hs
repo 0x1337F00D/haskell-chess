@@ -24,7 +24,7 @@ import qualified Data.Vector.Unboxed         as U
 import Chess.Types
 import Chess.Bitboard
 import Chess.Board.Base
-import Chess.Board.GameState
+import Chess.Board.GameState hiding (unpackCastling)
 
 -- | A move coupled with explicit semantics, packed into a Word64.
 -- Layout:
@@ -271,10 +271,6 @@ pseudoLegalQuiets b gs = U.concat
 legalGenQuiets :: Board -> GameState -> U.Vector GenMove
 legalGenQuiets b gs = U.filter (isLegal b gs) (pseudoLegalQuiets b gs)
 
--- | Generate all legal quiet moves that give check, returning GenMove.
-legalQuietChecks :: Board -> GameState -> U.Vector GenMove
-legalQuietChecks b gs = U.filter (\gm -> isLegal b gs gm && givesCheckFast b gs gm) (pseudoLegalQuiets b gs)
-
 -- | Generate all pseudo-legal promotion moves.
 pseudoLegalPromotions :: Board -> GameState -> U.Vector GenMove
 pseudoLegalPromotions b gs = pawnPromotions b gs
@@ -342,7 +338,6 @@ fillKingEvasions :: Board -> GameState -> U.MVector s GenMove -> Int -> ST s Int
 fillKingEvasions b gs mv !startIdx =
     let c = turn gs
         bb = pieceBitboard b c King
-        occ = occupiedTotal b
         friends = occupiedBy b c
         fillAcc !idx from = do
             let att = kingAttacks from
@@ -418,7 +413,6 @@ fillPawnEvasions b gs targetMask mv !startIdx =
         enemies = occupiedBy b (oppositeColor c)
         oppC = oppositeColor c
         ep = epSquare gs
-        epIdx = unSquare ep
 
         fillMoves !idx from = do
             let i = unSquare from
@@ -1161,10 +1155,10 @@ givesCheckFast b gs gm =
         kingSq = case kingSquare b oppC of
                    Just k -> k
                    Nothing -> Square 0
-        occ = occupiedTotal b
     in case gm of
         GenQuiet from to pt ->
             let
+                occ = occupiedTotal b
                 fromI = unSquare from
                 toI = unSquare to
                 occ' = (occ `clearBit` fromI) `setBit` toI

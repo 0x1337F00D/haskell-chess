@@ -88,6 +88,20 @@ pieceBitboard b Black Queen  = blackQueens b
 pieceBitboard b Black King   = blackKings b
 
 -- | Set the bitboard for a specific piece type and color.
+setPieceBitboard :: Board -> Color -> PieceType -> Bitboard -> Board
+setPieceBitboard b c pt bb = updateOccupancy $ case (c, pt) of
+  (White, Pawn)   -> b { whitePawns   = bb }
+  (White, Knight) -> b { whiteKnights = bb }
+  (White, Bishop) -> b { whiteBishops = bb }
+  (White, Rook)   -> b { whiteRooks   = bb }
+  (White, Queen)  -> b { whiteQueens  = bb }
+  (White, King)   -> b { whiteKings   = bb }
+  (Black, Pawn)   -> b { blackPawns   = bb }
+  (Black, Knight) -> b { blackKnights = bb }
+  (Black, Bishop) -> b { blackBishops = bb }
+  (Black, Rook)   -> b { blackRooks   = bb }
+  (Black, Queen)  -> b { blackQueens  = bb }
+  (Black, King)   -> b { blackKings   = bb }
 
 -- | Update cached occupancy and aggregated bitboards.
 updateOccupancy :: Board -> Board
