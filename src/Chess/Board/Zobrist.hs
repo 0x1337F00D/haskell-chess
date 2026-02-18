@@ -32,10 +32,7 @@ zobristCastlingTable = U.fromList
   [ 0xaefbd1751e8f30af, 0x3c3625caa6483617, 0xa30321263c420e28, 0x45e93217fc78c7b6, 0x104e36c3294860cc, 0xc757c8085951916c, 0x52e05869bdd2c86f, 0xcb6cdd27d5ddb97d, 0x7e5f23ae2cacc14f, 0xb45018d0d90617ce, 0x48d8774c66f0c16c, 0xab9eaa89770dbda0, 0x1ed2bb34ad1c56db, 0xbe5344c83ec1c3de, 0xde09dfca77657783, 0xd9ccdb22c1335ca8, 0x34e43b4a720f838e, 0x182bbb97fb1d85d8, 0x399f6da7f08ceb2a, 0x866e473234378cef, 0x998b2010c238c2af, 0xd770aca3662948da, 0xe179dc4881a486f2, 0x5beed284211a4f45, 0xfaaeab098e3a4b39, 0x1c3eeefc9b0ee959, 0x197fc1f9f9e0f581, 0x3c8ee7439f3d34ec, 0x5f53c4a609a90c7a, 0xbdec3b08f91b80a7, 0xf23d72bfc613d60a, 0x54cab7ae066e3b28, 0x569215df997a05a6, 0xe98adb8729d7a312, 0xc66a00967a3bb646, 0x4f568de01740585c, 0x8f4e25da4f06ce9f, 0x7cd569e9cb6cca11, 0x58a5b48f445a4370, 0xcfcdb58cc2821122, 0x8da1c3aeaf5c4c60, 0xd934a9c8165e0287, 0x3d4778b78cd72b45, 0x486477812a18f197, 0x72755b03d58c06ab, 0x61f26afd5114cd86, 0xee1bfcf1b67b86bb, 0x9ef4c971e24faaf8, 0x6432fd9315947de8, 0xdbbf58fcccdf377e, 0x49817e8be60728c3, 0xee034df5f70d2bb6, 0x385e79fff2b97477, 0xa1eaf0550dc0fae3, 0x196cc8ee76af9025, 0xf1888deaee3e5ac8, 0x44a6e40b0340e8c1, 0xeb1ab420fb45304c, 0x54362bcc692fe5e3, 0x433a7edfa97b4ba1, 0xc6dd73343d12c98d, 0xe7b854ee27cf6da6, 0x56a40cc8db2fc61c, 0x84cdca307838fd3a ]
 
 zobristCastling :: CastlingRights -> Word64
-zobristCastling cr =
-    let indices = [0..63]
-        f i acc = if (cr `testBit` i) then acc `xor` (zobristCastlingTable `U.unsafeIndex` i) else acc
-    in foldr f 0 indices
+zobristCastling cr = foldBitboard (\acc (Square i) -> acc `xor` (zobristCastlingTable `U.unsafeIndex` i)) 0 cr
 
 -- | Zobrist keys for En Passant file (0-7).
 -- We will use 64 keys to support full square if needed, or just map file.
