@@ -511,6 +511,25 @@ fillPawnEvasions b gs targetMask mv !startIdx =
 
     in foldBitboardM fillMoves startIdx pawns
 
+-- | Check if there is any legal move.
+-- Checks moves in order of likely legality/cost:
+-- 1. King moves
+-- 2. Knight moves
+-- 3. Bishop moves
+-- 4. Rook moves
+-- 5. Queen moves
+-- 6. Pawn moves (Quiets, Captures, Promotions)
+-- 7. Castling
+hasLegalMove :: Board -> GameState -> Bool
+hasLegalMove b gs =
+    U.any (isLegal b gs) (pieceMoves b gs King) ||
+    U.any (isLegal b gs) (pieceMoves b gs Knight) ||
+    U.any (isLegal b gs) (pieceMoves b gs Bishop) ||
+    U.any (isLegal b gs) (pieceMoves b gs Rook) ||
+    U.any (isLegal b gs) (pieceMoves b gs Queen) ||
+    U.any (isLegal b gs) (pawnMoves b gs) ||
+    U.any (isLegal b gs) (castlingMoves b gs)
+
 -- | Check if a move is legal.
 isLegal :: Board -> GameState -> GenMove -> Bool
 isLegal b gs gm =
