@@ -14,7 +14,7 @@ import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
 import Chess.Board.Phase (Position(..))
 import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
 import Chess.Engine.Search.Types (mateValue, SearchContext(..))
-import Chess.Engine.Search.Ordering (orderGenMoves, orderQSMoves)
+import Chess.Engine.Search.Ordering (orderGenMoves, orderQSMoves, partitionSEE)
 import Chess.Types (Move, nullMove)
 
 -- | Quiescence Search.
@@ -62,6 +62,7 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
         else do
             let a = max alpha standPat
             let caps = captureMovesValidated vBoard
+            let (goodCaps, _) = partitionSEE vBoard caps
             let proms = legalPromotionsValidated vBoard
 
             -- Quiet Checks (Extension +1 ply equivalent logic)
@@ -72,7 +73,7 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
                                return $ filter (givesCheckLocal vBoard) quiets
                            else return []
 
-            let sortedMoves = orderQSMoves vBoard caps proms quietChecks
+            let sortedMoves = orderQSMoves vBoard goodCaps proms quietChecks
 
             go sortedMoves a
   where
