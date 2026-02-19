@@ -1,0 +1,338 @@
+Resolving dependencies...
+Build profile: -w ghc-9.4.8 -O1
+In order, the following will be built (use -v for more details):
+ - haskell-chess-0.1.0.0 (lib) (configuration changed)
+ - haskell-chess-0.1.0.0 (test:haskell-chess-test) (configuration changed)
+Configuring library for haskell-chess-0.1.0.0..
+Preprocessing library for haskell-chess-0.1.0.0..
+Building library for haskell-chess-0.1.0.0..
+[36 of 49] Compiling Chess.Board      ( src/Chess/Board.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board.dyn_o ) [Source file changed]
+
+src/Chess/Board.hs:107:13: warning: [-Wname-shadowing]
+    This binding for ‘isCapture’ shadows the existing binding
+      defined at src/Chess/Board.hs:415:1
+    |
+107 |             isCapture = testBit (Base.occupiedTotal b) toI
+    |             ^^^^^^^^^
+[37 of 49] Compiling Chess.Pgn        ( src/Chess/Pgn.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Pgn.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Pgn.dyn_o ) [Chess.Board changed]
+[38 of 49] Compiling Chess.Core.Rules.Standard ( src/Chess/Core/Rules/Standard.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Core/Rules/Standard.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Core/Rules/Standard.dyn_o ) [Chess.Board changed]
+
+src/Chess/Core/Rules/Standard.hs:19:1: warning: [-Wunused-imports]
+    The import of ‘Chess.Core.Move.Internal’ is redundant
+      except perhaps to import instances from ‘Chess.Core.Move.Internal’
+    To import instances alone, use: import Chess.Core.Move.Internal()
+   |
+19 | import Chess.Core.Move.Internal
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+src/Chess/Core/Rules/Standard.hs:22:1: warning: [-Wunused-imports]
+    The qualified import of ‘Chess.Board.Base’ is redundant
+      except perhaps to import instances from ‘Chess.Board.Base’
+    To import instances alone, use: import Chess.Board.Base()
+   |
+22 | import qualified Chess.Board.Base as Base
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+src/Chess/Core/Rules/Standard.hs:26:1: warning: [-Wunused-imports]
+    The qualified import of ‘Chess.Bitboard’ is redundant
+      except perhaps to import instances from ‘Chess.Bitboard’
+    To import instances alone, use: import Chess.Bitboard()
+   |
+26 | import qualified Chess.Bitboard as BB
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+src/Chess/Core/Rules/Standard.hs:30:1: warning: [-Wunused-imports]
+    The import of ‘Data.Bits’ is redundant
+      except perhaps to import instances from ‘Data.Bits’
+    To import instances alone, use: import Data.Bits()
+   |
+30 | import Data.Bits (testBit, countTrailingZeros, (.|.))
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[41 of 49] Compiling Chess.Board.Phase ( src/Chess/Board/Phase.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board/Phase.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board/Phase.dyn_o ) [Chess.Board changed]
+
+src/Chess/Board/Phase.hs:10:1: warning: [-Wunused-imports]
+    The import of ‘Data.Kind’ is redundant
+      except perhaps to import instances from ‘Data.Kind’
+    To import instances alone, use: import Data.Kind()
+   |
+10 | import Data.Kind (Type)
+   | ^^^^^^^^^^^^^^^^^^^^^^^
+[43 of 49] Compiling Chess.Engine.Search.Ordering ( src/Chess/Engine/Search/Ordering.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Search/Ordering.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Search/Ordering.dyn_o ) [Chess.Board changed]
+
+src/Chess/Engine/Search/Ordering.hs:15:214: warning: [-Wunused-imports]
+    The import of ‘Board(pieces)’
+    from module ‘Chess.Board’ is redundant
+   |
+15 | import Chess.Board (Board(..), ValidatedBoard, LegalMove, GenMove(..), pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture, getBoard, pieces, getGenMove)
+   |                                                                                                                                                                                                                      ^^^^^^
+
+src/Chess/Engine/Search/Ordering.hs:17:26: warning: [-Wunused-imports]
+    The import of ‘see’ from module ‘Chess.Engine.SEE’ is redundant
+   |
+17 | import Chess.Engine.SEE (see, seeGen)
+   |                          ^^^
+[44 of 49] Compiling Chess.Engine.Evaluation ( src/Chess/Engine/Evaluation.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Evaluation.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Evaluation.dyn_o ) [Chess.Board changed]
+
+src/Chess/Engine/Evaluation.hs:10:5: warning: [-Wduplicate-exports]
+    ‘evaluatePos’ is exported by ‘Evaluate(..)’ and ‘evaluatePos’
+   |
+10 |     Evaluate(..),
+   |     ^^^^^^^^^^^^
+[45 of 49] Compiling Chess.Engine.Search.Quiescence ( src/Chess/Engine/Search/Quiescence.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Search/Quiescence.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Search/Quiescence.dyn_o ) [Source file changed]
+
+src/Chess/Engine/Search/Quiescence.hs:9:191: warning: [-Wunused-imports]
+    The import of ‘getGenMove’ from module ‘Chess.Board’ is redundant
+  |
+9 | import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, applyLegalMove, captureMovesValidated, legalPromotionsValidated, legalQuietChecksValidated, legalMovesValidated, getGenMove, MoveGenerator(..))
+  |                                                                                                                                                                                               ^^^^^^^^^^
+
+src/Chess/Engine/Search/Quiescence.hs:10:1: warning: [-Wunused-imports]
+    The qualified import of ‘Chess.Board’ is redundant
+      except perhaps to import instances from ‘Chess.Board’
+    To import instances alone, use: import Chess.Board()
+   |
+10 | import qualified Chess.Board
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+src/Chess/Engine/Search/Quiescence.hs:17:21: warning: [-Wunused-imports]
+    The import of ‘Move’ from module ‘Chess.Types’ is redundant
+   |
+17 | import Chess.Types (Move, nullMove)
+   |                     ^^^^
+[46 of 49] Compiling Chess.Engine.Search.AlphaBeta ( src/Chess/Engine/Search/AlphaBeta.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Search/AlphaBeta.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Search/AlphaBeta.dyn_o ) [Chess.Board changed]
+
+src/Chess/Engine/Search/AlphaBeta.hs:19:43: warning: [-Wunused-imports]
+    The import of ‘isCheck’ from module ‘Chess.Board’ is redundant
+   |
+19 | import Chess.Board (Board(..), applyMove, isCheck, uci, GenMove(..)
+   |                                           ^^^^^^^
+
+src/Chess/Engine/Search/AlphaBeta.hs:23:1: warning: [-Wunused-imports]
+    The qualified import of ‘Chess.Board’ is redundant
+      except perhaps to import instances from ‘Chess.Board’
+    To import instances alone, use: import Chess.Board()
+   |
+23 | import qualified Chess.Board
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+src/Chess/Engine/Search/AlphaBeta.hs:33:1: warning: [-Wunused-imports]
+    The import of ‘Chess.Engine.Search.Ordering’ is redundant
+      except perhaps to import instances from ‘Chess.Engine.Search.Ordering’
+    To import instances alone, use: import Chess.Engine.Search.Ordering()
+   |
+33 | import Chess.Engine.Search.Ordering hiding (orderGenMoves)
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+src/Chess/Engine/Search/AlphaBeta.hs:158:42: warning: [-Wname-shadowing]
+    This binding for ‘m’ shadows the existing binding
+      bound at src/Chess/Engine/Search/AlphaBeta.hs:129:17
+    |
+158 |                                         (m:rest) -> return (rest, Just m)
+    |                                          ^
+
+src/Chess/Engine/Search/AlphaBeta.hs:177:57: warning: [-Wname-shadowing]
+    This binding for ‘s’ shadows the existing binding
+      bound at src/Chess/Engine/Search/AlphaBeta.hs:131:14
+    |
+177 |                                                         s <- alphaBeta workerCtx newVBWorker tt (Just mWorker) (decDepth depth) (-infinity) (-bestScore) localNodes stopFlag limits
+    |                                                         ^
+
+src/Chess/Engine/Search/AlphaBeta.hs:181:57: warning: [-Wname-shadowing]
+    This binding for ‘s’ shadows the existing binding
+      bound at src/Chess/Engine/Search/AlphaBeta.hs:131:14
+    |
+181 |                                                         s <- alphaBeta workerCtx newVBWorker tt (Just mWorker) (decDepth depth) (-infinity) (-bestScore) localNodes stopFlag limits
+    |                                                         ^
+
+src/Chess/Engine/Search/AlphaBeta.hs:460:30: warning: [-Wname-shadowing]
+    This binding for ‘board’ shadows the existing binding
+      bound at src/Chess/Engine/Search/AlphaBeta.hs:429:13
+    |
+460 |                          let board = getBoard vBoard
+    |                              ^^^^^
+[47 of 49] Compiling Chess.Engine.Search ( src/Chess/Engine/Search.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Search.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Search.dyn_o ) [Chess.Board changed]
+[48 of 49] Compiling Chess.Engine.Uci ( src/Chess/Engine/Uci.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Uci.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Uci.dyn_o ) [Chess.Board changed]
+[49 of 49] Compiling Chess            ( src/Chess.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess.dyn_o ) [Chess.Board changed]
+Configuring test suite 'haskell-chess-test' for haskell-chess-0.1.0.0..
+Preprocessing test suite 'haskell-chess-test' for haskell-chess-0.1.0.0..
+Building test suite 'haskell-chess-test' for haskell-chess-0.1.0.0..
+[ 5 of 26] Compiling Board.MoveGenOptimSpec ( test/Board/MoveGenOptimSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/build/haskell-chess-test/haskell-chess-test-tmp/Board/MoveGenOptimSpec.o )
+
+test/Board/MoveGenOptimSpec.hs:16:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe
+                            (Chess.Board.Base.Board,
+                             Chess.Board.GameState.GameState)’ not matched:
+            Nothing
+   |
+16 |        let (Just (b, gs)) = Fen.parseFen fen
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/MoveGenOptimSpec.hs:25:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe
+                            (Chess.Board.Base.Board,
+                             Chess.Board.GameState.GameState)’ not matched:
+            Nothing
+   |
+25 |        let (Just (b, gs)) = Fen.parseFen fen
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/MoveGenOptimSpec.hs:60:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe
+                            (Chess.Board.Base.Board,
+                             Chess.Board.GameState.GameState)’ not matched:
+            Nothing
+   |
+60 |        let (Just (b, gs)) = Fen.parseFen fen
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/MoveGenOptimSpec.hs:82:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe
+                            (Chess.Board.Base.Board,
+                             Chess.Board.GameState.GameState)’ not matched:
+            Nothing
+   |
+82 |        let (Just (b, gs)) = Fen.parseFen fen
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[ 6 of 26] Compiling Board.MoveGenSpec ( test/Board/MoveGenSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/build/haskell-chess-test/haskell-chess-test-tmp/Board/MoveGenSpec.o ) [Chess.Board.MoveGen changed]
+
+test/Board/MoveGenSpec.hs:13:11: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe
+                            (Chess.Board.Base.Board,
+                             Chess.Board.GameState.GameState)’ not matched:
+            Nothing
+   |
+13 |       let (Just (b, gs)) = Fen.parseFen startingFEN
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/MoveGenSpec.hs:22:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe
+                            (Chess.Board.Base.Board,
+                             Chess.Board.GameState.GameState)’ not matched:
+            Nothing
+   |
+22 |        let (Just (b, gs)) = Fen.parseFen fenStr
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/MoveGenSpec.hs:44:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe
+                            (Chess.Board.Base.Board,
+                             Chess.Board.GameState.GameState)’ not matched:
+            Nothing
+   |
+44 |        let (Just (b, gs)) = Fen.parseFen fenStr2
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/MoveGenSpec.hs:51:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe
+                            (Chess.Board.Base.Board,
+                             Chess.Board.GameState.GameState)’ not matched:
+            Nothing
+   |
+51 |        let (Just (b, gs)) = Fen.parseFen fenStr
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[11 of 26] Compiling ChessSpec        ( test/ChessSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/build/haskell-chess-test/haskell-chess-test-tmp/ChessSpec.o ) [Chess changed]
+[15 of 26] Compiling EngineSpec       ( test/EngineSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/build/haskell-chess-test/haskell-chess-test-tmp/EngineSpec.o ) [Chess.Board changed]
+
+test/EngineSpec.hs:25:11: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe Chess.Board.Board’ not matched: Nothing
+   |
+25 |       let Just board = parseFen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/EngineSpec.hs:29:11: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe Chess.Board.Board’ not matched: Nothing
+   |
+29 |       let Just board = parseFen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBN1 w KQkq - 0 1" -- White missing Rook at H1
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/EngineSpec.hs:29:16: warning: [-Wname-shadowing]
+    This binding for ‘board’ shadows the existing binding
+      bound at test/EngineSpec.hs:25:16
+   |
+29 |       let Just board = parseFen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBN1 w KQkq - 0 1" -- White missing Rook at H1
+   |                ^^^^^
+
+test/EngineSpec.hs:34:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe Chess.Board.Board’ not matched: Nothing
+   |
+34 |        let Just board = parseFen "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/EngineSpec.hs:38:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe Chess.Board.Board’ not matched: Nothing
+   |
+38 |        let Just board = parseFen "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1"
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/EngineSpec.hs:38:17: warning: [-Wname-shadowing]
+    This binding for ‘board’ shadows the existing binding
+      bound at test/EngineSpec.hs:34:17
+   |
+38 |        let Just board = parseFen "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1"
+   |                 ^^^^^
+
+test/EngineSpec.hs:43:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe Chess.Board.Board’ not matched: Nothing
+   |
+43 |        let Just board = parseFen "rnbqkbnr/pppppppp/8/8/8/8/PPP1PPPP/RNBQKBNR w KQkq - 0 1" -- Normal
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/EngineSpec.hs:46:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe Chess.Board.Board’ not matched: Nothing
+   |
+46 |        let Just board = parseFen "rnbqkbnr/pppppppp/8/8/8/8/8/RNBQKBNR w KQkq - 0 1" -- White missing all pawns!
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/EngineSpec.hs:46:17: warning: [-Wname-shadowing]
+    This binding for ‘board’ shadows the existing binding
+      bound at test/EngineSpec.hs:43:17
+   |
+46 |        let Just board = parseFen "rnbqkbnr/pppppppp/8/8/8/8/8/RNBQKBNR w KQkq - 0 1" -- White missing all pawns!
+   |                 ^^^^^
+
+test/EngineSpec.hs:51:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe Chess.Board.Board’ not matched: Nothing
+   |
+51 |        let Just board = parseFen "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2"
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[17 of 26] Compiling GameTerminationSpec ( test/GameTerminationSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/build/haskell-chess-test/haskell-chess-test-tmp/GameTerminationSpec.o ) [Chess.Board changed]
+[18 of 26] Compiling PerftSpec        ( test/PerftSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/build/haskell-chess-test/haskell-chess-test-tmp/PerftSpec.o ) [Chess.Board changed]
+[21 of 26] Compiling PyChessCongruencySpec ( test/PyChessCongruencySpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/build/haskell-chess-test/haskell-chess-test-tmp/PyChessCongruencySpec.o ) [Chess changed]
+[26 of 26] Compiling Main             ( test/Main.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/build/haskell-chess-test/haskell-chess-test-tmp/Main.o ) [Source file changed]
+[27 of 27] Linking /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/build/haskell-chess-test/haskell-chess-test [Objects changed]
+Running 1 test suites...
+Test suite haskell-chess-test: RUNNING...
+Test suite haskell-chess-test: PASS
+Test suite logged to:
+/app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/test/haskell-chess-0.1.0.0-haskell-chess-test.log
+1 of 1 test suites (1 of 1 test cases) passed.
