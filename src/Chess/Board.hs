@@ -13,12 +13,10 @@ module Chess.Board
     -- * Game Logic
   , applyMove
   , applyGenMove
-  , applyGenMoveFast
   , legalMoves
   , legalGenMoves
   , legalGenMovesVector
   , pseudoLegalMoves
-  , pseudoLegalGenMoves
   , captureMoves
   , captureGenMoves
   , legalGenQuiets
@@ -27,7 +25,6 @@ module Chess.Board
   , pseudoLegalQuiets
   , pseudoLegalPromotions
   , isCheck
-  , isKingSafe
   , isCheckmate
   , isStalemate
   , hasInsufficientMaterial
@@ -136,10 +133,6 @@ applyMove b _ = b
 applyGenMove :: Board -> MoveGen.GenMove -> Board
 applyGenMove board gm = applyMoveHelper board gm
 
--- | Apply a move using GenMove info (skipping Zobrist updates for performance).
-applyGenMoveFast :: Board -> MoveGen.GenMove -> Board
-applyGenMoveFast board gm = applyMoveHelperFast board gm
-
 -- | Helper to apply move logic given resolved pieces.
 {-# INLINE applyMoveHelper #-}
 applyMoveHelper :: Board -> MoveGen.GenMove -> Board
@@ -247,63 +240,6 @@ applyMoveHelper (Board b gs hist) gm =
                      , GS.zobristHash = hFinal
                      }) histFinal
 
--- | Helper to apply move logic given resolved pieces (no Zobrist).
-{-# INLINE applyMoveHelperFast #-}
-applyMoveHelperFast :: Board -> MoveGen.GenMove -> Board
-applyMoveHelperFast (Board b gs _) gm =
-    let
-        -- 1. Update pieces (using fast path)
-        b' = MoveGen.applyMoveBoardFast b gs gm
-
-        c = GS.turn gs
-        oppC = Base.oppositeColor c
-
-        -- Extract info from GenMove
-        (from, to, pt, captured, isCap, isPawn) = case gm of
-            MoveGen.GenQuiet f t p -> (f, t, p, Nothing, False, p == Pawn)
-            MoveGen.GenCapture f t p cap -> (f, t, p, Just cap, True, p == Pawn)
-            MoveGen.GenEnPassant f t -> (f, t, Pawn, Just Pawn, True, True)
-            MoveGen.GenCastling f t -> (f, t, King, Nothing, False, False)
-            MoveGen.GenPromotion f t _ -> (f, t, Pawn, Nothing, False, True)
-            MoveGen.GenPromotionCapture f t _ cap -> (f, t, Pawn, Just cap, True, True)
-            -- GenDrop and GenCastling960 are not used in standard perft and covered by COMPLETE pragma
-
-        -- Halfmove clock: Reset on pawn move or capture
-        halfmove' = if isPawn || isCap then 0 else GS.halfmoveClock gs + 1
-
-        -- Fullmove number: Increment after Black's move
-        fullmove' = if c == Black then GS.fullmoveNumber gs + 1 else GS.fullmoveNumber gs
-
-        -- Castling rights updates
-        -- If moving King, lose castling rights for that color
-        gs1 = case pt of
-                King -> GS.removeColorCastlingRights gs c
-                Rook -> GS.removeCastlingRight gs from
-                _ -> gs
-
-        -- If capturing Rook, lose castling rights for that rook's square
-        gs2 = case captured of
-                Just Rook -> GS.removeCastlingRight gs1 to
-                _ -> gs1
-
-        -- En Passant square
-        -- Set if pawn double push
-        ep' = if isPawn && abs (squareRank from - squareRank to) == 2
-              then midSquare from to
-              else NoSquare
-
-        nextTurn = oppC
-
-        -- No history tracking for fast perft
-        histFinal = []
-
-    in Board b' (gs2 { GS.turn = nextTurn
-                     , GS.epSquare = ep'
-                     , GS.halfmoveClock = halfmove'
-                     , GS.fullmoveNumber = fullmove'
-                     -- Zobrist hash is not updated
-                     }) histFinal
-
 -- | Generate all legal moves for the current position.
 legalMoves :: Board -> [Move]
 legalMoves (Board b gs _) = MoveGen.legalMoves b gs
@@ -319,17 +255,6 @@ legalGenMovesVector (Board b gs _) = MoveGen.legalGenMoves b gs
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> [Move]
 pseudoLegalMoves (Board b gs _) = map MoveGen.genMoveToMove $ U.toList $ MoveGen.pseudoLegalMoves b gs
-
--- | Generate all pseudo-legal moves as GenMoves.
-pseudoLegalGenMoves :: Board -> [MoveGen.GenMove]
-pseudoLegalGenMoves (Board b gs _) = MoveGen.pseudoLegalMovesList b gs
-
--- | Check if the king of the given color is safe (not attacked).
-isKingSafe :: Board -> Color -> Bool
-isKingSafe (Board b _ _) c =
-    case MoveGen.kingSquare b c of
-        Nothing -> False -- Should not happen
-        Just k -> not (Base.isAttackedBy b (Base.oppositeColor c) k)
 
 -- | Generate all legal capture moves.
 captureMoves :: Board -> [Move]
@@ -461,9 +386,7 @@ isLegalMove (Board b gs _) m = MoveGen.isLegalMove b gs m
 applyLegalMove :: ValidatedBoard s -> LegalMove -> SomeValidatedBoard
 applyLegalMove (ValidatedBoard b) (LegalMove gm) =
     let b' = applyGenMove b gm
-    in if MoveGen.givesCheck (pieces b) (state b) gm
-       then InCheckBoard (ValidatedBoard b')
-       else NotInCheckBoard (ValidatedBoard b')
+    in trustBoard b'
 
 -- Safe Accessors for LegalMove
 
