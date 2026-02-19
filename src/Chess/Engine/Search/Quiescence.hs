@@ -62,7 +62,7 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
         else do
             let a = max alpha standPat
             let caps = captureMovesValidated vBoard
-            let (goodCaps, _) = partitionSEE vBoard caps
+            let (goodCaps, badCaps) = partitionSEE vBoard caps
             let proms = legalPromotionsValidated vBoard
 
             -- Quiet Checks (Extension +1 ply equivalent logic)
@@ -73,7 +73,11 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
                                return $ filter (givesCheckLocal vBoard) quiets
                            else return []
 
-            let sortedMoves = orderQSMoves vBoard goodCaps proms quietChecks
+            -- Also search bad captures if they give check (tactical sacrifices)
+            let checkingBadCaps = filter (givesCheckLocal vBoard) badCaps
+            let qsMoves = goodCaps ++ checkingBadCaps
+
+            let sortedMoves = orderQSMoves vBoard qsMoves proms quietChecks
 
             go sortedMoves a
   where
