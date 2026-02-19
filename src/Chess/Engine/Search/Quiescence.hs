@@ -8,7 +8,7 @@ import Data.IORef (IORef, modifyIORef')
 import Chess.Types (Depth(..), unDepth, decDepth, depthZero, CheckStatus(..))
 import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, pieces, applyLegalMove, isCheck, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated, getGenMove, MoveGenerator(..))
 import qualified Chess.Board
-import Chess.Board.MoveGen (givesCheckFast)
+import Chess.Board.MoveGen (givesCheck)
 import qualified Chess.Board.GameState as GS
 import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
 import Chess.Board.Phase (Position(..))
@@ -69,16 +69,16 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
             quietChecks <- if unDepth depth > -1
                            then do
                                let quiets = legalQuietsValidated vBoard
-                               return $ filter (givesCheck vBoard) quiets
+                               return $ filter (givesCheckLocal vBoard) quiets
                            else return []
 
             let sortedMoves = orderQSMoves vBoard caps proms quietChecks
 
             go sortedMoves a
   where
-    givesCheck vb lm =
+    givesCheckLocal vb lm =
         let b = getBoard vb
-        in givesCheckFast (pieces b) (state b) (getGenMove lm)
+        in givesCheck (pieces b) (state b) (getGenMove lm)
 
     go [] a = return a
     go (lm:lms) a = do

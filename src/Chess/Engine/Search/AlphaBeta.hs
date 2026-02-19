@@ -427,7 +427,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
         let m = fromGenMove gm
 
         let board = getBoard vBoard
-        let givesCheck = MoveGen.givesCheckFast (pieces board) (state board) gm
+        let givesCheck = MoveGen.givesCheck (pieces board) (state board) gm
 
         let pruneQuiet = case (scNodeKind ctx, scCheckState ctx) of
                 (NonPV, NotInCheck) | isQuiet && not givesCheck -> -- optimized prune logic knowing NotInCheck
@@ -459,8 +459,8 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                      else do
                          let board = getBoard vBoard
                          -- Fast Check for LMR (approximate or precise?)
-                         -- givesCheckFast checks if the move GIVES check.
-                         let fastCheck = MoveGen.givesCheckFast (pieces board) (state board) gm
+                         -- givesCheck checks if the move GIVES check.
+                         let fastCheck = MoveGen.givesCheck (pieces board) (state board) gm
 
                          let lmr = if d >= mkDepth 3 && not isCap && not isProm && index >= 2 && not inCheck && not fastCheck
                                       && popCount (Base.occupiedTotal (pieces (getBoard vBoard))) > 5
