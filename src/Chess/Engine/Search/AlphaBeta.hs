@@ -427,10 +427,10 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
             return s
 
     searchStage [] _ _ _ a _ _ flag bestScore bestM found = return (bestScore, flag, bestM, found, a)
-    searchStage (lm:lms) !index inCheck staticEval a b d flag bestScore bestM _ = do
+    searchStage (lm:lms) !index inCheck staticEval a b d flag bestScore bestM found = do
         let gm = getGenMove lm
         if not (MoveGen.isLegal (pieces (getBoard vBoard)) (state (getBoard vBoard)) gm)
-        then searchStage lms index inCheck staticEval a b d flag bestScore bestM True
+        then searchStage lms index inCheck staticEval a b d flag bestScore bestM found
         else do
             let isCap = isCapture lm
             let isProm = isPromotion lm
