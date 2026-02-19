@@ -59,10 +59,10 @@ spec = do
     it "handles partial castling" $ do
       let fenStr = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w Kq - 0 1"
       let (Just (_, gs)) = Fen.parseFen fenStr
-      GS.canCastleKingside gs White `shouldBe` True
-      GS.canCastleQueenside gs White `shouldBe` False
-      GS.canCastleKingside gs Black `shouldBe` False
-      GS.canCastleQueenside gs Black `shouldBe` True
+      GS.canCastleStandardKingside gs White `shouldBe` True
+      GS.canCastleStandardQueenside gs White `shouldBe` False
+      GS.canCastleStandardKingside gs Black `shouldBe` False
+      GS.canCastleStandardQueenside gs Black `shouldBe` True
 
     it "preserves non-standard castling rights (CFcf)" $ do
       let fenStr = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w CFcf - 0 1"
