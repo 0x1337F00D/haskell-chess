@@ -353,18 +353,30 @@ class MoveGenerator (s :: CheckStatus) where
     captureMovesValidated :: ValidatedBoard s -> [LegalMove]
     legalQuietsValidated :: ValidatedBoard s -> [LegalMove]
     legalPromotionsValidated :: ValidatedBoard s -> [LegalMove]
+    pseudoMovesValidated :: ValidatedBoard s -> [LegalMove]
+    pseudoCapturesValidated :: ValidatedBoard s -> [LegalMove]
+    pseudoQuietsValidated :: ValidatedBoard s -> [LegalMove]
+    pseudoPromotionsValidated :: ValidatedBoard s -> [LegalMove]
 
 instance MoveGenerator 'InCheck where
     legalMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.generateEvasions b gs
     captureMovesValidated vb = filter isCapture (legalMovesValidated vb)
     legalQuietsValidated vb = filter (not . isCapture) (legalMovesValidated vb)
     legalPromotionsValidated vb = filter isPromotion (legalMovesValidated vb)
+    pseudoMovesValidated = legalMovesValidated
+    pseudoCapturesValidated = captureMovesValidated
+    pseudoQuietsValidated = legalQuietsValidated
+    pseudoPromotionsValidated = legalPromotionsValidated
 
 instance MoveGenerator 'NotInCheck where
     legalMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.legalGenMoves b gs
     captureMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.legalGenCaptures b gs
     legalQuietsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.legalGenQuiets b gs
     legalPromotionsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.legalGenPromotions b gs
+    pseudoMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList (MoveGen.pseudoLegalMoves b gs)
+    pseudoCapturesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList (MoveGen.pseudoLegalCaptures b gs)
+    pseudoQuietsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList (MoveGen.pseudoLegalQuiets b gs)
+    pseudoPromotionsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList (MoveGen.pseudoLegalPromotions b gs)
 
 mkLegalMove :: MoveGen.GenMove -> LegalMove
 mkLegalMove = LegalMove

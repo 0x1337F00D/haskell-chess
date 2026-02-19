@@ -8,6 +8,7 @@ import Data.IORef (IORef, modifyIORef')
 import Chess.Types (Depth(..), unDepth, decDepth, depthZero, CheckStatus(..))
 import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, pieces, applyLegalMove, isCheck, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated, getGenMove, MoveGenerator(..))
 import qualified Chess.Board
+import qualified Chess.Board.MoveGen as MoveGen
 import Chess.Board.MoveGen (givesCheckFast)
 import qualified Chess.Board.GameState as GS
 import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
@@ -61,14 +62,15 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
         then return beta
         else do
             let a = max alpha standPat
-            let caps = captureMovesValidated vBoard
-            let proms = legalPromotionsValidated vBoard
+            let caps = pseudoCapturesValidated vBoard
+            let proms = pseudoPromotionsValidated vBoard
 
             -- Quiet Checks (Extension +1 ply equivalent logic)
             -- Only generate if depth > -1
             quietChecks <- if unDepth depth > -1
                            then do
-                               let quiets = legalQuietsValidated vBoard
+                               let quiets = pseudoQuietsValidated vBoard
+                               -- Filter by givesCheck. Legality is checked in the loop.
                                return $ filter (givesCheck vBoard) quiets
                            else return []
 
@@ -82,16 +84,22 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
 
     go [] a = return a
     go (lm:lms) a = do
-        score <- case applyLegalMove vBoard lm of
-            InCheckBoard newVBoard -> do
-                let newCtx = ctx { scCheckState = InCheck, scPly = scPly ctx + 1 } :: SearchContext p
-                s <- quiescence newCtx newVBoard tt (-beta) (-a) nodes (decDepth depth)
-                return (-s)
-            NotInCheckBoard newVBoard -> do
-                let newCtx = ctx { scCheckState = NotInCheck, scPly = scPly ctx + 1 } :: SearchContext p
-                s <- quiescence newCtx newVBoard tt (-beta) (-a) nodes (decDepth depth)
-                return (-s)
+        let gm = getGenMove lm
+        -- Check legality (since we use pseudo moves)
+        let b = getBoard vBoard
+        if not (MoveGen.isLegal (pieces b) (state b) gm)
+        then go lms a
+        else do
+            score <- case applyLegalMove vBoard lm of
+                InCheckBoard newVBoard -> do
+                    let newCtx = ctx { scCheckState = InCheck, scPly = scPly ctx + 1 } :: SearchContext p
+                    s <- quiescence newCtx newVBoard tt (-beta) (-a) nodes (decDepth depth)
+                    return (-s)
+                NotInCheckBoard newVBoard -> do
+                    let newCtx = ctx { scCheckState = NotInCheck, scPly = scPly ctx + 1 } :: SearchContext p
+                    s <- quiescence newCtx newVBoard tt (-beta) (-a) nodes (decDepth depth)
+                    return (-s)
 
-        if score >= beta
-        then return beta
-        else go lms (max a score)
+            if score >= beta
+            then return beta
+            else go lms (max a score)

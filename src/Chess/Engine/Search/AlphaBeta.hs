@@ -114,7 +114,7 @@ searchPhase (Position vBoard) tt limits stopFlag = do
 -- | Root Search
 alphaBetaRoot :: forall p s. (Evaluate p, MoveGenerator s) => SearchContext p -> ValidatedBoard s -> TT -> Depth -> IORef Int -> IORef Bool -> SearchLimits -> IO (Move, Int)
 alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
-    let moves = legalMovesValidated vBoard
+    let moves = pseudoMovesValidated vBoard
     let board = getBoard vBoard
     let hash = GS.zobristHash (state board)
     ttEntry <- probeTT tt hash
@@ -122,79 +122,86 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
 
     let sortedMoves = Ordering.orderGenMoves vBoard moves ttMove
 
-    case sortedMoves of
-        [] -> return (nullMove, 0)
-        (lm:lms) -> do
-            let gm = getGenMove lm
-            let m = fromGenMove gm
-
-            (s, _) <- case applyLegalMove vBoard lm of
-                InCheckBoard newVBoard -> do
-                    let nextCtx = ctx { scNodeKind = PV, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                    s' <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-infinity) infinity nodes stopFlag limits
-                    return (s', InCheck)
-                NotInCheckBoard newVBoard -> do
-                    let nextCtx = ctx { scNodeKind = PV, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                    s' <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-infinity) infinity nodes stopFlag limits
-                    return (s', NotInCheck)
-
-            let bestMove = fromGenMove gm
-            let bestScore = stepScore s
-
-            if null lms then return (bestMove, bestScore)
-            else do
-                caps <- getNumCapabilities
-                if caps <= 1
-                then go lms bestMove bestScore (-infinity) infinity
+    let loop moves = case moves of
+            [] -> return (nullMove, 0)
+            (lm:lms) -> do
+                let gm = getGenMove lm
+                if not (MoveGen.isLegal (pieces board) (state board) gm)
+                then loop lms
                 else do
-                    queue <- newMVar lms
+                    let m = fromGenMove gm
+                    (s, _) <- case applyLegalMove vBoard lm of
+                        InCheckBoard newVBoard -> do
+                            let nextCtx = ctx { scNodeKind = PV, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+                            s' <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-infinity) infinity nodes stopFlag limits
+                            return (s', InCheck)
+                        NotInCheckBoard newVBoard -> do
+                            let nextCtx = ctx { scNodeKind = PV, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+                            s' <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-infinity) infinity nodes stopFlag limits
+                            return (s', NotInCheck)
 
-                    let worker _ = do
-                            localNodes <- newIORef 0
+                    let bestMove = fromGenMove gm
+                    let bestScore = stepScore s
 
-                            let loop bestRes = do
-                                    mbMove <- modifyMVar queue $ \ms -> case ms of
-                                        [] -> return ([], Nothing)
-                                        (m:rest) -> return (rest, Just m)
+                    if null lms then return (bestMove, bestScore)
+                    else do
+                        caps <- getNumCapabilities
+                        if caps <= 1
+                        then go lms bestMove bestScore (-infinity) infinity
+                        else do
+                            queue <- newMVar lms
 
-                                    case mbMove of
-                                        Nothing -> do
-                                            n <- readIORef localNodes
-                                            return (bestRes, n)
-                                        Just lmWorker -> do
-                                            stop <- readIORef stopFlag
-                                            if stop
-                                            then do
-                                                n <- readIORef localNodes
-                                                return (bestRes, n)
-                                            else do
-                                                let gmWorker = getGenMove lmWorker
-                                                let mWorker = fromGenMove gmWorker
+                            let worker _ = do
+                                    localNodes <- newIORef 0
 
-                                                searchScore <- case applyLegalMove vBoard lmWorker of
-                                                    InCheckBoard newVBWorker -> do
-                                                        let workerCtx = ctx { scNodeKind = PV, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                                                        s <- alphaBeta workerCtx newVBWorker tt (Just mWorker) (decDepth depth) (-infinity) (-bestScore) localNodes stopFlag limits
-                                                        return (stepScore s)
-                                                    NotInCheckBoard newVBWorker -> do
-                                                        let workerCtx = ctx { scNodeKind = PV, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                                                        s <- alphaBeta workerCtx newVBWorker tt (Just mWorker) (decDepth depth) (-infinity) (-bestScore) localNodes stopFlag limits
-                                                        return (stepScore s)
+                                    let loopWorker bestRes = do
+                                            mbMove <- modifyMVar queue $ \ms -> case ms of
+                                                [] -> return ([], Nothing)
+                                                (m:rest) -> return (rest, Just m)
 
-                                                let newBestRes = case bestRes of
-                                                        Nothing -> Just (mWorker, searchScore)
-                                                        Just (_, bs) -> if searchScore > bs then Just (mWorker, searchScore) else bestRes
+                                            case mbMove of
+                                                Nothing -> do
+                                                    n <- readIORef localNodes
+                                                    return (bestRes, n)
+                                                Just lmWorker -> do
+                                                    stop <- readIORef stopFlag
+                                                    if stop
+                                                    then do
+                                                        n <- readIORef localNodes
+                                                        return (bestRes, n)
+                                                    else do
+                                                        let gmWorker = getGenMove lmWorker
+                                                        -- Check legality in worker
+                                                        if not (MoveGen.isLegal (pieces board) (state board) gmWorker)
+                                                        then loopWorker bestRes
+                                                        else do
+                                                            let mWorker = fromGenMove gmWorker
 
-                                                loop newBestRes
+                                                            searchScore <- case applyLegalMove vBoard lmWorker of
+                                                                InCheckBoard newVBWorker -> do
+                                                                    let workerCtx = ctx { scNodeKind = PV, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+                                                                    s <- alphaBeta workerCtx newVBWorker tt (Just mWorker) (decDepth depth) (-infinity) (-bestScore) localNodes stopFlag limits
+                                                                    return (stepScore s)
+                                                                NotInCheckBoard newVBWorker -> do
+                                                                    let workerCtx = ctx { scNodeKind = PV, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+                                                                    s <- alphaBeta workerCtx newVBWorker tt (Just mWorker) (decDepth depth) (-infinity) (-bestScore) localNodes stopFlag limits
+                                                                    return (stepScore s)
 
-                            loop Nothing
+                                                            let newBestRes = case bestRes of
+                                                                    Nothing -> Just (mWorker, searchScore)
+                                                                    Just (_, bs) -> if searchScore > bs then Just (mWorker, searchScore) else bestRes
 
-                    results <- mapConcurrently worker [1..caps]
+                                                            loopWorker newBestRes
 
-                    let (finalM, finalS) = foldl' merge (bestMove, bestScore) (map fst results)
-                    let totalNodes = sum (map snd results)
-                    modifyIORef' nodes (+ totalNodes)
-                    return (finalM, finalS)
+                                    loopWorker Nothing
+
+                            results <- mapConcurrently worker [1..caps]
+
+                            let (finalM, finalS) = foldl' merge (bestMove, bestScore) (map fst results)
+                            let totalNodes = sum (map snd results)
+                            modifyIORef' nodes (+ totalNodes)
+                            return (finalM, finalS)
+    loop sortedMoves
 
   where
     merge (bm, bs) Nothing = (bm, bs)
@@ -206,23 +213,26 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
         if stop then return (bestM, bestScore)
         else do
             let gm = getGenMove lm
-            let m = fromGenMove gm
+            if not (MoveGen.isLegal (pieces (getBoard vBoard)) (state (getBoard vBoard)) gm)
+            then go lms bestM bestScore alpha beta
+            else do
+                let m = fromGenMove gm
 
-            score <- case applyLegalMove vBoard lm of
-                InCheckBoard newVBoard -> do
-                    let nextCtx = ctx { scNodeKind = NonPV, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                    let newAlpha = max alpha bestScore
-                    s <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-beta) (-newAlpha) nodes stopFlag limits
-                    return (stepScore s)
-                NotInCheckBoard newVBoard -> do
-                    let nextCtx = ctx { scNodeKind = NonPV, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                    let newAlpha = max alpha bestScore
-                    s <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-beta) (-newAlpha) nodes stopFlag limits
-                    return (stepScore s)
+                score <- case applyLegalMove vBoard lm of
+                    InCheckBoard newVBoard -> do
+                        let nextCtx = ctx { scNodeKind = NonPV, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+                        let newAlpha = max alpha bestScore
+                        s <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-beta) (-newAlpha) nodes stopFlag limits
+                        return (stepScore s)
+                    NotInCheckBoard newVBoard -> do
+                        let nextCtx = ctx { scNodeKind = NonPV, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+                        let newAlpha = max alpha bestScore
+                        s <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-beta) (-newAlpha) nodes stopFlag limits
+                        return (stepScore s)
 
-            if score > bestScore
-            then go lms m score alpha beta
-            else go lms bestM bestScore alpha beta
+                if score > bestScore
+                then go lms m score alpha beta
+                else go lms bestM bestScore alpha beta
 
 mapConcurrently :: (a -> IO b) -> [a] -> IO [b]
 mapConcurrently f xs = do
@@ -371,7 +381,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                             let filterTT ms = if searchedTT then filter (\lm -> fromGenMove (getGenMove lm) /= ttM) ms else ms
                             let sortingTT = if searchedTT then Nothing else Just ttM
 
-                            let captures = captureMovesValidated vBoard
+                            let captures = pseudoCapturesValidated vBoard
                             let (goodCaps, badCaps) = partitionSEE vBoard captures
                             let sortedGood = Ordering.pickAndSort (filterTT goodCaps) sortingTT
 
@@ -380,7 +390,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                             if score1 >= beta
                             then storeAndReturn score1 bestM1 TTLower
                             else do
-                                let promotions = filter (not . isCapture) (legalPromotionsValidated vBoard)
+                                let promotions = filter (not . isCapture) (pseudoPromotionsValidated vBoard)
                                 let sortedPromotions = Ordering.pickAndSort (filterTT promotions) sortingTT
 
                                 (score2, flag2, bestM2, found2, alpha2) <- searchStage sortedPromotions (0 :: Int) inCheck staticEval alpha1 beta depth flag1 score1 bestM1 found1
@@ -388,7 +398,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                                 if score2 >= beta
                                 then storeAndReturn score2 bestM2 TTLower
                                 else do
-                                    let quiets = legalQuietsValidated vBoard
+                                    let quiets = pseudoQuietsValidated vBoard
                                     killers <- getKillers ctx depth
                                     counterMove <- getCounterMove ctx lastMove
                                     sortedQuiets <- orderQuiets ctx (filterTT quiets) killers counterMove sortingTT
@@ -418,95 +428,98 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
 
     searchStage [] _ _ _ a _ _ flag bestScore bestM found = return (bestScore, flag, bestM, found, a)
     searchStage (lm:lms) !index inCheck staticEval a b d flag bestScore bestM _ = do
-        let isCap = isCapture lm
-        let isProm = isPromotion lm
-        let isQuiet = not isCap && not isProm
-        let dVal = unDepth d
-
         let gm = getGenMove lm
-        let m = fromGenMove gm
-
-        let board = getBoard vBoard
-        let givesCheck = MoveGen.givesCheckFast (pieces board) (state board) gm
-
-        let pruneQuiet = case (scNodeKind ctx, scCheckState ctx) of
-                (NonPV, NotInCheck) | isQuiet && not givesCheck -> -- optimized prune logic knowing NotInCheck
-                             let lmpCount = 3 + dVal * dVal
-                                 doLMP = dVal < 8 && dVal >= 3 && index > lmpCount
-                                 fpMargin = 100 * dVal
-                                 doFutility = index > 10 && dVal < 7 && dVal >= 2 && abs bestScore < mateValue && abs a < mateValue && staticEval + fpMargin <= a
-                                              && popCount (Base.occupiedTotal (pieces (getBoard vBoard))) > 5
-                             in doLMP || doFutility
-                _ -> False
-
-        if pruneQuiet
-        then searchStage lms (index + 1) inCheck staticEval a b d flag bestScore bestM True
+        if not (MoveGen.isLegal (pieces (getBoard vBoard)) (state (getBoard vBoard)) gm)
+        then searchStage lms index inCheck staticEval a b d flag bestScore bestM True
         else do
-            let extension = if inCheck then depthOne else depthZero
-            let nextDepth = (decDepth d) `plusDepth` extension
+            let isCap = isCapture lm
+            let isProm = isPromotion lm
+            let isQuiet = not isCap && not isProm
+            let dVal = unDepth d
 
-            score <- if bestScore == -infinity
-                     then do
-                         case applyLegalMove vBoard lm of
-                             InCheckBoard newVBoard -> do
-                                 let nextCtx = ctx { scNodeKind = scNodeKind ctx, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                                 s <- alphaBeta nextCtx newVBoard tt (Just m) nextDepth (-b) (-a) nodes stopFlag limits
-                                 return (stepScore s)
-                             NotInCheckBoard newVBoard -> do
-                                 let nextCtx = ctx { scNodeKind = scNodeKind ctx, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                                 s <- alphaBeta nextCtx newVBoard tt (Just m) nextDepth (-b) (-a) nodes stopFlag limits
-                                 return (stepScore s)
-                     else do
-                         let board = getBoard vBoard
-                         -- Fast Check for LMR (approximate or precise?)
-                         -- givesCheckFast checks if the move GIVES check.
-                         let fastCheck = MoveGen.givesCheckFast (pieces board) (state board) gm
+            let m = fromGenMove gm
 
-                         let lmr = if d >= mkDepth 3 && not isCap && not isProm && index >= 2 && not inCheck && not fastCheck
-                                      && popCount (Base.occupiedTotal (pieces (getBoard vBoard))) > 5
-                                   then
-                                       let dIdx = min 63 (unDepth d)
-                                           mIdx = min 63 index
-                                       in mkDepth (lmrTable U.! (dIdx * 64 + mIdx))
-                                   else depthZero
+            let board = getBoard vBoard
+            let givesCheck = MoveGen.givesCheckFast (pieces board) (state board) gm
 
-                         let dLMR = nextDepth `minusDepth` lmr
+            let pruneQuiet = case (scNodeKind ctx, scCheckState ctx) of
+                    (NonPV, NotInCheck) | isQuiet && not givesCheck -> -- optimized prune logic knowing NotInCheck
+                                 let lmpCount = 3 + dVal * dVal
+                                     doLMP = dVal < 8 && dVal >= 3 && index > lmpCount
+                                     fpMargin = 100 * dVal
+                                     doFutility = index > 10 && dVal < 7 && dVal >= 2 && abs bestScore < mateValue && abs a < mateValue && staticEval + fpMargin <= a
+                                                  && popCount (Base.occupiedTotal (pieces (getBoard vBoard))) > 5
+                                 in doLMP || doFutility
+                    _ -> False
 
-                         scoreLMR <- case applyLegalMove vBoard lm of
-                             InCheckBoard newVBoard -> do
-                                 let lmrCtx = ctx { scNodeKind = NonPV, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                                 s <- alphaBeta lmrCtx newVBoard tt (Just m) dLMR (-a - 1) (-a) nodes stopFlag limits
-                                 return (stepScore s)
-                             NotInCheckBoard newVBoard -> do
-                                 let lmrCtx = ctx { scNodeKind = NonPV, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                                 s <- alphaBeta lmrCtx newVBoard tt (Just m) dLMR (-a - 1) (-a) nodes stopFlag limits
-                                 return (stepScore s)
+            if pruneQuiet
+            then searchStage lms (index + 1) inCheck staticEval a b d flag bestScore bestM True
+            else do
+                let extension = if inCheck then depthOne else depthZero
+                let nextDepth = (decDepth d) `plusDepth` extension
 
-                         if scoreLMR > a && scoreLMR < b
+                score <- if bestScore == -infinity
                          then do
                              case applyLegalMove vBoard lm of
                                  InCheckBoard newVBoard -> do
-                                     let researchCtx = ctx { scNodeKind = scNodeKind ctx, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                                     s2 <- alphaBeta researchCtx newVBoard tt (Just m) nextDepth (-b) (-a) nodes stopFlag limits
-                                     return (stepScore s2)
+                                     let nextCtx = ctx { scNodeKind = scNodeKind ctx, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+                                     s <- alphaBeta nextCtx newVBoard tt (Just m) nextDepth (-b) (-a) nodes stopFlag limits
+                                     return (stepScore s)
                                  NotInCheckBoard newVBoard -> do
-                                     let researchCtx = ctx { scNodeKind = scNodeKind ctx, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                                     s2 <- alphaBeta researchCtx newVBoard tt (Just m) nextDepth (-b) (-a) nodes stopFlag limits
-                                     return (stepScore s2)
-                         else return scoreLMR
+                                     let nextCtx = ctx { scNodeKind = scNodeKind ctx, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+                                     s <- alphaBeta nextCtx newVBoard tt (Just m) nextDepth (-b) (-a) nodes stopFlag limits
+                                     return (stepScore s)
+                         else do
+                             let board = getBoard vBoard
+                             -- Fast Check for LMR (approximate or precise?)
+                             -- givesCheckFast checks if the move GIVES check.
+                             let fastCheck = MoveGen.givesCheckFast (pieces board) (state board) gm
 
-            let newBestScore = max bestScore score
-            let newFlag = if score >= b then TTLower else if score > a then TTExact else flag
-            let newBestM = if score > bestScore then m else bestM
-            let newAlpha = max a score
+                             let lmr = if d >= mkDepth 3 && not isCap && not isProm && index >= 2 && not inCheck && not fastCheck
+                                          && popCount (Base.occupiedTotal (pieces (getBoard vBoard))) > 5
+                                       then
+                                           let dIdx = min 63 (unDepth d)
+                                               mIdx = min 63 index
+                                           in mkDepth (lmrTable U.! (dIdx * 64 + mIdx))
+                                       else depthZero
 
-            if score >= b
-            then do
-                 if not isCap && not isProm
-                 then do
-                     updateKillers ctx d m
-                     updateHistory ctx d m
-                     updateCounterMove ctx lastMove m
-                 else return ()
-                 return (score, TTLower, m, True, newAlpha)
-            else searchStage lms (index + 1) inCheck staticEval newAlpha b d newFlag newBestScore newBestM True
+                             let dLMR = nextDepth `minusDepth` lmr
+
+                             scoreLMR <- case applyLegalMove vBoard lm of
+                                 InCheckBoard newVBoard -> do
+                                     let lmrCtx = ctx { scNodeKind = NonPV, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+                                     s <- alphaBeta lmrCtx newVBoard tt (Just m) dLMR (-a - 1) (-a) nodes stopFlag limits
+                                     return (stepScore s)
+                                 NotInCheckBoard newVBoard -> do
+                                     let lmrCtx = ctx { scNodeKind = NonPV, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+                                     s <- alphaBeta lmrCtx newVBoard tt (Just m) dLMR (-a - 1) (-a) nodes stopFlag limits
+                                     return (stepScore s)
+
+                             if scoreLMR > a && scoreLMR < b
+                             then do
+                                 case applyLegalMove vBoard lm of
+                                     InCheckBoard newVBoard -> do
+                                         let researchCtx = ctx { scNodeKind = scNodeKind ctx, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+                                         s2 <- alphaBeta researchCtx newVBoard tt (Just m) nextDepth (-b) (-a) nodes stopFlag limits
+                                         return (stepScore s2)
+                                     NotInCheckBoard newVBoard -> do
+                                         let researchCtx = ctx { scNodeKind = scNodeKind ctx, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+                                         s2 <- alphaBeta researchCtx newVBoard tt (Just m) nextDepth (-b) (-a) nodes stopFlag limits
+                                         return (stepScore s2)
+                             else return scoreLMR
+
+                let newBestScore = max bestScore score
+                let newFlag = if score >= b then TTLower else if score > a then TTExact else flag
+                let newBestM = if score > bestScore then m else bestM
+                let newAlpha = max a score
+
+                if score >= b
+                then do
+                     if not isCap && not isProm
+                     then do
+                         updateKillers ctx d m
+                         updateHistory ctx d m
+                         updateCounterMove ctx lastMove m
+                     else return ()
+                     return (score, TTLower, m, True, newAlpha)
+                else searchStage lms (index + 1) inCheck staticEval newAlpha b d newFlag newBestScore newBestM True

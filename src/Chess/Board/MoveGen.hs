@@ -512,6 +512,7 @@ fillPawnEvasions b gs targetMask mv !startIdx =
     in foldBitboardM fillMoves startIdx pawns
 
 -- | Check if a move is legal.
+{-# INLINE isLegal #-}
 isLegal :: Board -> GameState -> GenMove -> Bool
 isLegal b gs gm =
     let c = turn gs
@@ -570,6 +571,7 @@ toGenMove b gs (Move from to promo) =
 toGenMove _ _ _ = Nothing
 
 -- | Faster version of applyMoveBoard that avoids pieceAt lookups.
+{-# INLINE applyMoveBoardFast #-}
 applyMoveBoardFast :: Board -> GameState -> GenMove -> Board
 applyMoveBoardFast b gs gm =
     case gm of
