@@ -378,7 +378,9 @@ isLegalMove (Board b gs _) m = MoveGen.isLegalMove b gs m
 applyLegalMove :: ValidatedBoard s -> LegalMove -> SomeValidatedBoard
 applyLegalMove (ValidatedBoard b) (LegalMove gm) =
     let b' = applyGenMove b gm
-    in trustBoard b'
+    in if MoveGen.givesCheck (pieces b) (state b) gm
+       then InCheckBoard (ValidatedBoard b')
+       else NotInCheckBoard (ValidatedBoard b')
 
 -- Safe Accessors for LegalMove
 
