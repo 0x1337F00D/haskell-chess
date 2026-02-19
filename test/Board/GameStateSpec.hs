@@ -15,25 +15,25 @@ spec = do
       GS.halfmoveClock gs `shouldBe` 0
       GS.fullmoveNumber gs `shouldBe` 1
 
-    it "canCastleStandardKingside/Queenside checks bitboard correctly" $ do
+    it "canCastleKingside/Queenside checks bitboard correctly" $ do
       let gs = GS.initialGameState
-      GS.canCastleStandardKingside gs White `shouldBe` True
-      GS.canCastleStandardQueenside gs White `shouldBe` True
-      GS.canCastleStandardKingside gs Black `shouldBe` True
-      GS.canCastleStandardQueenside gs Black `shouldBe` True
+      GS.canCastleKingside gs White `shouldBe` True
+      GS.canCastleQueenside gs White `shouldBe` True
+      GS.canCastleKingside gs Black `shouldBe` True
+      GS.canCastleQueenside gs Black `shouldBe` True
 
     it "removeColorCastlingRights removes both rights for a color" $ do
       let gs = GS.initialGameState
           gs' = GS.removeColorCastlingRights gs White
-      GS.canCastleStandardKingside gs' White `shouldBe` False
-      GS.canCastleStandardQueenside gs' White `shouldBe` False
+      GS.canCastleKingside gs' White `shouldBe` False
+      GS.canCastleQueenside gs' White `shouldBe` False
       -- Black untouched
-      GS.canCastleStandardKingside gs' Black `shouldBe` True
-      GS.canCastleStandardQueenside gs' Black `shouldBe` True
+      GS.canCastleKingside gs' Black `shouldBe` True
+      GS.canCastleQueenside gs' Black `shouldBe` True
 
     it "removeCastlingRight removes specific right" $ do
       let gs = GS.initialGameState
           gs' = GS.removeCastlingRight gs H1
-      GS.canCastleStandardKingside gs' White `shouldBe` False
-      GS.canCastleStandardQueenside gs' White `shouldBe` True
-      GS.canCastleStandardKingside gs' Black `shouldBe` True
+      GS.canCastleKingside gs' White `shouldBe` False
+      GS.canCastleQueenside gs' White `shouldBe` True
+      GS.canCastleKingside gs' Black `shouldBe` True

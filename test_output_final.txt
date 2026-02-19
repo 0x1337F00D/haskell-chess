@@ -1,6 +1,12 @@
+Resolving dependencies...
 Build profile: -w ghc-9.4.8 -O1
 In order, the following will be built (use -v for more details):
- - haskell-chess-0.1.0.0 (test:haskell-chess-test) (first run)
+ - haskell-chess-0.1.0.0 (lib) (configuration changed)
+ - haskell-chess-0.1.0.0 (test:haskell-chess-test) (configuration changed)
+Configuring library for haskell-chess-0.1.0.0..
+Preprocessing library for haskell-chess-0.1.0.0..
+Building library for haskell-chess-0.1.0.0..
+Configuring test suite 'haskell-chess-test' for haskell-chess-0.1.0.0..
 Preprocessing test suite 'haskell-chess-test' for haskell-chess-0.1.0.0..
 Building test suite 'haskell-chess-test' for haskell-chess-0.1.0.0..
 Running 1 test suites...
