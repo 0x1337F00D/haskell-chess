@@ -60,6 +60,10 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
         if standPat >= beta
         then return beta
         else do
+            let givesCheckLocal lm =
+                    let b = getBoard vBoard
+                    in givesCheck (pieces b) (state b) (getGenMove lm)
+
             let a = max alpha standPat
             let caps = captureMovesValidated vBoard
             let (goodCaps, badCaps) = partitionSEE vBoard caps
@@ -70,21 +74,17 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
             quietChecks <- if unDepth depth > -1
                            then do
                                let quiets = legalQuietsValidated vBoard
-                               return $ filter (givesCheckLocal vBoard) quiets
+                               return $ filter givesCheckLocal quiets
                            else return []
 
             -- Also search bad captures if they give check (tactical sacrifices)
-            let checkingBadCaps = filter (givesCheckLocal vBoard) badCaps
+            let checkingBadCaps = filter givesCheckLocal badCaps
             let qsMoves = goodCaps ++ checkingBadCaps
 
             let sortedMoves = orderQSMoves vBoard qsMoves proms quietChecks
 
             go sortedMoves a
   where
-    givesCheckLocal vb lm =
-        let b = getBoard vb
-        in givesCheck (pieces b) (state b) (getGenMove lm)
-
     go [] a = return a
     go (lm:lms) a = do
         score <- case applyLegalMove vBoard lm of
