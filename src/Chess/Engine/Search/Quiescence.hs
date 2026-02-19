@@ -6,8 +6,7 @@ module Chess.Engine.Search.Quiescence where
 
 import Data.IORef (IORef, modifyIORef')
 import Chess.Types (Depth(..), unDepth, decDepth, depthZero, CheckStatus(..))
-import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, pieces, applyLegalMove, isCheck, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated, getGenMove, MoveGenerator(..))
-import qualified Chess.Board
+import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, pieces, applyLegalMove, legalMovesValidated, getGenMove, MoveGenerator(..))
 import qualified Chess.Board.MoveGen as MoveGen
 import Chess.Board.MoveGen (givesCheckFast)
 import qualified Chess.Board.GameState as GS
@@ -16,7 +15,7 @@ import Chess.Board.Phase (Position(..))
 import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
 import Chess.Engine.Search.Types (mateValue, SearchContext(..))
 import Chess.Engine.Search.Ordering (orderGenMoves, orderQSMoves)
-import Chess.Types (Move, nullMove)
+import Chess.Types (nullMove)
 
 -- | Quiescence Search.
 quiescence :: forall p s. (Evaluate p, MoveGenerator s) => SearchContext p -> ValidatedBoard s -> TT -> Int -> Int -> IORef Int -> Depth -> IO Int
