@@ -26,7 +26,7 @@ import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
 import qualified Chess.Board.Fen as Fen
 import qualified Chess.Board as FastBoard
-import Chess.Board (applyGenMove, legalGenMoves) -- Import fast board ops
+import Chess.Board (legalGenMoves, applyGenMoveFast, pseudoLegalGenMoves, isKingSafe, pattern GenCastling) -- Import fast board ops
 import Data.Bits (testBit, countTrailingZeros, (.|.))
 
 -- | Create the initial game state for Standard chess.
@@ -98,4 +98,18 @@ instance ChessVariant 'Standard where
 fastPerft :: Int -> FastBoard.Board -> Int
 fastPerft 0 _ = 1
 fastPerft 1 b = length (legalGenMoves b)
-fastPerft d b = sum $ map (fastPerft (d - 1) . applyGenMove b) (legalGenMoves b)
+fastPerft d b =
+    let moves = pseudoLegalGenMoves b
+        c = GS.turn (FastBoard.state b)
+    in sum $ map (\m ->
+        case m of
+            GenCastling _ _ ->
+                if MG.isLegal (FastBoard.pieces b) (FastBoard.state b) m
+                then fastPerft (d - 1) (applyGenMoveFast b m)
+                else 0
+            _ ->
+                let b' = applyGenMoveFast b m
+                in if isKingSafe b' c
+                   then fastPerft (d - 1) b'
+                   else 0
+       ) moves
