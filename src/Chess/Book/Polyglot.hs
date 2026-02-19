@@ -231,10 +231,10 @@ polyglotKey b gs =
 
         -- 2. Castling Rights
         castleKey =
-            (if canCastleKingside gs White then random64 V.! 768 else 0) `xor`
-            (if canCastleQueenside gs White then random64 V.! 769 else 0) `xor`
-            (if canCastleKingside gs Black then random64 V.! 770 else 0) `xor`
-            (if canCastleQueenside gs Black then random64 V.! 771 else 0)
+            (if canCastleStandardKingside gs White then random64 V.! 768 else 0) `xor`
+            (if canCastleStandardQueenside gs White then random64 V.! 769 else 0) `xor`
+            (if canCastleStandardKingside gs Black then random64 V.! 770 else 0) `xor`
+            (if canCastleStandardQueenside gs Black then random64 V.! 771 else 0)
 
         -- 3. En Passant
         -- Polyglot only includes EP if a capture is actually possible by a pawn.

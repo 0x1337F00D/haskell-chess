@@ -1096,8 +1096,8 @@ countCastlingMoves b gs =
                 c1 = Square (rank * 8 + 2)
                 b1 = Square (rank * 8 + 1)
             in not (testBit occ (unSquare d1)) && not (testBit occ (unSquare c1)) && not (testBit occ (unSquare b1))
-        hasKS = canCastleKingside gs c && kingsideClear
-        hasQS = canCastleQueenside gs c && queensideClear
+        hasKS = canCastleStandardKingside gs c && kingsideClear
+        hasQS = canCastleStandardQueenside gs c && queensideClear
     in (if hasKS then 1 else 0) + (if hasQS then 1 else 0)
 
 {-# INLINE fillCastlingMoves #-}
@@ -1123,8 +1123,8 @@ fillCastlingMoves b gs mv !startIdx = do
                 toSq = Square (rank * 8 + toFile)
             in GenCastling kingSq toSq
 
-        hasKS = canCastleKingside gs c && kingsideClear
-        hasQS = canCastleQueenside gs c && queensideClear
+        hasKS = canCastleStandardKingside gs c && kingsideClear
+        hasQS = canCastleStandardQueenside gs c && queensideClear
 
     idx1 <- if hasKS
             then do
