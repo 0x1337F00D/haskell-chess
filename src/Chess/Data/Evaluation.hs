@@ -289,11 +289,4 @@ safetyTable = U.generate 100 $ \i ->
 
 evalPacked :: Bitboard -> U.Vector PackedScore -> PackedScore
 {-# INLINE evalPacked #-}
-evalPacked bb table = go bb 0
-  where
-    go :: Bitboard -> PackedScore -> PackedScore
-    go 0 !acc = acc
-    go b !acc =
-        let i = countTrailingZeros b
-            !packed = table `U.unsafeIndex` i
-        in go (clearBit b i) (acc + packed)
+evalPacked bb table = foldBitboard (\acc s -> acc + (table `U.unsafeIndex` unSquare s)) 0 bb

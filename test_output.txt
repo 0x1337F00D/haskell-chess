@@ -1,11 +1,441 @@
-Build profile: -w ghc-9.4.8 -O1
+Build profile: -w ghc-9.4.8 -O2
 In order, the following will be built (use -v for more details):
+ - QuickCheck-2.17.1.0 (lib) (requires download & build)
+ - call-stack-0.4.0 (lib) (requires download & build)
+ - colour-2.3.6 (lib) (requires download & build)
+ - haskell-lexer-1.2.1 (lib) (requires download & build)
+ - hspec-discover-2.11.16 (lib) (requires download & build)
+ - HUnit-1.6.2.0 (lib) (requires download & build)
+ - ansi-terminal-types-1.1.3 (lib) (requires download & build)
+ - quickcheck-io-0.2.0 (lib) (requires download & build)
+ - hspec-expectations-0.8.4 (lib) (requires download & build)
+ - ansi-terminal-1.1.5 (lib) (requires download & build)
+ - hspec-core-2.11.16 (lib) (requires download & build)
+ - hspec-2.11.16 (lib) (requires download & build)
  - haskell-chess-0.1.0.0 (test:haskell-chess-test) (first run)
+Downloading  call-stack-0.4.0
+Downloaded   call-stack-0.4.0
+Downloading  colour-2.3.6
+Starting     call-stack-0.4.0 (lib)
+Downloaded   colour-2.3.6
+Downloading  haskell-lexer-1.2.1
+Starting     colour-2.3.6 (lib)
+Building     call-stack-0.4.0 (lib)
+Downloaded   haskell-lexer-1.2.1
+Downloading  hspec-discover-2.11.16
+Starting     haskell-lexer-1.2.1 (lib)
+Building     colour-2.3.6 (lib)
+Installing   call-stack-0.4.0 (lib)
+Building     haskell-lexer-1.2.1 (lib)
+Completed    call-stack-0.4.0 (lib)
+Installing   colour-2.3.6 (lib)
+Completed    colour-2.3.6 (lib)
+Installing   haskell-lexer-1.2.1 (lib)
+Completed    haskell-lexer-1.2.1 (lib)
+Downloaded   hspec-discover-2.11.16
+Downloading  ansi-terminal-types-1.1.3
+Starting     hspec-discover-2.11.16 (lib)
+Downloaded   ansi-terminal-types-1.1.3
+Downloading  ansi-terminal-1.1.5
+Starting     ansi-terminal-types-1.1.3 (lib)
+Building     hspec-discover-2.11.16 (lib)
+Downloaded   ansi-terminal-1.1.5
+Downloading  QuickCheck-2.17.1.0
+Building     ansi-terminal-types-1.1.3 (lib)
+Downloaded   QuickCheck-2.17.1.0
+Downloading  HUnit-1.6.2.0
+Starting     QuickCheck-2.17.1.0 (lib)
+Downloaded   HUnit-1.6.2.0
+Downloading  hspec-expectations-0.8.4
+Starting     HUnit-1.6.2.0 (lib)
+Building     QuickCheck-2.17.1.0 (lib)
+Installing   hspec-discover-2.11.16 (lib)
+Completed    hspec-discover-2.11.16 (lib)
+Building     HUnit-1.6.2.0 (lib)
+Installing   ansi-terminal-types-1.1.3 (lib)
+Completed    ansi-terminal-types-1.1.3 (lib)
+Starting     ansi-terminal-1.1.5 (lib)
+Installing   HUnit-1.6.2.0 (lib)
+Completed    HUnit-1.6.2.0 (lib)
+Building     ansi-terminal-1.1.5 (lib)
+Installing   ansi-terminal-1.1.5 (lib)
+Completed    ansi-terminal-1.1.5 (lib)
+Installing   QuickCheck-2.17.1.0 (lib)
+Completed    QuickCheck-2.17.1.0 (lib)
+Downloaded   hspec-expectations-0.8.4
+Downloading  quickcheck-io-0.2.0
+Starting     hspec-expectations-0.8.4 (lib)
+Building     hspec-expectations-0.8.4 (lib)
+Installing   hspec-expectations-0.8.4 (lib)
+Completed    hspec-expectations-0.8.4 (lib)
+Downloaded   quickcheck-io-0.2.0
+Downloading  hspec-core-2.11.16
+Starting     quickcheck-io-0.2.0 (lib)
+Building     quickcheck-io-0.2.0 (lib)
+Installing   quickcheck-io-0.2.0 (lib)
+Completed    quickcheck-io-0.2.0 (lib)
+Downloaded   hspec-core-2.11.16
+Downloading  hspec-2.11.16
+Starting     hspec-core-2.11.16 (lib)
+Downloaded   hspec-2.11.16
+Building     hspec-core-2.11.16 (lib)
+Installing   hspec-core-2.11.16 (lib)
+Completed    hspec-core-2.11.16 (lib)
+Starting     hspec-2.11.16 (lib)
+Building     hspec-2.11.16 (lib)
+Installing   hspec-2.11.16 (lib)
+Completed    hspec-2.11.16 (lib)
+Configuring test suite 'haskell-chess-test' for haskell-chess-0.1.0.0..
 Preprocessing test suite 'haskell-chess-test' for haskell-chess-0.1.0.0..
 Building test suite 'haskell-chess-test' for haskell-chess-0.1.0.0..
+[ 1 of 25] Compiling BitboardSpec     ( test/BitboardSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/BitboardSpec.o )
+[ 2 of 25] Compiling Board.BaseSpec   ( test/Board/BaseSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/Board/BaseSpec.o )
+[ 3 of 25] Compiling Board.FenSpec    ( test/Board/FenSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/Board/FenSpec.o )
+
+test/Board/FenSpec.hs:30:11: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe (Board.Board, GS.GameState)’ not matched:
+            Nothing
+   |
+30 |       let (Just (b, gs)) = mbRes
+   |           ^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/FenSpec.hs:44:11: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe (Board.Board, GS.GameState)’ not matched:
+            Nothing
+   |
+44 |       let (Just (b, gs)) = mbRes
+   |           ^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/FenSpec.hs:49:11: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe (Board.Board, GS.GameState)’ not matched:
+            Nothing
+   |
+49 |       let (Just (b, gs)) = Fen.parseFen fenStr
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/FenSpec.hs:56:11: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe (Board.Board, GS.GameState)’ not matched:
+            Nothing
+   |
+56 |       let (Just (_, gs)) = Fen.parseFen fenStr
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/FenSpec.hs:61:11: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe (Board.Board, GS.GameState)’ not matched:
+            Nothing
+   |
+61 |       let (Just (_, gs)) = Fen.parseFen fenStr
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/FenSpec.hs:71:11: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe (Board.Board, GS.GameState)’ not matched:
+            Nothing
+   |
+71 |       let (Just (b, gs)) = parsed
+   |           ^^^^^^^^^^^^^^^^^^^^^^^
+[ 4 of 25] Compiling Board.GameStateSpec ( test/Board/GameStateSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/Board/GameStateSpec.o )
+[ 5 of 25] Compiling Board.MoveGenSpec ( test/Board/MoveGenSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/Board/MoveGenSpec.o )
+
+test/Board/MoveGenSpec.hs:13:11: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe
+                            (Chess.Board.Base.Board,
+                             Chess.Board.GameState.GameState)’ not matched:
+            Nothing
+   |
+13 |       let (Just (b, gs)) = Fen.parseFen startingFEN
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/MoveGenSpec.hs:22:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe
+                            (Chess.Board.Base.Board,
+                             Chess.Board.GameState.GameState)’ not matched:
+            Nothing
+   |
+22 |        let (Just (b, gs)) = Fen.parseFen fenStr
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/MoveGenSpec.hs:44:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe
+                            (Chess.Board.Base.Board,
+                             Chess.Board.GameState.GameState)’ not matched:
+            Nothing
+   |
+44 |        let (Just (b, gs)) = Fen.parseFen fenStr2
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/MoveGenSpec.hs:51:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe
+                            (Chess.Board.Base.Board,
+                             Chess.Board.GameState.GameState)’ not matched:
+            Nothing
+   |
+51 |        let (Just (b, gs)) = Fen.parseFen fenStr
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[ 6 of 25] Compiling Board.SanSpec    ( test/Board/SanSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/Board/SanSpec.o )
+
+test/Board/SanSpec.hs:14:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe (Board.Board, GS.GameState)’ not matched:
+            Nothing
+   |
+14 |        let (Just (b, gs)) = Fen.parseFen startingFEN
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/SanSpec.hs:19:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe (Board.Board, GS.GameState)’ not matched:
+            Nothing
+   |
+19 |        let (Just (b, gs)) = Fen.parseFen startingFEN
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/SanSpec.hs:31:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe (Board.Board, GS.GameState)’ not matched:
+            Nothing
+   |
+31 |        let (Just (b, gs)) = Fen.parseFen fenStr
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/SanSpec.hs:37:12: warning: [-Wunused-local-binds]
+    Defined but not used: ‘fenStr’
+   |
+37 |        let fenStr = "rnbqk2r/pppp1ppp/5n2/2b1p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 4 4" -- Ruy Lopez
+   |            ^^^^^^
+
+test/Board/SanSpec.hs:40:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe (Board.Board, GS.GameState)’ not matched:
+            Nothing
+   |
+40 |        let (Just (b, gs)) = Fen.parseFen fenStr2
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/SanSpec.hs:46:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe (Board.Board, GS.GameState)’ not matched:
+            Nothing
+   |
+46 |        let (Just (b, gs)) = Fen.parseFen fenStr2
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/SanSpec.hs:53:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe (Board.Board, GS.GameState)’ not matched:
+            Nothing
+   |
+53 |        let (Just (b, gs)) = Fen.parseFen fenStr
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/SanSpec.hs:61:12: warning: [-Wunused-local-binds]
+    Defined but not used: ‘fenStr’
+   |
+61 |        let fenStr = "rnbqkbnr/pppppppp/8/8/8/8/PPPNNPPP/R1BQKB1R w KQkq - 0 1" -- Wrong fen, knights on d2? No.
+   |            ^^^^^^
+
+test/Board/SanSpec.hs:66:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe (Board.Board, GS.GameState)’ not matched:
+            Nothing
+   |
+66 |        let (Just (b, gs)) = Fen.parseFen startingFEN
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/SanSpec.hs:71:12: warning: [-Wunused-local-binds]
+    Defined but not used: ‘fenStr2’
+   |
+71 |        let fenStr2 = "rnbqkbnr/pppppppp/8/8/8/8/PPP1PPPP/RN1QKBNR w KQkq - 0 1" -- Knights B1, G1 standard.
+   |            ^^^^^^^
+
+test/Board/SanSpec.hs:75:12: warning: [-Wname-shadowing]
+    This binding for ‘gs’ shadows the existing binding
+      bound at test/Board/SanSpec.hs:66:22
+   |
+75 |        let gs = GS.initialGameState
+   |            ^^
+
+test/Board/SanSpec.hs:76:12: warning: [-Wname-shadowing]
+    This binding for ‘m’ shadows the existing binding
+      bound at test/Board/SanSpec.hs:67:12
+   |
+76 |        let m = Move B1 C3 Nothing
+   |            ^
+
+test/Board/SanSpec.hs:87:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe (Board.Board, GS.GameState)’ not matched:
+            Nothing
+   |
+87 |        let (Just (b, gs)) = Fen.parseFen startingFEN
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/Board/SanSpec.hs:93:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe (Board.Board, GS.GameState)’ not matched:
+            Nothing
+   |
+93 |        let (Just (b, gs)) = Fen.parseFen fenStr
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[ 7 of 25] Compiling Board.UciSpec    ( test/Board/UciSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/Board/UciSpec.o )
+[ 8 of 25] Compiling Board.ValidationSpec ( test/Board/ValidationSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/Board/ValidationSpec.o )
+[ 9 of 25] Compiling Book.PolyglotSpec ( test/Book/PolyglotSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/Book/PolyglotSpec.o )
+[10 of 25] Compiling ChessSpec        ( test/ChessSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/ChessSpec.o )
+[11 of 25] Compiling CoreFenSpec      ( test/CoreFenSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/CoreFenSpec.o )
+[12 of 25] Compiling CorePerftSpec    ( test/CorePerftSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/CorePerftSpec.o )
+[13 of 25] Compiling CoreSpec         ( test/CoreSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/CoreSpec.o )
+
+test/CoreSpec.hs:14:1: warning: [-Wunused-imports]
+    The import of ‘CastlingRights, CrazyhouseState, Pockets,
+                   castlingBlackKingSide, castlingBlackQueenSide,
+                   castlingWhiteKingSide, castlingWhiteQueenSide’
+    from module ‘Chess.Core.Game.Internal’ is redundant
+   |
+14 | import Chess.Core.Game.Internal (ActiveGame(..), Game(..), CastlingRights(..), Pockets(..), CrazyhouseState(..), castlingWhiteKingSide, castlingWhiteQueenSide, castlingBlackKingSide, castlingBlackQueenSide, SCheckStatus(..))
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/CoreSpec.hs:22:1: warning: [-Wunused-imports]
+    The qualified import of ‘Chess.Types’ is redundant
+      except perhaps to import instances from ‘Chess.Types’
+    To import instances alone, use: import Chess.Types()
+   |
+22 | import qualified Chess.Types as T
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/CoreSpec.hs:23:26: warning: [-Wunused-imports]
+    The import of ‘.&.’ from module ‘Data.Bits’ is redundant
+   |
+23 | import Data.Bits ((.|.), (.&.))
+   |                          ^^^^^
+
+test/CoreSpec.hs:24:1: warning: [-Wunused-imports]
+    The import of ‘Data.Word’ is redundant
+      except perhaps to import instances from ‘Data.Word’
+    To import instances alone, use: import Data.Word()
+   |
+24 | import Data.Word (Word8)
+   | ^^^^^^^^^^^^^^^^^^^^^^^^
+[14 of 25] Compiling EngineSpec       ( test/EngineSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/EngineSpec.o )
+
+test/EngineSpec.hs:25:11: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe Chess.Board.Board’ not matched: Nothing
+   |
+25 |       let Just board = parseFen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/EngineSpec.hs:29:11: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe Chess.Board.Board’ not matched: Nothing
+   |
+29 |       let Just board = parseFen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBN1 w KQkq - 0 1" -- White missing Rook at H1
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/EngineSpec.hs:29:16: warning: [-Wname-shadowing]
+    This binding for ‘board’ shadows the existing binding
+      bound at test/EngineSpec.hs:25:16
+   |
+29 |       let Just board = parseFen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBN1 w KQkq - 0 1" -- White missing Rook at H1
+   |                ^^^^^
+
+test/EngineSpec.hs:34:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe Chess.Board.Board’ not matched: Nothing
+   |
+34 |        let Just board = parseFen "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/EngineSpec.hs:38:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe Chess.Board.Board’ not matched: Nothing
+   |
+38 |        let Just board = parseFen "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1"
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/EngineSpec.hs:38:17: warning: [-Wname-shadowing]
+    This binding for ‘board’ shadows the existing binding
+      bound at test/EngineSpec.hs:34:17
+   |
+38 |        let Just board = parseFen "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1"
+   |                 ^^^^^
+
+test/EngineSpec.hs:43:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe Chess.Board.Board’ not matched: Nothing
+   |
+43 |        let Just board = parseFen "rnbqkbnr/pppppppp/8/8/8/8/PPP1PPPP/RNBQKBNR w KQkq - 0 1" -- Normal
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/EngineSpec.hs:46:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe Chess.Board.Board’ not matched: Nothing
+   |
+46 |        let Just board = parseFen "rnbqkbnr/pppppppp/8/8/8/8/8/RNBQKBNR w KQkq - 0 1" -- White missing all pawns!
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/EngineSpec.hs:46:17: warning: [-Wname-shadowing]
+    This binding for ‘board’ shadows the existing binding
+      bound at test/EngineSpec.hs:43:17
+   |
+46 |        let Just board = parseFen "rnbqkbnr/pppppppp/8/8/8/8/8/RNBQKBNR w KQkq - 0 1" -- White missing all pawns!
+   |                 ^^^^^
+
+test/EngineSpec.hs:51:12: warning: [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Maybe Chess.Board.Board’ not matched: Nothing
+   |
+51 |        let Just board = parseFen "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2"
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[15 of 25] Compiling FischerRandomSpec ( test/FischerRandomSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/FischerRandomSpec.o )
+[16 of 25] Compiling GameTerminationSpec ( test/GameTerminationSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/GameTerminationSpec.o )
+[17 of 25] Compiling PerftSpec        ( test/PerftSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/PerftSpec.o )
+[18 of 25] Compiling PgnSpec          ( test/PgnSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/PgnSpec.o )
+[19 of 25] Compiling PyChessData      ( test/PyChessData.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/PyChessData.o )
+[20 of 25] Compiling PyChessCongruencySpec ( test/PyChessCongruencySpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/PyChessCongruencySpec.o )
+[21 of 25] Compiling SquareSetSpec    ( test/SquareSetSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/SquareSetSpec.o )
+[22 of 25] Compiling TablebaseSpec    ( test/TablebaseSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/TablebaseSpec.o )
+[23 of 25] Compiling TimeSpec         ( test/TimeSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/TimeSpec.o )
+[24 of 25] Compiling TypesSpec        ( test/TypesSpec.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/TypesSpec.o )
+[25 of 25] Compiling Main             ( test/Main.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test-tmp/Main.o )
+[26 of 26] Linking /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/build/haskell-chess-test/haskell-chess-test
 Running 1 test suites...
 Test suite haskell-chess-test: RUNNING...
 Test suite haskell-chess-test: PASS
 Test suite logged to:
-/app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/test/haskell-chess-0.1.0.0-haskell-chess-test.log
+/app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/t/haskell-chess-test/opt/test/haskell-chess-0.1.0.0-haskell-chess-test.log
 1 of 1 test suites (1 of 1 test cases) passed.

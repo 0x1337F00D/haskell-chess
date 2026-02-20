@@ -159,47 +159,10 @@ kingSafety b us kSq =
             Black -> (Base.whiteKnights b, Base.whiteBishops b, Base.whiteRooks b, Base.whiteQueens b)
             White -> (Base.blackKnights b, Base.blackBishops b, Base.blackRooks b, Base.blackQueens b)
 
-        loopKnights :: Bitboard -> Int -> Int
-        loopKnights 0 !acc = acc
-        loopKnights bb !acc =
-            let i = countTrailingZeros bb
-                s = Square i
-                !atts = knightAttacks s
-                !hits = popCount (atts .&. zone)
-            in loopKnights (clearBit bb i) (acc + hits * 2)
-
-        loopBishops :: Bitboard -> Int -> Int
-        loopBishops 0 !acc = acc
-        loopBishops bb !acc =
-            let i = countTrailingZeros bb
-                s = Square i
-                !atts = bishopAttacks s occ
-                !hits = popCount (atts .&. zone)
-            in loopBishops (clearBit bb i) (acc + hits * 2)
-
-        loopRooks :: Bitboard -> Int -> Int
-        loopRooks 0 !acc = acc
-        loopRooks bb !acc =
-            let i = countTrailingZeros bb
-                s = Square i
-                !atts = rookAttacks s occ
-                !hits = popCount (atts .&. zone)
-            in loopRooks (clearBit bb i) (acc + hits * 3)
-
-        loopQueens :: Bitboard -> Int -> Int
-        loopQueens 0 !acc = acc
-        loopQueens bb !acc =
-            let i = countTrailingZeros bb
-                s = Square i
-                !attB = bishopAttacks s occ
-                !attR = rookAttacks s occ
-                !hits = popCount ((attB .|. attR) .&. zone)
-            in loopQueens (clearBit bb i) (acc + hits * 5)
-
-        !vN = loopKnights enemyKnights 0
-        !vB = loopBishops enemyBishops 0
-        !vR = loopRooks enemyRooks 0
-        !vQ = loopQueens enemyQueens 0
+        !vN = foldBitboard (\acc s -> acc + popCount (knightAttacks s .&. zone) * 2) 0 enemyKnights
+        !vB = foldBitboard (\acc s -> acc + popCount (bishopAttacks s occ .&. zone) * 2) 0 enemyBishops
+        !vR = foldBitboard (\acc s -> acc + popCount (rookAttacks s occ .&. zone) * 3) 0 enemyRooks
+        !vQ = foldBitboard (\acc s -> acc + popCount ((bishopAttacks s occ .|. rookAttacks s occ) .&. zone) * 5) 0 enemyQueens
 
         !totalUnits = vN + vB + vR + vQ
 

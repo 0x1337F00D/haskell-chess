@@ -7,7 +7,7 @@ import Chess.Types
 import Chess.Bitboard
 import Chess.Board.Base
 import Chess.Board.GameState
-import Chess.Board.MoveGen (pseudoLegalMoves, isLegal, kingSquare)
+import Chess.Board.MoveGen (pseudoLegalMoves, isLegal, kingSquare, hasLegalMove)
 
 -- | Check if the side to move is in check.
 isCheck :: Board -> GameState -> Bool
@@ -19,7 +19,7 @@ isCheck b gs =
 
 -- | Check if the side to move has any legal moves.
 hasLegalMoves :: Board -> GameState -> Bool
-hasLegalMoves b gs = U.any (isLegal b gs) (pseudoLegalMoves b gs)
+hasLegalMoves = hasLegalMove
 
 -- | Check if the side to move is checkmated.
 isCheckmate :: Board -> GameState -> Bool

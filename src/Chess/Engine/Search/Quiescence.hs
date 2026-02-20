@@ -6,13 +6,16 @@ module Chess.Engine.Search.Quiescence where
 
 import Data.IORef (IORef, modifyIORef')
 import Chess.Types (Depth(..), unDepth, decDepth, depthZero, CheckStatus(..))
-import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, applyLegalMove, captureMovesValidated, legalPromotionsValidated, legalQuietChecksValidated, legalMovesValidated, MoveGenerator(..))
+import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, pieces, applyLegalMove, isCheck, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated, getGenMove, MoveGenerator(..))
+import qualified Chess.Board
+import Chess.Board.MoveGen (givesCheck)
+import qualified Chess.Board.MoveGen
 import qualified Chess.Board.GameState as GS
 import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
 import Chess.Board.Phase (Position(..))
 import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
 import Chess.Engine.Search.Types (mateValue, SearchContext(..))
-import Chess.Engine.Search.Ordering (orderGenMoves, orderQSMoves)
+import Chess.Engine.Search.Ordering (orderGenMoves, orderQSMoves, partitionSEE)
 import Chess.Types (Move, nullMove)
 
 -- | Quiescence Search.
@@ -58,17 +61,28 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
         if standPat >= beta
         then return beta
         else do
+            let givesCheckLocal lm =
+                    let b = getBoard vBoard
+                    in Chess.Board.MoveGen.givesCheck (Chess.Board.pieces b) (Chess.Board.state b) (Chess.Board.getGenMove lm)
+
             let a = max alpha standPat
             let caps = captureMovesValidated vBoard
+            let (goodCaps, badCaps) = partitionSEE vBoard caps
             let proms = legalPromotionsValidated vBoard
 
             -- Quiet Checks (Extension +1 ply equivalent logic)
             -- Only generate if depth > -1
             quietChecks <- if unDepth depth > -1
-                           then return $ legalQuietChecksValidated vBoard
+                           then do
+                               let quiets = legalQuietsValidated vBoard
+                               return $ filter givesCheckLocal quiets
                            else return []
 
-            let sortedMoves = orderQSMoves vBoard caps proms quietChecks
+            -- Also search bad captures if they give check (tactical sacrifices)
+            let checkingBadCaps = filter givesCheckLocal badCaps
+            let qsMoves = goodCaps ++ checkingBadCaps
+
+            let sortedMoves = orderQSMoves vBoard qsMoves proms quietChecks
 
             go sortedMoves a
   where

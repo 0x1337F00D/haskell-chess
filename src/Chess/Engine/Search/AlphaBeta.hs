@@ -374,6 +374,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                             let captures = captureMovesValidated vBoard
                             let (goodCaps, badCaps) = partitionSEE vBoard captures
                             let sortedGood = Ordering.pickAndSort (filterTT goodCaps) sortingTT
+                            let countGood = length sortedGood
 
                             (score1, flag1, bestM1, found1, alpha1) <- searchStage sortedGood (0 :: Int) inCheck staticEval alpha0 beta depth flag0 score0 bestM0 found0
 
@@ -382,8 +383,9 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                             else do
                                 let promotions = filter (not . isCapture) (legalPromotionsValidated vBoard)
                                 let sortedPromotions = Ordering.pickAndSort (filterTT promotions) sortingTT
+                                let countProms = length sortedPromotions
 
-                                (score2, flag2, bestM2, found2, alpha2) <- searchStage sortedPromotions (0 :: Int) inCheck staticEval alpha1 beta depth flag1 score1 bestM1 found1
+                                (score2, flag2, bestM2, found2, alpha2) <- searchStage sortedPromotions countGood inCheck staticEval alpha1 beta depth flag1 score1 bestM1 found1
 
                                 if score2 >= beta
                                 then storeAndReturn score2 bestM2 TTLower
@@ -392,14 +394,15 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                                     killers <- getKillers ctx depth
                                     counterMove <- getCounterMove ctx lastMove
                                     sortedQuiets <- orderQuiets ctx (filterTT quiets) killers counterMove sortingTT
+                                    let countQuiets = length sortedQuiets
 
-                                    (score3, flag3, bestM3, found3, alpha3) <- searchStage sortedQuiets (0 :: Int) inCheck staticEval alpha2 beta depth flag2 score2 bestM2 found2
+                                    (score3, flag3, bestM3, found3, alpha3) <- searchStage sortedQuiets (countGood + countProms) inCheck staticEval alpha2 beta depth flag2 score2 bestM2 found2
 
                                     if score3 >= beta
                                     then storeAndReturn score3 bestM3 flag3
                                     else do
                                         let sortedBad = Ordering.pickAndSort (filterTT badCaps) sortingTT
-                                        (score4, flag4, bestM4, found4, _) <- searchStage sortedBad (0 :: Int) inCheck staticEval alpha3 beta depth flag3 score3 bestM3 found3
+                                        (score4, flag4, bestM4, found4, _) <- searchStage sortedBad (countGood + countProms + countQuiets) inCheck staticEval alpha3 beta depth flag3 score3 bestM3 found3
 
                                         if not found4
                                         then return $ if inCheck then -mateValue else 0

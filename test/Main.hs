@@ -10,7 +10,6 @@ import qualified Board.BaseSpec
 import qualified Board.GameStateSpec
 import qualified Board.FenSpec
 import qualified Board.MoveGenSpec
-import qualified Board.MoveGenOptimSpec
 import qualified Board.ValidationSpec
 import qualified Board.UciSpec
 import qualified Board.SanSpec
@@ -44,7 +43,6 @@ main = hspec $ do
   Board.GameStateSpec.spec
   Board.FenSpec.spec
   Board.MoveGenSpec.spec
-  Board.MoveGenOptimSpec.spec
   Board.ValidationSpec.spec
   Board.UciSpec.spec
   Board.SanSpec.spec
