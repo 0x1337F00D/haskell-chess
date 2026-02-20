@@ -1,0 +1,515 @@
+Resolving dependencies...
+Build profile: -w ghc-9.4.8 -O1
+In order, the following will be built (use -v for more details):
+ - appar-0.1.8 (lib:appar) (requires download & build)
+ - assoc-1.1.1 (lib) (requires download & build)
+ - base16-bytestring-1.0.2.0 (lib) (requires download & build)
+ - base64-bytestring-1.2.1.0 (lib) (requires download & build)
+ - basement-0.0.16 (lib) (requires download & build)
+ - blaze-builder-0.4.4.1 (lib) (requires download & build)
+ - byteorder-1.0.4 (lib:byteorder) (requires download & build)
+ - cereal-0.5.8.3 (lib) (requires download & build)
+ - data-default-0.8.0.2 (lib) (requires download & build)
+ - half-0.3.3 (lib) (requires download & build)
+ - hsc2hs-0.68.10 (exe:hsc2hs) (requires download & build)
+ - mime-types-0.1.2.1 (lib) (requires download & build)
+ - network-byte-order-0.1.7 (lib) (requires download & build)
+ - old-locale-1.0.0.7 (lib) (requires download & build)
+ - os-string-2.0.10 (lib) (requires download & build)
+ - primitive-0.9.1.0 (lib) (requires download & build)
+ - splitmix-0.1.3.2 (lib) (requires download & build)
+ - tagged-0.8.10 (lib) (requires download & build)
+ - th-compat-0.1.7 (lib) (requires download & build)
+ - time-hourglass-0.3.0 (lib) (requires download & build)
+ - vector-stream-0.1.0.1 (lib) (requires download & build)
+ - memory-0.18.0 (lib) (requires download & build)
+ - data-default-class-0.2.0.0 (lib) (requires download & build)
+ - zlib-0.7.1.1 (lib) (requires download & build)
+ - network-3.2.8.0 (lib:network) (requires download & build)
+ - ech-config-0.0.1 (lib) (requires download & build)
+ - old-time-1.1.0.5 (lib:old-time) (requires download & build)
+ - hashable-1.4.7.0 (lib) (requires download & build)
+ - cborg-0.2.10.0 (lib) (requires download & build)
+ - random-1.3.1 (lib) (requires download & build)
+ - foldable1-classes-compat-0.1.3 (lib) (requires download & build)
+ - network-uri-2.6.4.2 (lib) (requires download & build)
+ - vector-0.13.2.0 (lib) (requires download & build)
+ - crypton-1.0.6 (lib) (requires download & build)
+ - cookie-0.5.1 (lib) (requires download & build)
+ - iproute-1.7.15 (lib) (requires download & build)
+ - crypton-socks-0.6.2 (lib) (requires download & build)
+ - unix-time-0.4.17 (lib:unix-time) (requires download & build)
+ - unordered-containers-0.2.21 (lib) (requires download & build)
+ - text-short-0.1.6.1 (lib) (requires download & build)
+ - case-insensitive-1.2.1.0 (lib) (requires download & build)
+ - these-1.2.1 (lib) (requires download & build)
+ - hpke-0.0.0 (lib) (requires download & build)
+ - async-2.2.6 (lib) (requires download & build)
+ - base64-1.0 (lib) (requires download & build)
+ - base16-1.0 (lib) (requires download & build)
+ - http-types-0.12.4 (lib) (requires download & build)
+ - strict-0.5.1 (lib) (requires download & build)
+ - streaming-commons-0.2.3.1 (lib) (requires download & build)
+ - crypton-pem-0.3.0 (lib) (requires download & build)
+ - crypton-asn1-types-0.4.1 (lib) (requires download & build)
+ - serialise-0.2.6.1 (lib) (requires download & build)
+ - http-client-0.7.19 (lib) (requires download & build)
+ - crypton-asn1-parse-0.10.0 (lib) (requires download & build)
+ - crypton-asn1-encoding-0.10.0 (lib) (requires download & build)
+ - crypton-x509-1.8.0 (lib) (requires download & build)
+ - crypton-x509-store-1.8.0 (lib) (requires download & build)
+ - crypton-x509-validation-1.8.0 (lib) (requires download & build)
+ - crypton-x509-system-1.8.0 (lib) (requires download & build)
+ - tls-2.2.2 (lib) (requires download & build)
+ - crypton-connection-0.4.5 (lib) (requires download & build)
+ - http-client-tls-0.3.6.4 (lib) (requires download & build)
+ - haskell-chess-0.1.0.0 (lib) (first run)
+ - haskell-chess-0.1.0.0 (exe:bench-core) (first run)
+Downloading  basement-0.0.16
+Downloaded   basement-0.0.16
+Downloading  byteorder-1.0.4
+Downloaded   byteorder-1.0.4
+Downloading  old-locale-1.0.0.7
+Downloaded   old-locale-1.0.0.7
+Downloading  vector-stream-0.1.0.1
+Downloaded   vector-stream-0.1.0.1
+Downloading  assoc-1.1.1
+Downloaded   assoc-1.1.1
+Downloading  base16-bytestring-1.0.2.0
+Starting     assoc-1.1.1 (lib)
+Downloaded   base16-bytestring-1.0.2.0
+Downloading  base64-bytestring-1.2.1.0
+Starting     base16-bytestring-1.0.2.0 (lib)
+Downloaded   base64-bytestring-1.2.1.0
+Downloading  memory-0.18.0
+Starting     base64-bytestring-1.2.1.0 (lib)
+Building     assoc-1.1.1 (lib)
+Building     base16-bytestring-1.0.2.0 (lib)
+Building     base64-bytestring-1.2.1.0 (lib)
+Installing   assoc-1.1.1 (lib)
+Completed    assoc-1.1.1 (lib)
+Downloaded   memory-0.18.0
+Downloading  crypton-1.0.6
+Starting     basement-0.0.16 (lib)
+Installing   base16-bytestring-1.0.2.0 (lib)
+Completed    base16-bytestring-1.0.2.0 (lib)
+Building     basement-0.0.16 (lib)
+Downloaded   crypton-1.0.6
+Downloading  hpke-0.0.0
+Downloaded   hpke-0.0.0
+Downloading  network-byte-order-0.1.7
+Downloaded   network-byte-order-0.1.7
+Downloading  ech-config-0.0.1
+Installing   base64-bytestring-1.2.1.0 (lib)
+Downloaded   ech-config-0.0.1
+Downloading  cereal-0.5.8.3
+Downloaded   cereal-0.5.8.3
+Downloading  data-default-0.8.0.2
+Completed    base64-bytestring-1.2.1.0 (lib)
+Starting     byteorder-1.0.4 (all, legacy fallback)
+Downloaded   data-default-0.8.0.2
+Downloading  data-default-class-0.2.0.0
+Downloaded   data-default-class-0.2.0.0
+Downloading  half-0.3.3
+Downloaded   half-0.3.3
+Downloading  th-compat-0.1.7
+Building     byteorder-1.0.4 (all, legacy fallback)
+Downloaded   th-compat-0.1.7
+Downloading  primitive-0.9.1.0
+Downloaded   primitive-0.9.1.0
+Downloading  splitmix-0.1.3.2
+Downloaded   splitmix-0.1.3.2
+Downloading  random-1.3.1
+Downloaded   random-1.3.1
+Downloading  tagged-0.8.10
+Installing   byteorder-1.0.4 (all, legacy fallback)
+Downloaded   tagged-0.8.10
+Downloading  foldable1-classes-compat-0.1.3
+Completed    byteorder-1.0.4 (all, legacy fallback)
+Starting     cereal-0.5.8.3 (lib)
+Downloaded   foldable1-classes-compat-0.1.3
+Downloading  hsc2hs-0.68.10
+Downloaded   hsc2hs-0.68.10
+Downloading  old-time-1.1.0.5
+Downloaded   old-time-1.1.0.5
+Downloading  unix-time-0.4.17
+Building     cereal-0.5.8.3 (lib)
+Downloaded   unix-time-0.4.17
+Downloading  zlib-0.7.1.1
+Downloaded   zlib-0.7.1.1
+Downloading  time-hourglass-0.3.0
+Downloaded   time-hourglass-0.3.0
+Downloading  vector-0.13.2.0
+Downloaded   vector-0.13.2.0
+Downloading  os-string-2.0.10
+Downloaded   os-string-2.0.10
+Downloading  network-3.2.8.0
+Downloaded   network-3.2.8.0
+Downloading  crypton-socks-0.6.2
+Downloaded   crypton-socks-0.6.2
+Downloading  blaze-builder-0.4.4.1
+Downloaded   blaze-builder-0.4.4.1
+Downloading  cborg-0.2.10.0
+Starting     blaze-builder-0.4.4.1 (lib)
+Downloaded   cborg-0.2.10.0
+Downloading  cookie-0.5.1
+Downloaded   cookie-0.5.1
+Downloading  hashable-1.4.7.0
+Downloaded   hashable-1.4.7.0
+Downloading  case-insensitive-1.2.1.0
+Building     blaze-builder-0.4.4.1 (lib)
+Downloaded   case-insensitive-1.2.1.0
+Downloading  these-1.2.1
+Downloaded   these-1.2.1
+Downloading  unordered-containers-0.2.21
+Downloaded   unordered-containers-0.2.21
+Downloading  async-2.2.6
+Downloaded   async-2.2.6
+Downloading  http-types-0.12.4
+Downloaded   http-types-0.12.4
+Downloading  mime-types-0.1.2.1
+Downloaded   mime-types-0.1.2.1
+Downloading  network-uri-2.6.4.2
+Downloaded   network-uri-2.6.4.2
+Downloading  streaming-commons-0.2.3.1
+Downloaded   streaming-commons-0.2.3.1
+Downloading  strict-0.5.1
+Downloaded   strict-0.5.1
+Downloading  serialise-0.2.6.1
+Downloaded   serialise-0.2.6.1
+Downloading  text-short-0.1.6.1
+Downloaded   text-short-0.1.6.1
+Downloading  base16-1.0
+Downloaded   base16-1.0
+Downloading  crypton-asn1-types-0.4.1
+Downloaded   crypton-asn1-types-0.4.1
+Downloading  crypton-asn1-encoding-0.10.0
+Downloaded   crypton-asn1-encoding-0.10.0
+Downloading  crypton-asn1-parse-0.10.0
+Downloaded   crypton-asn1-parse-0.10.0
+Downloading  base64-1.0
+Downloaded   base64-1.0
+Downloading  crypton-pem-0.3.0
+Downloaded   crypton-pem-0.3.0
+Downloading  crypton-x509-1.8.0
+Installing   blaze-builder-0.4.4.1 (lib)
+Downloaded   crypton-x509-1.8.0
+Downloading  crypton-x509-store-1.8.0
+Downloaded   crypton-x509-store-1.8.0
+Downloading  crypton-x509-system-1.8.0
+Completed    blaze-builder-0.4.4.1 (lib)
+Starting     data-default-0.8.0.2 (lib)
+Downloaded   crypton-x509-system-1.8.0
+Downloading  appar-0.1.8
+Downloaded   appar-0.1.8
+Downloading  iproute-1.7.15
+Starting     appar-0.1.8 (all, legacy fallback)
+Downloaded   iproute-1.7.15
+Downloading  crypton-x509-validation-1.8.0
+Downloaded   crypton-x509-validation-1.8.0
+Downloading  tls-2.2.2
+Building     data-default-0.8.0.2 (lib)
+Downloaded   tls-2.2.2
+Downloading  crypton-connection-0.4.5
+Building     appar-0.1.8 (all, legacy fallback)
+Downloaded   crypton-connection-0.4.5
+Downloading  http-client-0.7.19
+Downloaded   http-client-0.7.19
+Downloading  http-client-tls-0.3.6.4
+Downloaded   http-client-tls-0.3.6.4
+Installing   data-default-0.8.0.2 (lib)
+Completed    data-default-0.8.0.2 (lib)
+Starting     half-0.3.3 (lib)
+Installing   appar-0.1.8 (all, legacy fallback)
+Completed    appar-0.1.8 (all, legacy fallback)
+Starting     hsc2hs-0.68.10 (exe:hsc2hs)
+Building     half-0.3.3 (lib)
+Building     hsc2hs-0.68.10 (exe:hsc2hs)
+Installing   half-0.3.3 (lib)
+Completed    half-0.3.3 (lib)
+Starting     mime-types-0.1.2.1 (lib)
+Building     mime-types-0.1.2.1 (lib)
+Installing   cereal-0.5.8.3 (lib)
+Completed    cereal-0.5.8.3 (lib)
+Starting     network-byte-order-0.1.7 (lib)
+Building     network-byte-order-0.1.7 (lib)
+Installing   network-byte-order-0.1.7 (lib)
+Completed    network-byte-order-0.1.7 (lib)
+Starting     old-locale-1.0.0.7 (lib)
+Building     old-locale-1.0.0.7 (lib)
+Installing   old-locale-1.0.0.7 (lib)
+Completed    old-locale-1.0.0.7 (lib)
+Starting     os-string-2.0.10 (lib)
+Installing   hsc2hs-0.68.10 (exe:hsc2hs)
+Completed    hsc2hs-0.68.10 (exe:hsc2hs)
+Starting     primitive-0.9.1.0 (lib)
+Building     os-string-2.0.10 (lib)
+Installing   mime-types-0.1.2.1 (lib)
+Building     primitive-0.9.1.0 (lib)
+Completed    mime-types-0.1.2.1 (lib)
+Starting     splitmix-0.1.3.2 (lib)
+Building     splitmix-0.1.3.2 (lib)
+Installing   splitmix-0.1.3.2 (lib)
+Completed    splitmix-0.1.3.2 (lib)
+Starting     tagged-0.8.10 (lib)
+Building     tagged-0.8.10 (lib)
+Installing   os-string-2.0.10 (lib)
+Installing   tagged-0.8.10 (lib)
+Completed    os-string-2.0.10 (lib)
+Starting     th-compat-0.1.7 (lib)
+Completed    tagged-0.8.10 (lib)
+Starting     time-hourglass-0.3.0 (lib)
+Building     th-compat-0.1.7 (lib)
+Building     time-hourglass-0.3.0 (lib)
+Installing   th-compat-0.1.7 (lib)
+Completed    th-compat-0.1.7 (lib)
+Starting     vector-stream-0.1.0.1 (lib)
+Building     vector-stream-0.1.0.1 (lib)
+Installing   basement-0.0.16 (lib)
+Completed    basement-0.0.16 (lib)
+Starting     data-default-class-0.2.0.0 (lib)
+Building     data-default-class-0.2.0.0 (lib)
+Installing   primitive-0.9.1.0 (lib)
+Completed    primitive-0.9.1.0 (lib)
+Starting     ech-config-0.0.1 (lib)
+Installing   data-default-class-0.2.0.0 (lib)
+Completed    data-default-class-0.2.0.0 (lib)
+Starting     zlib-0.7.1.1 (lib)
+Building     ech-config-0.0.1 (lib)
+Building     zlib-0.7.1.1 (lib)
+Installing   vector-stream-0.1.0.1 (lib)
+Completed    vector-stream-0.1.0.1 (lib)
+Starting     old-time-1.1.0.5 (all, legacy fallback)
+Installing   ech-config-0.0.1 (lib)
+Completed    ech-config-0.0.1 (lib)
+Starting     network-3.2.8.0 (all, legacy fallback)
+Building     old-time-1.1.0.5 (all, legacy fallback)
+Installing   time-hourglass-0.3.0 (lib)
+Completed    time-hourglass-0.3.0 (lib)
+Starting     random-1.3.1 (lib)
+Building     random-1.3.1 (lib)
+Building     network-3.2.8.0 (all, legacy fallback)
+Installing   zlib-0.7.1.1 (lib)
+Completed    zlib-0.7.1.1 (lib)
+Starting     hashable-1.4.7.0 (lib)
+Installing   old-time-1.1.0.5 (all, legacy fallback)
+Completed    old-time-1.1.0.5 (all, legacy fallback)
+Starting     foldable1-classes-compat-0.1.3 (lib)
+Building     hashable-1.4.7.0 (lib)
+Building     foldable1-classes-compat-0.1.3 (lib)
+Installing   foldable1-classes-compat-0.1.3 (lib)
+Completed    foldable1-classes-compat-0.1.3 (lib)
+Starting     network-uri-2.6.4.2 (lib)
+Building     network-uri-2.6.4.2 (lib)
+Installing   hashable-1.4.7.0 (lib)
+Completed    hashable-1.4.7.0 (lib)
+Starting     memory-0.18.0 (lib)
+Building     memory-0.18.0 (lib)
+Installing   network-3.2.8.0 (all, legacy fallback)
+Completed    network-3.2.8.0 (all, legacy fallback)
+Starting     cborg-0.2.10.0 (lib)
+Building     cborg-0.2.10.0 (lib)
+Installing   network-uri-2.6.4.2 (lib)
+Completed    network-uri-2.6.4.2 (lib)
+Starting     cookie-0.5.1 (lib)
+Installing   memory-0.18.0 (lib)
+Building     cookie-0.5.1 (lib)
+Completed    memory-0.18.0 (lib)
+Starting     vector-0.13.2.0 (lib)
+Building     vector-0.13.2.0 (lib)
+Installing   cookie-0.5.1 (lib)
+Completed    cookie-0.5.1 (lib)
+Starting     unix-time-0.4.17 (all, legacy fallback)
+Building     unix-time-0.4.17 (all, legacy fallback)
+Installing   random-1.3.1 (lib)
+Completed    random-1.3.1 (lib)
+Starting     unordered-containers-0.2.21 (lib)
+Building     unordered-containers-0.2.21 (lib)
+Installing   unix-time-0.4.17 (all, legacy fallback)
+Completed    unix-time-0.4.17 (all, legacy fallback)
+Starting     these-1.2.1 (lib)
+Building     these-1.2.1 (lib)
+Installing   these-1.2.1 (lib)
+Completed    these-1.2.1 (lib)
+Starting     text-short-0.1.6.1 (lib)
+Building     text-short-0.1.6.1 (lib)
+Installing   text-short-0.1.6.1 (lib)
+Completed    text-short-0.1.6.1 (lib)
+Starting     case-insensitive-1.2.1.0 (lib)
+Building     case-insensitive-1.2.1.0 (lib)
+Installing   case-insensitive-1.2.1.0 (lib)
+Completed    case-insensitive-1.2.1.0 (lib)
+Starting     iproute-1.7.15 (lib)
+Building     iproute-1.7.15 (lib)
+Installing   cborg-0.2.10.0 (lib)
+Completed    cborg-0.2.10.0 (lib)
+Starting     crypton-socks-0.6.2 (lib)
+Building     crypton-socks-0.6.2 (lib)
+Installing   iproute-1.7.15 (lib)
+Completed    iproute-1.7.15 (lib)
+Starting     crypton-1.0.6 (lib)
+Building     crypton-1.0.6 (lib)
+Installing   unordered-containers-0.2.21 (lib)
+Completed    unordered-containers-0.2.21 (lib)
+Starting     strict-0.5.1 (lib)
+Building     strict-0.5.1 (lib)
+Installing   crypton-socks-0.6.2 (lib)
+Completed    crypton-socks-0.6.2 (lib)
+Starting     base64-1.0 (lib)
+Building     base64-1.0 (lib)
+Installing   strict-0.5.1 (lib)
+Completed    strict-0.5.1 (lib)
+Starting     base16-1.0 (lib)
+Building     base16-1.0 (lib)
+Installing   base16-1.0 (lib)
+Completed    base16-1.0 (lib)
+Starting     http-types-0.12.4 (lib)
+Building     http-types-0.12.4 (lib)
+Installing   http-types-0.12.4 (lib)
+Completed    http-types-0.12.4 (lib)
+Starting     async-2.2.6 (lib)
+Building     async-2.2.6 (lib)
+Installing   async-2.2.6 (lib)
+Completed    async-2.2.6 (lib)
+Starting     crypton-asn1-types-0.4.1 (lib)
+Building     crypton-asn1-types-0.4.1 (lib)
+Installing   crypton-asn1-types-0.4.1 (lib)
+Completed    crypton-asn1-types-0.4.1 (lib)
+Starting     streaming-commons-0.2.3.1 (lib)
+Building     streaming-commons-0.2.3.1 (lib)
+Installing   streaming-commons-0.2.3.1 (lib)
+Completed    streaming-commons-0.2.3.1 (lib)
+Starting     crypton-asn1-parse-0.10.0 (lib)
+Building     crypton-asn1-parse-0.10.0 (lib)
+Installing   crypton-asn1-parse-0.10.0 (lib)
+Completed    crypton-asn1-parse-0.10.0 (lib)
+Starting     crypton-asn1-encoding-0.10.0 (lib)
+Building     crypton-asn1-encoding-0.10.0 (lib)
+Installing   base64-1.0 (lib)
+Completed    base64-1.0 (lib)
+Starting     http-client-0.7.19 (lib)
+Building     http-client-0.7.19 (lib)
+Installing   crypton-asn1-encoding-0.10.0 (lib)
+Completed    crypton-asn1-encoding-0.10.0 (lib)
+Starting     crypton-pem-0.3.0 (lib)
+Building     crypton-pem-0.3.0 (lib)
+Installing   crypton-pem-0.3.0 (lib)
+Completed    crypton-pem-0.3.0 (lib)
+Installing   http-client-0.7.19 (lib)
+Completed    http-client-0.7.19 (lib)
+Installing   crypton-1.0.6 (lib)
+Completed    crypton-1.0.6 (lib)
+Starting     hpke-0.0.0 (lib)
+Starting     crypton-x509-1.8.0 (lib)
+Building     crypton-x509-1.8.0 (lib)
+Building     hpke-0.0.0 (lib)
+Installing   hpke-0.0.0 (lib)
+Completed    hpke-0.0.0 (lib)
+Installing   crypton-x509-1.8.0 (lib)
+Completed    crypton-x509-1.8.0 (lib)
+Starting     crypton-x509-store-1.8.0 (lib)
+Building     crypton-x509-store-1.8.0 (lib)
+Installing   crypton-x509-store-1.8.0 (lib)
+Completed    crypton-x509-store-1.8.0 (lib)
+Starting     crypton-x509-validation-1.8.0 (lib)
+Starting     crypton-x509-system-1.8.0 (lib)
+Building     crypton-x509-system-1.8.0 (lib)
+Building     crypton-x509-validation-1.8.0 (lib)
+Installing   crypton-x509-system-1.8.0 (lib)
+Completed    crypton-x509-system-1.8.0 (lib)
+Installing   crypton-x509-validation-1.8.0 (lib)
+Completed    crypton-x509-validation-1.8.0 (lib)
+Installing   vector-0.13.2.0 (lib)
+Completed    vector-0.13.2.0 (lib)
+Starting     serialise-0.2.6.1 (lib)
+Building     serialise-0.2.6.1 (lib)
+Installing   serialise-0.2.6.1 (lib)
+Completed    serialise-0.2.6.1 (lib)
+Starting     tls-2.2.2 (lib)
+Building     tls-2.2.2 (lib)
+Installing   tls-2.2.2 (lib)
+Completed    tls-2.2.2 (lib)
+Starting     crypton-connection-0.4.5 (lib)
+Building     crypton-connection-0.4.5 (lib)
+Installing   crypton-connection-0.4.5 (lib)
+Completed    crypton-connection-0.4.5 (lib)
+Starting     http-client-tls-0.3.6.4 (lib)
+Building     http-client-tls-0.3.6.4 (lib)
+Installing   http-client-tls-0.3.6.4 (lib)
+Completed    http-client-tls-0.3.6.4 (lib)
+Configuring library for haskell-chess-0.1.0.0..
+Preprocessing library for haskell-chess-0.1.0.0..
+Building library for haskell-chess-0.1.0.0..
+[ 1 of 49] Compiling Chess.Engine.Search.Pruning ( src/Chess/Engine/Search/Pruning.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Search/Pruning.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/Search/Pruning.dyn_o )
+
+src/Chess/Engine/Search/Pruning.hs:17:17: warning: [-Wtype-defaults]
+    • Defaulting the type variable ‘a0’ to type ‘Double’ in the following constraints
+        (RealFrac a0)
+          arising from a use of ‘floor’
+          at src/Chess/Engine/Search/Pruning.hs:17:17-21
+        (Num a0)
+          arising from a use of ‘+’
+          at src/Chess/Engine/Search/Pruning.hs:17:30
+        (Fractional a0)
+          arising from the literal ‘0.75’
+          at src/Chess/Engine/Search/Pruning.hs:17:25-28
+        (Floating a0)
+          arising from a use of ‘log’
+          at src/Chess/Engine/Search/Pruning.hs:17:32-34
+    • In the first argument of ‘($)’, namely ‘floor’
+      In the expression:
+        floor $ 0.75 + log (fromIntegral d) * log (fromIntegral idx) / 2.25
+      In the expression:
+        if d < 3 || idx < 2 then
+            0
+        else
+            floor $ 0.75 + log (fromIntegral d) * log (fromIntegral idx) / 2.25
+   |
+17 |            else floor $ 0.75 + log (fromIntegral d) * log (fromIntegral idx) / 2.25
+   |                 ^^^^^
+[ 2 of 49] Compiling Chess.Tablebase  ( src/Chess/Tablebase.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Tablebase.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Tablebase.dyn_o )
+[ 3 of 49] Compiling Chess.Types      ( src/Chess/Types.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Types.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Types.dyn_o )
+[ 4 of 49] Compiling Chess.Time       ( src/Chess/Time.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Time.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Time.dyn_o )
+
+src/Chess/Time.hs:53:26: warning: [-Wunused-matches]
+    Defined but not used: ‘tc’
+   |
+53 | updateClock c@(Clock w b tc@(Standard _ inc)) col elapsed =
+   |                          ^^
+
+src/Chess/Time.hs:57:26: warning: [-Wunused-matches]
+    Defined but not used: ‘tc’
+   |
+57 | updateClock c@(Clock w b tc@(Delay _ delay inc)) col elapsed =
+   |                          ^^
+
+src/Chess/Time.hs:62:26: warning: [-Wunused-matches]
+    Defined but not used: ‘tc’
+   |
+62 | updateClock c@(Clock w b tc@(MoveTime perMove)) col elapsed =
+   |                          ^^
+[ 5 of 49] Compiling Chess.Engine.TT  ( src/Chess/Engine/TT.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/TT.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Engine/TT.dyn_o )
+
+src/Chess/Engine/TT.hs:10:1: warning: [-Wunused-imports]
+    The import of ‘PieceType, Square’
+    from module ‘Chess.Types’ is redundant
+   |
+10 | import Chess.Types (Move(..), Square(..), PieceType(..), Depth(..))
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[ 6 of 49] Compiling Chess.Board.Uci  ( src/Chess/Board/Uci.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board/Uci.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board/Uci.dyn_o )
+[ 7 of 49] Compiling Chess.Bitboard   ( src/Chess/Bitboard.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Bitboard.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Bitboard.dyn_o )
+
+src/Chess/Bitboard.hs:14:1: warning: [-Wunused-imports]
+    The qualified import of ‘Data.Vector’ is redundant
+      except perhaps to import instances from ‘Data.Vector’
+    To import instances alone, use: import Data.Vector()
+   |
+14 | import qualified Data.Vector as V
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[ 8 of 49] Compiling Chess.SquareSet  ( src/Chess/SquareSet.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/SquareSet.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/SquareSet.dyn_o )
+[ 9 of 49] Compiling Chess.Data.Evaluation ( src/Chess/Data/Evaluation.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Data/Evaluation.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Data/Evaluation.dyn_o )
+[10 of 49] Compiling Chess.Board.GameState ( src/Chess/Board/GameState.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board/GameState.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board/GameState.dyn_o )
+[11 of 49] Compiling Chess.Board.Base ( src/Chess/Board/Base.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board/Base.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board/Base.dyn_o )
+[12 of 49] Compiling Chess.Book.Polyglot ( src/Chess/Book/Polyglot.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Book/Polyglot.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Book/Polyglot.dyn_o )
+[13 of 49] Compiling Chess.Board.Zobrist ( src/Chess/Board/Zobrist.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board/Zobrist.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board/Zobrist.dyn_o )
+[14 of 49] Compiling Chess.Board.MoveGen ( src/Chess/Board/MoveGen.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board/MoveGen.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.8/haskell-chess-0.1.0.0/build/Chess/Board/MoveGen.dyn_o )

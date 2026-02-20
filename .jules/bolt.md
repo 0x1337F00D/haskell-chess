@@ -56,3 +56,8 @@
 **Learning:** `evalKingSafety` was returning a tuple `(Score, Score)` which GHC didn't always unbox, causing heap allocation per node. Also `kingSafety` loop used bounds-checked `!` on a 100-element table.
 **Action:** Added `{-# INLINE evalKingSafety #-}` to force unboxing of the tuple via case-of-known-constructor. Refactored `kingSafety` to unpack bitboards directly (avoiding 4 helper calls) and used `unsafeIndex` for table lookup.
 **Impact:** Minor/Neutral speedup (~1.03 MNPS -> 1.02 MNPS), but ensures no heap allocation for safety scores. Important: Over-inlining (inlining the loop body `kingSafety` itself) caused code bloat and regression, so only the wrapper was inlined.
+
+## 2026-02-19 – [Fast Legality Check]
+**Learning:** `MoveGen.isLegal` was allocating a full `Board` structure (~22 words + heap overhead) via `applyMoveBoardFast` for every pseudo-legal move validation. This happens millions of times per second in search and perft.
+**Action:** Implemented `isLegalOptimized` which validates moves by calculating updated occupancy and checking attacks directly on bitboards, masking out captured pieces. This avoids the `Board` allocation entirely for standard moves (Quiet, Capture, EP, Promotion).
+**Impact:** `bench-core` speedup: Start (Depth 5) 2.96 -> 3.76 MNPS (+27%), KiwiPete (Depth 4) 5.08 -> 8.10 MNPS (+59%).
