@@ -16,11 +16,10 @@ import qualified Data.Vector.Unboxed.Mutable as UM
 import qualified Data.Vector.Unboxed as U
 
 import Chess.Types
-import Chess.Board (Board(..), applyMove, isCheck, uci, GenMove(..)
+import Chess.Board (Board(..), applyMove, uci, GenMove(..)
                    , pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture
                    , ValidatedBoard, SomeValidatedBoard(..), trustBoard, getBoard, getGenMove, MoveGenerator(..)
                    , applyLegalMove, isCapture, isPromotion, toGenMove, isLegalMove, mkLegalMove)
-import qualified Chess.Board
 import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MoveGen
@@ -29,7 +28,6 @@ import Chess.Board.Phase (Position(..))
 import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
 import Chess.Engine.Search.Types
 import Chess.Engine.Search.Pruning (lmrTable)
-import Chess.Engine.Search.Ordering
 import Chess.Engine.Search.Ordering hiding (orderGenMoves)
 import qualified Chess.Engine.Search.Ordering as Ordering
 import Chess.Engine.Search.Quiescence (quiescence)
@@ -122,7 +120,7 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
 
     let sortedMoves = Ordering.orderGenMoves vBoard moves ttMove
 
-    let loop moves = case moves of
+    let loop searchMoves = case searchMoves of
             [] -> return (nullMove, 0)
             (lm:lms) -> do
                 let gm = getGenMove lm
@@ -157,7 +155,7 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
                                     let loopWorker bestRes = do
                                             mbMove <- modifyMVar queue $ \ms -> case ms of
                                                 [] -> return ([], Nothing)
-                                                (m:rest) -> return (rest, Just m)
+                                                (nextMove:rest) -> return (rest, Just nextMove)
 
                                             case mbMove of
                                                 Nothing -> do
@@ -180,12 +178,12 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
                                                             searchScore <- case applyLegalMove vBoard lmWorker of
                                                                 InCheckBoard newVBWorker -> do
                                                                     let workerCtx = ctx { scNodeKind = PV, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                                                                    s <- alphaBeta workerCtx newVBWorker tt (Just mWorker) (decDepth depth) (-infinity) (-bestScore) localNodes stopFlag limits
-                                                                    return (stepScore s)
+                                                                    workerScore <- alphaBeta workerCtx newVBWorker tt (Just mWorker) (decDepth depth) (-infinity) (-bestScore) localNodes stopFlag limits
+                                                                    return (stepScore workerScore)
                                                                 NotInCheckBoard newVBWorker -> do
                                                                     let workerCtx = ctx { scNodeKind = PV, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                                                                    s <- alphaBeta workerCtx newVBWorker tt (Just mWorker) (decDepth depth) (-infinity) (-bestScore) localNodes stopFlag limits
-                                                                    return (stepScore s)
+                                                                    workerScore <- alphaBeta workerCtx newVBWorker tt (Just mWorker) (decDepth depth) (-infinity) (-bestScore) localNodes stopFlag limits
+                                                                    return (stepScore workerScore)
 
                                                             let newBestRes = case bestRes of
                                                                     Nothing -> Just (mWorker, searchScore)
@@ -470,7 +468,6 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                                      s <- alphaBeta nextCtx newVBoard tt (Just m) nextDepth (-b) (-a) nodes stopFlag limits
                                      return (stepScore s)
                          else do
-                             let board = getBoard vBoard
                              -- Fast Check for LMR (approximate or precise?)
                              -- givesCheckFast checks if the move GIVES check.
                              let fastCheck = MoveGen.givesCheckFast (pieces board) (state board) gm
