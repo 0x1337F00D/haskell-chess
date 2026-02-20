@@ -6,7 +6,10 @@ module Chess.Engine.Search.Quiescence where
 
 import Data.IORef (IORef, modifyIORef')
 import Chess.Types (Depth(..), unDepth, decDepth, depthZero, CheckStatus(..))
-import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, applyLegalMove, captureMovesValidated, legalPromotionsValidated, legalQuietChecksValidated, legalMovesValidated, MoveGenerator(..))
+import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, pieces, applyLegalMove, isCheck, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated, getGenMove, MoveGenerator(..))
+import qualified Chess.Board
+import Chess.Board.MoveGen (givesCheck)
+import qualified Chess.Board.MoveGen
 import qualified Chess.Board.GameState as GS
 import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
 import Chess.Board.Phase (Position(..))
@@ -60,7 +63,7 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
         else do
             let givesCheckLocal lm =
                     let b = getBoard vBoard
-                    in givesCheck (pieces b) (state b) (getGenMove lm)
+                    in Chess.Board.MoveGen.givesCheck (Chess.Board.pieces b) (Chess.Board.state b) (Chess.Board.getGenMove lm)
 
             let a = max alpha standPat
             let caps = captureMovesValidated vBoard
@@ -70,7 +73,9 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
             -- Quiet Checks (Extension +1 ply equivalent logic)
             -- Only generate if depth > -1
             quietChecks <- if unDepth depth > -1
-                           then return $ legalQuietChecksValidated vBoard
+                           then do
+                               let quiets = legalQuietsValidated vBoard
+                               return $ filter givesCheckLocal quiets
                            else return []
 
             -- Also search bad captures if they give check (tactical sacrifices)

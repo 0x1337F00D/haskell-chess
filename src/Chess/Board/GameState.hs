@@ -127,9 +127,9 @@ initialGameState = GameState
 
 -- | Check if the given side has kingside castling rights.
 -- For standard chess, checks H1/H8.
-{-# INLINE canCastleKingside #-}
-canCastleKingside :: GameState -> Color -> Bool
-canCastleKingside (GameStatePacked p _) c =
+{-# INLINE canCastleStandardKingside #-}
+canCastleStandardKingside :: GameState -> Color -> Bool
+canCastleStandardKingside (GameStatePacked p _) c =
     let shiftVal = if c == White then 1 else 9
         p' = p `shiftR` shiftVal
         s1 = p' .&. 0xF
@@ -139,9 +139,9 @@ canCastleKingside (GameStatePacked p _) c =
 
 -- | Check if the given side has queenside castling rights.
 -- For standard chess, checks A1/A8.
-{-# INLINE canCastleQueenside #-}
-canCastleQueenside :: GameState -> Color -> Bool
-canCastleQueenside (GameStatePacked p _) c =
+{-# INLINE canCastleStandardQueenside #-}
+canCastleStandardQueenside :: GameState -> Color -> Bool
+canCastleStandardQueenside (GameStatePacked p _) c =
     let shiftVal = if c == White then 1 else 9
         p' = p `shiftR` shiftVal
         s1 = p' .&. 0xF
