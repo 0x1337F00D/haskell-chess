@@ -516,25 +516,96 @@ fillPawnEvasions b gs targetMask mv !startIdx =
     in foldBitboardM fillMoves startIdx pawns
 
 -- | Check if a move is legal.
+-- Optimized to avoid full Board allocation for common moves.
 isLegal :: Board -> GameState -> GenMove -> Bool
-isLegal b gs gm =
+isLegal b gs gm = isLegalOptimized b gs gm
+
+-- | Optimized legality check avoiding Board allocation.
+isLegalOptimized :: Board -> GameState -> GenMove -> Bool
+isLegalOptimized b gs gm =
     let c = turn gs
-        b' = applyMoveBoardFast b gs gm
-        kingSq = kingSquare b' c
-    in case kingSq of
-        Nothing -> False
-        Just k -> not (isAttackedBy b' (oppositeColor c) k) && castlingSafe b gs gm
+        opp = oppositeColor c
+        -- Helper to get king square safely
+        getKingSq = fromMaybe (Square 0) (kingSquare b c)
+        occ = occupiedTotal b
+    in case gm of
+        GenQuiet from to pt ->
+            let fromI = unSquare from
+                toI = unSquare to
+                occ' = (occ `clearBit` fromI) `setBit` toI
+                checkSq = if pt == King then to else getKingSq
+                capturedMask = 0
+            in not $ isAttackedByOptimized b opp checkSq occ' capturedMask
+
+        GenCapture from to pt _ ->
+            let fromI = unSquare from
+                toI = unSquare to
+                occ' = (occ `clearBit` fromI) `setBit` toI
+                checkSq = if pt == King then to else getKingSq
+                capturedMask = bit toI
+            in not $ isAttackedByOptimized b opp checkSq occ' capturedMask
+
+        GenEnPassant from to ->
+            let fromI = unSquare from
+                toI = unSquare to
+                capSqI = if c == White then toI - 8 else toI + 8
+                occ' = ((occ `clearBit` fromI) `setBit` toI) `clearBit` capSqI
+                checkSq = getKingSq
+                capturedMask = bit capSqI
+            in not $ isAttackedByOptimized b opp checkSq occ' capturedMask
+
+        GenPromotion from to _ ->
+            let fromI = unSquare from
+                toI = unSquare to
+                occ' = (occ `clearBit` fromI) `setBit` toI
+                checkSq = getKingSq
+                capturedMask = 0
+            in not $ isAttackedByOptimized b opp checkSq occ' capturedMask
+
+        GenPromotionCapture from to _ _ ->
+            let fromI = unSquare from
+                toI = unSquare to
+                occ' = (occ `clearBit` fromI) `setBit` toI
+                checkSq = getKingSq
+                capturedMask = bit toI
+            in not $ isAttackedByOptimized b opp checkSq occ' capturedMask
+
+        -- Fallback for Castling and others
+        _ ->
+            let b' = applyMoveBoardFast b gs gm
+                kingSq' = kingSquare b' c
+            in case kingSq' of
+                Nothing -> False
+                Just k -> not (isAttackedBy b' opp k) && castlingSafe b gs gm
 
     where
          castlingSafe :: Board -> GameState -> GenMove -> Bool
          castlingSafe _ _ (GenCastling f t) =
-                let c = turn gs
+                let c1 = turn gs
                     step = (unSquare t - unSquare f) `div` 2
                     mid = Square (unSquare f + step)
-                    startAttacked = isAttackedBy b (oppositeColor c) f
-                    midAttacked = isAttackedBy b (oppositeColor c) mid
+                    startAttacked = isAttackedBy b (oppositeColor c1) f
+                    midAttacked = isAttackedBy b (oppositeColor c1) mid
                 in not startAttacked && not midAttacked
          castlingSafe _ _ _ = True
+
+-- | Optimized check if a square is attacked by 'attackerColor'.
+-- Uses 'b' for attacker bitboards, but masks out 'capturedMask'.
+-- Uses 'occ' for slider lookups.
+{-# INLINE isAttackedByOptimized #-}
+isAttackedByOptimized :: Board -> Color -> Square -> Bitboard -> Bitboard -> Bool
+isAttackedByOptimized b White sq occ capturedMask =
+  (pawnAttacks Black sq .&. (whitePawns b .&. complement capturedMask) /= 0) ||
+  (knightAttacks sq .&. (whiteKnights b .&. complement capturedMask) /= 0) ||
+  (kingAttacks sq .&. (whiteKings b .&. complement capturedMask) /= 0) ||
+  (bishopAttacks sq occ .&. (whiteDiagonal b .&. complement capturedMask) /= 0) ||
+  (rookAttacks sq occ .&. (whiteOrthogonal b .&. complement capturedMask) /= 0)
+isAttackedByOptimized b Black sq occ capturedMask =
+  (pawnAttacks White sq .&. (blackPawns b .&. complement capturedMask) /= 0) ||
+  (knightAttacks sq .&. (blackKnights b .&. complement capturedMask) /= 0) ||
+  (kingAttacks sq .&. (blackKings b .&. complement capturedMask) /= 0) ||
+  (bishopAttacks sq occ .&. (blackDiagonal b .&. complement capturedMask) /= 0) ||
+  (rookAttacks sq occ .&. (blackOrthogonal b .&. complement capturedMask) /= 0)
 
 -- | Attempt to convert a Move to GenMove and check legality.
 isLegalMove :: Board -> GameState -> Move -> Bool
