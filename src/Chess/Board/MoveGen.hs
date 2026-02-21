@@ -230,7 +230,11 @@ pseudoLegalMoves b gs = U.create $ do
 
 -- | Generate all legal moves.
 legalMoves :: Board -> GameState -> [Move]
-legalMoves b gs = U.toList $ U.map genMoveToMove $ U.filter (isLegal b gs) (pseudoLegalMoves b gs)
+legalMoves b gs = U.foldr step [] (pseudoLegalMoves b gs)
+  where
+    step gm acc
+      | isLegal b gs gm = genMoveToMove gm : acc
+      | otherwise       = acc
 
 -- | Generate all legal moves returning GenMove.
 legalGenMoves :: Board -> GameState -> U.Vector GenMove
@@ -249,7 +253,11 @@ pseudoLegalCaptures b gs = U.concat
 
 -- | Generate all legal capture moves.
 legalCaptures :: Board -> GameState -> [Move]
-legalCaptures b gs = U.toList $ U.map genMoveToMove $ U.filter (isLegal b gs) (pseudoLegalCaptures b gs)
+legalCaptures b gs = U.foldr step [] (pseudoLegalCaptures b gs)
+  where
+    step gm acc
+      | isLegal b gs gm = genMoveToMove gm : acc
+      | otherwise       = acc
 
 -- | Generate all legal capture moves returning GenMove.
 legalGenCaptures :: Board -> GameState -> U.Vector GenMove
