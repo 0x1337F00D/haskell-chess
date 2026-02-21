@@ -238,14 +238,25 @@ legalGenMoves b gs = U.filter (isLegal b gs) (pseudoLegalMoves b gs)
 
 -- | Generate all pseudo-legal capture moves.
 pseudoLegalCaptures :: Board -> GameState -> U.Vector GenMove
-pseudoLegalCaptures b gs = U.concat
-    [ pawnCaptures b gs
-    , pieceCaptures b gs Knight
-    , pieceCaptures b gs Bishop
-    , pieceCaptures b gs Rook
-    , pieceCaptures b gs Queen
-    , pieceCaptures b gs King
-    ]
+pseudoLegalCaptures b gs = U.create $ do
+    let cpc = countPawnCaptures b gs
+    let cn = countPieceCaptures b gs Knight
+    let cb = countPieceCaptures b gs Bishop
+    let cr = countPieceCaptures b gs Rook
+    let cq = countPieceCaptures b gs Queen
+    let ck = countPieceCaptures b gs King
+
+    let total = cpc + cn + cb + cr + cq + ck
+    mv <- M.unsafeNew total
+
+    idx0 <- fillPawnCaptures b gs mv 0
+    idx1 <- fillPieceCaptures b gs Knight mv idx0
+    idx2 <- fillPieceCaptures b gs Bishop mv idx1
+    idx3 <- fillPieceCaptures b gs Rook mv idx2
+    idx4 <- fillPieceCaptures b gs Queen mv idx3
+    _    <- fillPieceCaptures b gs King mv idx4
+
+    return mv
 
 -- | Generate all legal capture moves.
 legalCaptures :: Board -> GameState -> [Move]

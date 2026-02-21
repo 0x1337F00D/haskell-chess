@@ -52,3 +52,23 @@ spec = do
        let moves = MoveGen.legalMoves b gs
        let castlingK = Move E1 G1 Nothing
        castlingK `elem` moves `shouldBe` True
+
+    it "pseudoLegalCaptures generates correct captures" $ do
+       -- Position with several captures
+       -- White pawn at E4, Black pawn at D5.
+       -- White Knight at C3, Black pawn at D5.
+       -- 4k3/8/8/3p4/4P3/2N5/8/4K3 w - - 0 1
+       let fenStr = "4k3/8/8/3p4/4P3/2N5/8/4K3 w - - 0 1"
+       let (Just (b, gs)) = Fen.parseFen fenStr
+       let captures = map MoveGen.genMoveToMove $ U.toList $ MoveGen.pseudoLegalCaptures b gs
+
+       -- Expected captures:
+       -- exd5 (Pawn capture)
+       -- Nxd5 (Knight capture)
+
+       let capPawn = Move E4 D5 Nothing
+       let capKnight = Move C3 D5 Nothing
+
+       length captures `shouldBe` 2
+       capPawn `elem` captures `shouldBe` True
+       capKnight `elem` captures `shouldBe` True
