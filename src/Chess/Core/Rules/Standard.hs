@@ -28,6 +28,7 @@ import qualified Chess.Board.Fen as Fen
 import qualified Chess.Board as FastBoard
 import Chess.Board (legalGenMoves, applyGenMoveFast, pseudoLegalGenMoves, isKingSafe, pattern GenCastling) -- Import fast board ops
 import Data.Bits (testBit, countTrailingZeros, (.|.))
+import Control.Parallel.Strategies (parMap, rseq)
 
 -- | Create the initial game state for Standard chess.
 initialGame :: Game 'Standard 'Active
@@ -101,15 +102,17 @@ fastPerft 1 b = length (legalGenMoves b)
 fastPerft d b =
     let moves = pseudoLegalGenMoves b
         c = GS.turn (FastBoard.state b)
-    in sum $ map (\m ->
-        case m of
-            GenCastling _ _ ->
-                if MG.isLegal (FastBoard.pieces b) (FastBoard.state b) m
-                then fastPerft (d - 1) (applyGenMoveFast b m)
-                else 0
-            _ ->
-                let b' = applyGenMoveFast b m
-                in if isKingSafe b' c
-                   then fastPerft (d - 1) b'
-                   else 0
-       ) moves
+        evalMove m =
+            case m of
+                GenCastling _ _ ->
+                    if MG.isLegal (FastBoard.pieces b) (FastBoard.state b) m
+                    then fastPerft (d - 1) (applyGenMoveFast b m)
+                    else 0
+                _ ->
+                    let b' = applyGenMoveFast b m
+                    in if isKingSafe b' c
+                       then fastPerft (d - 1) b'
+                       else 0
+    in if d >= 3
+       then sum $ parMap rseq evalMove moves
+       else sum $ map evalMove moves
