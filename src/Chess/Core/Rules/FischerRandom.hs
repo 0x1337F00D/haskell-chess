@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -179,35 +180,34 @@ isCastlingValid b c kSq rSq isKSide =
         destKFile = if isKSide then 6 else 2 -- G or C
         destRFile = if isKSide then 5 else 3 -- F or D
 
-        -- Path 1: Between King and Rook (exclusive) must be empty
-        start = min kFile rFile
-        end = max kFile rFile
-        path1 = [ T.Square (rank * 8 + f) | f <- [start+1 .. end-1] ]
-
-        -- Path 2: Between King and Dest (inclusive) must be empty (except K and R) and safe
-        startK = min kFile destKFile
-        endK = max kFile destKFile
-        pathK = [ T.Square (rank * 8 + f) | f <- [startK .. endK] ]
-
-        -- Path 3: Between Rook and Dest (inclusive) must be empty (except K and R)
-        startR = min rFile destRFile
-        endR = max rFile destRFile
-        pathR = [ T.Square (rank * 8 + f) | f <- [startR .. endR] ]
-
-        allSquares = path1 ++ pathK ++ pathR
-
-        -- Filter out K and R starting squares
-        checkSquares = filter (\s -> s /= kSq && s /= rSq) allSquares
+        -- Helper to check a range of files for emptiness and/or safety
+        loop :: Int -> Int -> (T.Square -> Bool) -> Bool
+        loop !i !maxI p
+            | i > maxI = True
+            | otherwise = p (T.Square (rank * 8 + i)) && loop (i + 1) maxI p
 
         isEmpty s = not (testBit (Base.occupiedTotal b) (T.unSquare s))
-
-        -- King must not be in check (start), pass through check (pathK), or end in check (endK).
-        -- MoveGen legalMoves checks start check.
-        -- We check pathK.
-        safeCheckSquares = pathK
 
         oppC = Base.oppositeColor c
         isSafe s = not (Base.isAttackedBy b oppC s)
 
-    in all isEmpty checkSquares && all isSafe safeCheckSquares
+        -- Check conditions
+        checkPred s = s == kSq || s == rSq || isEmpty s
+
+        -- Path 1: Between King and Rook (exclusive) must be empty (except K/R)
+        start = min kFile rFile
+        end = max kFile rFile
+        path1Ok = loop (start + 1) (end - 1) checkPred
+
+        -- Path 2: Between King and Dest (inclusive) must be empty (except K/R) and safe
+        startK = min kFile destKFile
+        endK = max kFile destKFile
+        pathKOk = loop startK endK (\s -> checkPred s && isSafe s)
+
+        -- Path 3: Between Rook and Dest (inclusive) must be empty (except K/R)
+        startR = min rFile destRFile
+        endR = max rFile destRFile
+        pathROk = loop startR endR checkPred
+
+    in path1Ok && pathROk && pathKOk
 
