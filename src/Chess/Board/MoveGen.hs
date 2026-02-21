@@ -202,31 +202,15 @@ genMoveToMove (GenPromotionCapture f t p _) = Move f t (Just p)
 
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> GameState -> U.Vector GenMove
-pseudoLegalMoves b gs = U.create $ do
-    let cpq = countPawnQuiets b gs
-    let cpc = countPawnCaptures b gs
-    let cpp = countPawnPromotions b gs
-    let cn = countPieceMoves b gs Knight
-    let cb = countPieceMoves b gs Bishop
-    let cr = countPieceMoves b gs Rook
-    let cq = countPieceMoves b gs Queen
-    let ck = countPieceMoves b gs King
-    let cc = countCastlingMoves b gs
-
-    let total = cpq + cpc + cpp + cn + cb + cr + cq + ck + cc
-    mv <- M.unsafeNew total
-
-    idx0 <- fillPawnQuiets b gs mv 0
-    idx1 <- fillPawnCaptures b gs mv idx0
-    idx2 <- fillPawnPromotions b gs mv idx1
-    idx3 <- fillPieceMoves b gs Knight mv idx2
-    idx4 <- fillPieceMoves b gs Bishop mv idx3
-    idx5 <- fillPieceMoves b gs Rook mv idx4
-    idx6 <- fillPieceMoves b gs Queen mv idx5
-    idx7 <- fillPieceMoves b gs King mv idx6
-    _    <- fillCastlingMoves b gs mv idx7
-
-    return mv
+pseudoLegalMoves b gs = U.concat
+    [ pawnMoves b gs
+    , pieceMoves b gs Knight
+    , pieceMoves b gs Bishop
+    , pieceMoves b gs Rook
+    , pieceMoves b gs Queen
+    , pieceMoves b gs King
+    , castlingMoves b gs
+    ]
 
 -- | Generate all legal moves.
 legalMoves :: Board -> GameState -> [Move]
@@ -242,25 +226,14 @@ legalGenMoves b gs = U.filter (isLegal b gs) (pseudoLegalMoves b gs)
 
 -- | Generate all pseudo-legal capture moves.
 pseudoLegalCaptures :: Board -> GameState -> U.Vector GenMove
-pseudoLegalCaptures b gs = U.create $ do
-    let cpc = countPawnCaptures b gs
-    let cn = countPieceCaptures b gs Knight
-    let cb = countPieceCaptures b gs Bishop
-    let cr = countPieceCaptures b gs Rook
-    let cq = countPieceCaptures b gs Queen
-    let ck = countPieceCaptures b gs King
-
-    let total = cpc + cn + cb + cr + cq + ck
-    mv <- M.unsafeNew total
-
-    idx0 <- fillPawnCaptures b gs mv 0
-    idx1 <- fillPieceCaptures b gs Knight mv idx0
-    idx2 <- fillPieceCaptures b gs Bishop mv idx1
-    idx3 <- fillPieceCaptures b gs Rook mv idx2
-    idx4 <- fillPieceCaptures b gs Queen mv idx3
-    _    <- fillPieceCaptures b gs King mv idx4
-
-    return mv
+pseudoLegalCaptures b gs = U.concat
+    [ pawnCaptures b gs
+    , pieceCaptures b gs Knight
+    , pieceCaptures b gs Bishop
+    , pieceCaptures b gs Rook
+    , pieceCaptures b gs Queen
+    , pieceCaptures b gs King
+    ]
 
 -- | Generate all legal capture moves.
 legalCaptures :: Board -> GameState -> [Move]
@@ -276,27 +249,15 @@ legalGenCaptures b gs = U.filter (isLegal b gs) (pseudoLegalCaptures b gs)
 
 -- | Generate all pseudo-legal quiet moves.
 pseudoLegalQuiets :: Board -> GameState -> U.Vector GenMove
-pseudoLegalQuiets b gs = U.create $ do
-    let cpq = countPawnQuiets b gs
-    let cn = countPieceQuiets b gs Knight
-    let cb = countPieceQuiets b gs Bishop
-    let cr = countPieceQuiets b gs Rook
-    let cq = countPieceQuiets b gs Queen
-    let ck = countPieceQuiets b gs King
-    let cc = countCastlingMoves b gs
-
-    let total = cpq + cn + cb + cr + cq + ck + cc
-    mv <- M.unsafeNew total
-
-    idx0 <- fillPawnQuiets b gs mv 0
-    idx1 <- fillPieceQuiets b gs Knight mv idx0
-    idx2 <- fillPieceQuiets b gs Bishop mv idx1
-    idx3 <- fillPieceQuiets b gs Rook mv idx2
-    idx4 <- fillPieceQuiets b gs Queen mv idx3
-    idx5 <- fillPieceQuiets b gs King mv idx4
-    _    <- fillCastlingMoves b gs mv idx5
-
-    return mv
+pseudoLegalQuiets b gs = U.concat
+    [ pawnQuiets b gs
+    , pieceQuiets b gs Knight
+    , pieceQuiets b gs Bishop
+    , pieceQuiets b gs Rook
+    , pieceQuiets b gs Queen
+    , pieceQuiets b gs King
+    , castlingMoves b gs
+    ]
 
 -- | Generate all legal quiet moves returning GenMove.
 legalGenQuiets :: Board -> GameState -> U.Vector GenMove
@@ -726,67 +687,15 @@ hasLegalMove b gs =
     U.any (isLegal b gs) (castlingMoves b gs)
 
 -- | Check if a move is legal.
--- Optimized to avoid full Board allocation for common moves.
 isLegal :: Board -> GameState -> GenMove -> Bool
-isLegal b gs gm = isLegalOptimized b gs gm
-
--- | Optimized legality check avoiding Board allocation.
-isLegalOptimized :: Board -> GameState -> GenMove -> Bool
-isLegalOptimized b gs gm =
-    let c = turn gs
-        opp = oppositeColor c
-        -- Helper to get king square safely
-        getKingSq = fromMaybe (Square 0) (kingSquare b c)
-        occ = occupiedTotal b
-    in case gm of
-        GenQuiet from to pt ->
-            let fromI = unSquare from
-                toI = unSquare to
-                occ' = (occ `clearBit` fromI) `setBit` toI
-                checkSq = if pt == King then to else getKingSq
-                capturedMask = 0
-            in not $ isAttackedByOptimized b opp checkSq occ' capturedMask
-
-        GenCapture from to pt _ ->
-            let fromI = unSquare from
-                toI = unSquare to
-                occ' = (occ `clearBit` fromI) `setBit` toI
-                checkSq = if pt == King then to else getKingSq
-                capturedMask = bit toI
-            in not $ isAttackedByOptimized b opp checkSq occ' capturedMask
-
-        GenEnPassant from to ->
-            let fromI = unSquare from
-                toI = unSquare to
-                capSqI = if c == White then toI - 8 else toI + 8
-                occ' = ((occ `clearBit` fromI) `setBit` toI) `clearBit` capSqI
-                checkSq = getKingSq
-                capturedMask = bit capSqI
-            in not $ isAttackedByOptimized b opp checkSq occ' capturedMask
-
-        GenPromotion from to _ ->
-            let fromI = unSquare from
-                toI = unSquare to
-                occ' = (occ `clearBit` fromI) `setBit` toI
-                checkSq = getKingSq
-                capturedMask = 0
-            in not $ isAttackedByOptimized b opp checkSq occ' capturedMask
-
-        GenPromotionCapture from to _ _ ->
-            let fromI = unSquare from
-                toI = unSquare to
-                occ' = (occ `clearBit` fromI) `setBit` toI
-                checkSq = getKingSq
-                capturedMask = bit toI
-            in not $ isAttackedByOptimized b opp checkSq occ' capturedMask
-
-        -- Fallback for Castling and others
-        _ ->
-            let b' = applyMoveBoardFast b gs gm
-                kingSq' = kingSquare b' c
-            in case kingSq' of
-                Nothing -> False
-                Just k -> not (isAttackedBy b' opp k) && castlingSafe b gs gm
+isLegal b gs gm =
+    let b' = applyMoveBoardFast b gs gm
+        c = turn gs
+        kingSq' = kingSquare b' c
+        isCastling = case gm of GenCastling _ _ -> True; _ -> False
+    in case kingSq' of
+        Nothing -> False
+        Just k -> not (isAttackedBy b' (oppositeColor c) k) && (if isCastling then castlingSafe b gs gm else True)
 
     where
          castlingSafe :: Board -> GameState -> GenMove -> Bool
@@ -798,24 +707,6 @@ isLegalOptimized b gs gm =
                     midAttacked = isAttackedBy b (oppositeColor c1) mid
                 in not startAttacked && not midAttacked
          castlingSafe _ _ _ = True
-
--- | Optimized check if a square is attacked by 'attackerColor'.
--- Uses 'b' for attacker bitboards, but masks out 'capturedMask'.
--- Uses 'occ' for slider lookups.
-{-# INLINE isAttackedByOptimized #-}
-isAttackedByOptimized :: Board -> Color -> Square -> Bitboard -> Bitboard -> Bool
-isAttackedByOptimized b White sq occ capturedMask =
-  (pawnAttacks Black sq .&. (whitePawns b .&. complement capturedMask) /= 0) ||
-  (knightAttacks sq .&. (whiteKnights b .&. complement capturedMask) /= 0) ||
-  (kingAttacks sq .&. (whiteKings b .&. complement capturedMask) /= 0) ||
-  (bishopAttacks sq occ .&. (whiteDiagonal b .&. complement capturedMask) /= 0) ||
-  (rookAttacks sq occ .&. (whiteOrthogonal b .&. complement capturedMask) /= 0)
-isAttackedByOptimized b Black sq occ capturedMask =
-  (pawnAttacks White sq .&. (blackPawns b .&. complement capturedMask) /= 0) ||
-  (knightAttacks sq .&. (blackKnights b .&. complement capturedMask) /= 0) ||
-  (kingAttacks sq .&. (blackKings b .&. complement capturedMask) /= 0) ||
-  (bishopAttacks sq occ .&. (blackDiagonal b .&. complement capturedMask) /= 0) ||
-  (rookAttacks sq occ .&. (blackOrthogonal b .&. complement capturedMask) /= 0)
 
 -- | Attempt to convert a Move to GenMove and check legality.
 isLegalMove :: Board -> GameState -> Move -> Bool
@@ -1057,16 +948,7 @@ fillPieceQuiets b gs pt mv !startIdx =
     in foldBitboardM fillAcc startIdx bb
 
 pawnMoves :: Board -> GameState -> U.Vector GenMove
-pawnMoves b gs = U.create $ do
-    let cpq = countPawnQuiets b gs
-    let cpc = countPawnCaptures b gs
-    let cpp = countPawnPromotions b gs
-    let total = cpq + cpc + cpp
-    mv <- M.unsafeNew total
-    idx0 <- fillPawnQuiets b gs mv 0
-    idx1 <- fillPawnCaptures b gs mv idx0
-    _    <- fillPawnPromotions b gs mv idx1
-    return mv
+pawnMoves b gs = U.concat [pawnQuiets b gs, pawnCaptures b gs, pawnPromotions b gs]
 
 pawnQuiets :: Board -> GameState -> U.Vector GenMove
 pawnQuiets b gs = U.create $ do
