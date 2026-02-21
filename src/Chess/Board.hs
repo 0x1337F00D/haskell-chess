@@ -431,9 +431,9 @@ class MoveGenerator (s :: CheckStatus) where
 
 instance MoveGenerator 'InCheck where
     legalMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.generateEvasions b gs
-    captureMovesValidated vb = filter isCapture (legalMovesValidated vb)
-    legalQuietsValidated vb = filter (not . isCapture) (legalMovesValidated vb)
-    legalPromotionsValidated vb = filter isPromotion (legalMovesValidated vb)
+    captureMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.generateEvasionCaptures b gs
+    legalQuietsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.generateEvasionQuiets b gs
+    legalPromotionsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.generateEvasionPromotions b gs
 
 instance MoveGenerator 'NotInCheck where
     legalMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.pseudoLegalMoves b gs
