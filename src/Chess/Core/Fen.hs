@@ -5,7 +5,7 @@ import qualified Chess.Board.Fen as Fen
 import Chess.Board.Base (Board)
 import Chess.Board.GameState (GameState)
 import Text.Read (readMaybe)
-import Data.List (stripPrefix)
+import Data.List (stripPrefix, partition)
 
 -- | Parse ThreeCheck FEN string.
 -- Returns Board, GameState, and (WhiteChecks, BlackChecks)
@@ -16,12 +16,15 @@ parseThreeCheckFen s = do
       let (pre, post) = splitAt 4 parts
       -- pre = [board, turn, castle, ep]
 
-      let (checksStr, rest) = case post of
-             (x:xs) | '+' `elem` x -> (Just x, xs)
-             _ -> (Nothing, post)
+      -- Find the part that looks like checks (contains '+')
+      let (checkParts, otherParts) = partition (\x -> '+' `elem` x) post
+
+      let checksStr = case checkParts of
+                        [c] -> Just c
+                        _ -> Nothing
 
       -- Reconstruct standard FEN part for generic parsing
-      let standardFen = unwords (pre ++ rest)
+      let standardFen = unwords (pre ++ otherParts)
       (b, gs) <- Fen.parseFen standardFen
 
       checks <- case checksStr of
@@ -33,12 +36,8 @@ parseThreeCheckFen s = do
 
 parseThreeCheckExtra :: String -> Maybe (Int, Int)
 parseThreeCheckExtra s = do
-  -- Format: +W+B or 3+3 (PyChess uses 3+3 without + prefix sometimes? No, lboard uses checksChr.split('+'))
-  -- PyChess output from PyChessData seems to be "2+2".
-  -- parseThreeCheckExtra original implementation expects prefix "+".
-  -- Let's support both "2+2" and "+2+2".
-
-  let s' = if head s == '+' then tail s else s
+  -- Format: +W+B or W+B
+  let s' = if not (null s) && head s == '+' then tail s else s
   let (wStr, rest) = break (== '+') s'
   rest2 <- stripPrefix "+" rest
   w <- readMaybe wStr
