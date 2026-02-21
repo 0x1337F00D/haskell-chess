@@ -8,12 +8,27 @@
 module CorePerftSpec where
 
 import Test.Hspec
-import Chess.Core.Board.Internal (KnownColor(..), SColor(..))
+import Chess.Core.Board.Internal (KnownColor(..), SColor(..), Color(..))
 import Chess.Core.Game
 import Chess.Core.Rules
 import Chess.Core.Perft
-import Chess.Core.Game.Internal (Game(..))
+import Chess.Core.Game.Internal (Game(..), ActiveGame(..), SCheckStatus(..))
 import Chess.Types (Depth, mkDepth)
+import qualified Chess.Core.Board.Internal as CoreBoard
+import qualified Chess.Board.GameState as GS
+import Chess.Core.Rules.Atomic ()
+
+initialAtomicGame :: Game 'Atomic 'Active
+initialAtomicGame =
+    let b = CoreBoard.initialBoard
+        baseBoard = toBaseBoard b
+        ag = ActiveGame
+           { internalBoard = baseBoard
+           , gameState = GS.initialGameState
+           , variantState = ()
+           , checkStatus = SSafe
+           } :: ActiveGame 'Atomic 'White 'Safe
+    in InProgressGame ag
 
 runPerft :: forall v. ChessVariant v => Depth -> Game v 'Active -> Int
 runPerft d (InProgressGame (ag :: ActiveGame v c s)) =
@@ -35,6 +50,10 @@ spec = describe "Core Perft" $ do
     it "Depth 3: 8902 moves" $ do
       let game = initialGame
       runPerft (mkDepth 3) game `shouldBe` 8902
+
+  describe "Atomic Initial Position" $ do
+    it "Depth 1: 20 moves" $ do
+      runPerft (mkDepth 1) initialAtomicGame `shouldBe` 20
 
   describe "Kiwipete Position" $ do
     -- Position 2 from CPW
