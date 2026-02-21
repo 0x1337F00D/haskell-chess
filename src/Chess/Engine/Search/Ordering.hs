@@ -9,6 +9,7 @@
 module Chess.Engine.Search.Ordering where
 
 import Data.List (sortOn, partition)
+import Data.Ord (Down(..))
 import qualified Data.Vector.Unboxed.Mutable as UM
 
 import Chess.Types
@@ -18,26 +19,33 @@ import Chess.Engine.SEE (see, seeGen)
 import Chess.Engine.Search.Types (SearchContext(..), SearchResources(..))
 
 -- | Move Ordering
+-- Optimized to use a single sort pass with a comprehensive scoring function.
 orderGenMoves :: ValidatedBoard s -> [LegalMove] -> Maybe Move -> [LegalMove]
-orderGenMoves vBoard moves ttM =
-    let (Board b gs _) = getBoard vBoard
-        turn = GS.turn gs
-
-        (ttMoves, rest) = case ttM of
-            Nothing -> ([], moves)
-            Just tm -> foldr (\lm (t, o) -> if getMove (getGenMove lm) == tm then (lm:t, o) else (t, lm:o)) ([], []) moves
-
-        (capProms, capsAll, proms, quiets) = partitionMoves rest
-        (goodCaps, badCaps) = partition isGoodCap capsAll
-
-        isGoodCap lm = case getGenMove lm of
-            GenCapture _ _ pt capPt -> pieceValue capPt >= pieceValue pt || seeGen b turn (getGenMove lm) >= 0
-            GenEnPassant {} -> True
-            _ -> True
-
-        sortDesc = sortOn (negate . scoreMove . getGenMove)
-    in ttMoves ++ sortDesc capProms ++ sortDesc goodCaps ++ sortDesc proms ++ quiets ++ sortDesc badCaps
+orderGenMoves vBoard moves ttM = sortOn (Down . orderScore) moves
   where
+    (Board b gs _) = getBoard vBoard
+    turn = GS.turn gs
+
+    orderScore lm =
+        let gm = getGenMove lm
+        in if isTTMove gm
+           then 2000000
+           else scoreGenMove gm
+
+    isTTMove gm = case ttM of
+        Nothing -> False
+        Just tm -> getMove gm == tm
+
+    scoreGenMove gm = case gm of
+        GenPromotionCapture {} -> 100000 + scoreMove gm
+        GenCapture _ _ pt capPt ->
+            if pieceValue capPt >= pieceValue pt || seeGen b turn gm >= 0
+            then 50000 + scoreMove gm
+            else -10000 + scoreMove gm
+        GenEnPassant {} -> 50000 + scoreMove gm
+        GenPromotion {} -> 30000 + scoreMove gm
+        _ -> 0
+
     getMove (GenQuiet f t _) = Move f t Nothing
     getMove (GenCapture f t _ _) = Move f t Nothing
     getMove (GenEnPassant f t) = Move f t Nothing
