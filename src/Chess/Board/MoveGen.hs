@@ -1057,7 +1057,16 @@ fillPieceQuiets b gs pt mv !startIdx =
     in foldBitboardM fillAcc startIdx bb
 
 pawnMoves :: Board -> GameState -> U.Vector GenMove
-pawnMoves b gs = U.concat [pawnQuiets b gs, pawnCaptures b gs, pawnPromotions b gs]
+pawnMoves b gs = U.create $ do
+    let cpq = countPawnQuiets b gs
+    let cpc = countPawnCaptures b gs
+    let cpp = countPawnPromotions b gs
+    let total = cpq + cpc + cpp
+    mv <- M.unsafeNew total
+    idx0 <- fillPawnQuiets b gs mv 0
+    idx1 <- fillPawnCaptures b gs mv idx0
+    _    <- fillPawnPromotions b gs mv idx1
+    return mv
 
 pawnQuiets :: Board -> GameState -> U.Vector GenMove
 pawnQuiets b gs = U.create $ do
@@ -1546,3 +1555,5 @@ pieceMovesList b gs pt = U.toList (pieceMoves b gs pt)
 {-# INLINE castlingMovesList #-}
 castlingMovesList :: Board -> GameState -> [GenMove]
 castlingMovesList b gs = U.toList (castlingMoves b gs)
+
+-- | Optimized version of pawnMoves to avoid intermediate allocations.
