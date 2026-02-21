@@ -101,7 +101,11 @@ instance ChessVariant 'Horde where
         gs = toGameState ag
         c = colorVal @c
 
-        baseMoves = MG.legalGenMovesList baseBoard gs
+        -- For White (Horde), use pseudo-legal moves as there is no King to check.
+        -- For Black, use standard legal moves.
+        baseMoves = if c == White
+                    then MG.pseudoLegalMovesList baseBoard gs
+                    else MG.legalGenMovesList baseBoard gs
 
         -- Custom White Pawn Moves (Rank 1 double push)
         whiteExtraMoves = if c == White
@@ -212,7 +216,11 @@ instance ChessVariant 'Horde where
            hasMovesHorde =
                if oppC == White
                then
-                    let standardHasMoves = Val.hasLegalMoves baseBoard nextTurnGS
+                    let -- White has no King, so all pseudo-legal moves are legal.
+                        -- Val.hasLegalMoves fails because it looks for a King.
+                        pseudos = MG.pseudoLegalMoves baseBoard nextTurnGS
+                        standardHasMoves = not (U.null pseudos)
+
                         -- Check if any Rank 1 double push is possible
                         wPawns = Base.whitePawns baseBoard
                         occ = Base.occupiedTotal baseBoard
