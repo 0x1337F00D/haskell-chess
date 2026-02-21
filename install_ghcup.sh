@@ -277,17 +277,23 @@ posix_realpath() {
             return
         fi
     done
-    mydir="$( cd -P "$( dirname "${mysource}" )" > /dev/null 2>&1 && pwd )"
+    _dirname="$( dirname "${mysource}" )"
+    mydir="$( cd -P "$_dirname" > /dev/null 2>&1 && pwd )"
 
-    # TODO: better distinguish between "does not exist" and "permission denied"
     if [ -z "${mydir}" ] ; then
-        (>&2 echo "${1}: Permission denied")
+        if [ ! -d "$_dirname" ] ; then
+            (>&2 echo "${1}: No such file or directory")
+        elif [ ! -x "$_dirname" ] ; then
+            (>&2 echo "${1}: Permission denied")
+        else
+            (>&2 echo "${1}: Unknown error during cd")
+        fi
 		echo "$(pwd)/$1"
     else
         echo "${mydir%/}/$(basename "${mysource}")"
     fi
 
-    unset current_loop max_loops mysource mydir
+    unset current_loop max_loops mysource mydir _dirname
 }
 
 download_ghcup() {
