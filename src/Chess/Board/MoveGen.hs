@@ -818,9 +818,14 @@ pinnedBits b gs =
         occ = occupiedTotal b
         friends = occupiedBy b c
         oppC = oppositeColor c
-        -- Enemy sliders
-        bAttacks = bishopAttacks kingSq occ
-        rAttacks = rookAttacks kingSq occ
+
+        -- X-Ray: Treat friendly pieces as transparent to find pinners behind them
+        occXRay = occ .&. complement friends
+
+        -- Enemy sliders (attacks calculated on X-Ray board)
+        bAttacks = bishopAttacks kingSq occXRay
+        rAttacks = rookAttacks kingSq occXRay
+
         -- Potential pinners (intersect attacks with enemy sliders)
         pinners = (bAttacks .&. (pieceBitboard b oppC Bishop .|. pieceBitboard b oppC Queen))
               .|. (rAttacks .&. (pieceBitboard b oppC Rook   .|. pieceBitboard b oppC Queen))
@@ -828,7 +833,7 @@ pinnedBits b gs =
     where
         pinnedAcc k occ friends acc pinner =
             let r = between k pinner
-                pinned = r .&. occ
+                pinned = r .&. occ -- Check actual occupancy
             in if popCount pinned == 1 && (pinned .&. friends /= 0)
                then acc .|. pinned
                else acc
