@@ -1353,3 +1353,99 @@ pieceMovesList b gs pt = U.toList (pieceMoves b gs pt)
 {-# INLINE castlingMovesList #-}
 castlingMovesList :: Board -> GameState -> [GenMove]
 castlingMovesList b gs = U.toList (castlingMoves b gs)
+
+-- | Compute a bitboard of pinned pieces (friendly pieces blocking a slider attack on the king).
+{-# INLINE pinnedBits #-}
+pinnedBits :: Board -> Color -> Square -> Bitboard
+pinnedBits b c kingSq =
+    let oppC = oppositeColor c
+        occ = occupiedTotal b
+        friends = occupiedBy b c
+
+        oppB = pieceBitboard b oppC Bishop
+        oppR = pieceBitboard b oppC Rook
+        oppQ = pieceBitboard b oppC Queen
+
+        -- Sliders aligned with King
+        potB = (oppB .|. oppQ) .&. bishopAttacks kingSq 0
+        potR = (oppR .|. oppQ) .&. rookAttacks   kingSq 0
+
+        checkPin acc sliderSq =
+            let pinnedSqBB = between kingSq sliderSq .&. occ
+            in if pinnedSqBB /= 0 && (pinnedSqBB .&. (pinnedSqBB - 1)) == 0 -- popCount == 1
+                  && (pinnedSqBB .&. friends) /= 0
+               then acc .|. pinnedSqBB
+               else acc
+
+    in foldBitboard checkPin (foldBitboard checkPin 0 potB) potR
+
+{-# INLINE aligned #-}
+aligned :: Square -> Square -> Square -> Bool
+aligned (Square k) (Square f) (Square t) =
+    let dx1 = (f `mod` 8) - (k `mod` 8)
+        dy1 = (f `div` 8) - (k `div` 8)
+        dx2 = (t `mod` 8) - (k `mod` 8)
+        dy2 = (t `div` 8) - (k `div` 8)
+    in dx1 * dy2 == dx2 * dy1
+
+-- | Fast legality check for boards that are known to be 'NotInCheck'.
+-- Uses 'pinned' bitboard to avoid expensive 'isAttackedBy' checks.
+{-# INLINE isLegalSafe #-}
+isLegalSafe :: Board -> GameState -> Bitboard -> Square -> GenMove -> Bool
+isLegalSafe b gs pinned kingSq gm = case gm of
+    GenQuiet from to pt ->
+        if pt == King then isLegalOptimized b gs gm
+        else
+            if not (testBit pinned (unSquare from)) then True
+            else aligned kingSq from to
+
+    GenCapture from to pt _ ->
+        if pt == King then isLegalOptimized b gs gm
+        else
+            if not (testBit pinned (unSquare from)) then True
+            else aligned kingSq from to
+
+    GenPromotion from to _ ->
+        if not (testBit pinned (unSquare from)) then True
+        else aligned kingSq from to
+
+    GenPromotionCapture from to _ _ ->
+        if not (testBit pinned (unSquare from)) then True
+        else aligned kingSq from to
+
+    GenEnPassant _ _ -> isLegalOptimized b gs gm
+    GenCastling _ _ -> isLegalOptimized b gs gm
+
+    _ -> isLegalOptimized b gs gm -- Fallback
+
+{-# INLINE legalGenMovesNotInCheck #-}
+legalGenMovesNotInCheck :: Board -> GameState -> U.Vector GenMove
+legalGenMovesNotInCheck b gs =
+    let c = turn gs
+        kingSq = fromMaybe (Square 0) (kingSquare b c)
+        pinned = pinnedBits b c kingSq
+    in U.filter (isLegalSafe b gs pinned kingSq) (pseudoLegalMoves b gs)
+
+{-# INLINE legalGenCapturesNotInCheck #-}
+legalGenCapturesNotInCheck :: Board -> GameState -> U.Vector GenMove
+legalGenCapturesNotInCheck b gs =
+    let c = turn gs
+        kingSq = fromMaybe (Square 0) (kingSquare b c)
+        pinned = pinnedBits b c kingSq
+    in U.filter (isLegalSafe b gs pinned kingSq) (pseudoLegalCaptures b gs)
+
+{-# INLINE legalGenQuietsNotInCheck #-}
+legalGenQuietsNotInCheck :: Board -> GameState -> U.Vector GenMove
+legalGenQuietsNotInCheck b gs =
+    let c = turn gs
+        kingSq = fromMaybe (Square 0) (kingSquare b c)
+        pinned = pinnedBits b c kingSq
+    in U.filter (isLegalSafe b gs pinned kingSq) (pseudoLegalQuiets b gs)
+
+{-# INLINE legalGenPromotionsNotInCheck #-}
+legalGenPromotionsNotInCheck :: Board -> GameState -> U.Vector GenMove
+legalGenPromotionsNotInCheck b gs =
+    let c = turn gs
+        kingSq = fromMaybe (Square 0) (kingSquare b c)
+        pinned = pinnedBits b c kingSq
+    in U.filter (isLegalSafe b gs pinned kingSq) (pseudoLegalPromotions b gs)
