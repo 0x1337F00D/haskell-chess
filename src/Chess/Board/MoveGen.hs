@@ -1290,11 +1290,9 @@ givesCheck b gs gm =
              let b' = applyMoveBoardFast b gs gm
              in isAttackedBy b' c kingSq
 
-        _ -> False
-
 {-# INLINE givesCheckGeneric #-}
 givesCheckGeneric :: Board -> GameState -> Color -> Square -> Square -> Square -> PieceType -> Bool
-givesCheckGeneric b gs c kingSq from to pt =
+givesCheckGeneric b _ c kingSq from to pt =
     let
         occ = occupiedTotal b
         fromI = unSquare from
