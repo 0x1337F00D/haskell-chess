@@ -15,3 +15,6 @@ cabal.project.local
 *.chi
 *.chs.h
 *.log
+*.txt
+chess-new
+install_ghcup.sh
