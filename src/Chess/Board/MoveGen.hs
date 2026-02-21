@@ -265,15 +265,27 @@ legalGenCaptures b gs = U.filter (isLegal b gs) (pseudoLegalCaptures b gs)
 
 -- | Generate all pseudo-legal quiet moves.
 pseudoLegalQuiets :: Board -> GameState -> U.Vector GenMove
-pseudoLegalQuiets b gs = U.concat
-    [ pawnQuiets b gs
-    , pieceQuiets b gs Knight
-    , pieceQuiets b gs Bishop
-    , pieceQuiets b gs Rook
-    , pieceQuiets b gs Queen
-    , pieceQuiets b gs King
-    , castlingMoves b gs
-    ]
+pseudoLegalQuiets b gs = U.create $ do
+    let cpq = countPawnQuiets b gs
+    let cn = countPieceQuiets b gs Knight
+    let cb = countPieceQuiets b gs Bishop
+    let cr = countPieceQuiets b gs Rook
+    let cq = countPieceQuiets b gs Queen
+    let ck = countPieceQuiets b gs King
+    let cc = countCastlingMoves b gs
+
+    let total = cpq + cn + cb + cr + cq + ck + cc
+    mv <- M.unsafeNew total
+
+    idx0 <- fillPawnQuiets b gs mv 0
+    idx1 <- fillPieceQuiets b gs Knight mv idx0
+    idx2 <- fillPieceQuiets b gs Bishop mv idx1
+    idx3 <- fillPieceQuiets b gs Rook mv idx2
+    idx4 <- fillPieceQuiets b gs Queen mv idx3
+    idx5 <- fillPieceQuiets b gs King mv idx4
+    _    <- fillCastlingMoves b gs mv idx5
+
+    return mv
 
 -- | Generate all legal quiet moves returning GenMove.
 legalGenQuiets :: Board -> GameState -> U.Vector GenMove
