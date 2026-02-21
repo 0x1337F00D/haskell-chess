@@ -240,6 +240,12 @@ legalMoves b gs = U.foldr step [] (pseudoLegalMoves b gs)
 legalGenMoves :: Board -> GameState -> U.Vector GenMove
 legalGenMoves b gs = U.filter (isLegal b gs) (pseudoLegalMoves b gs)
 
+-- | Generate all legal moves returning GenMove (Optimized for NotInCheck).
+legalGenMovesNotInCheck :: Board -> GameState -> U.Vector GenMove
+legalGenMovesNotInCheck b gs =
+    let pinned = pinnedBits b gs
+    in U.filter (isLegalSafe b gs pinned) (pseudoLegalMoves b gs)
+
 -- | Generate all pseudo-legal capture moves.
 pseudoLegalCaptures :: Board -> GameState -> U.Vector GenMove
 pseudoLegalCaptures b gs = U.create $ do
@@ -274,6 +280,12 @@ legalCaptures b gs = U.foldr step [] (pseudoLegalCaptures b gs)
 legalGenCaptures :: Board -> GameState -> U.Vector GenMove
 legalGenCaptures b gs = U.filter (isLegal b gs) (pseudoLegalCaptures b gs)
 
+-- | Generate all legal capture moves returning GenMove (Optimized for NotInCheck).
+legalGenCapturesNotInCheck :: Board -> GameState -> U.Vector GenMove
+legalGenCapturesNotInCheck b gs =
+    let pinned = pinnedBits b gs
+    in U.filter (isLegalSafe b gs pinned) (pseudoLegalCaptures b gs)
+
 -- | Generate all pseudo-legal quiet moves.
 pseudoLegalQuiets :: Board -> GameState -> U.Vector GenMove
 pseudoLegalQuiets b gs = U.create $ do
@@ -302,6 +314,12 @@ pseudoLegalQuiets b gs = U.create $ do
 legalGenQuiets :: Board -> GameState -> U.Vector GenMove
 legalGenQuiets b gs = U.filter (isLegal b gs) (pseudoLegalQuiets b gs)
 
+-- | Generate all legal quiet moves returning GenMove (Optimized for NotInCheck).
+legalGenQuietsNotInCheck :: Board -> GameState -> U.Vector GenMove
+legalGenQuietsNotInCheck b gs =
+    let pinned = pinnedBits b gs
+    in U.filter (isLegalSafe b gs pinned) (pseudoLegalQuiets b gs)
+
 -- | Generate all pseudo-legal promotion moves.
 pseudoLegalPromotions :: Board -> GameState -> U.Vector GenMove
 pseudoLegalPromotions b gs = pawnPromotions b gs
@@ -309,6 +327,12 @@ pseudoLegalPromotions b gs = pawnPromotions b gs
 -- | Generate all legal promotion moves returning GenMove.
 legalGenPromotions :: Board -> GameState -> U.Vector GenMove
 legalGenPromotions b gs = U.filter (isLegal b gs) (pseudoLegalPromotions b gs)
+
+-- | Generate all legal promotion moves returning GenMove (Optimized for NotInCheck).
+legalGenPromotionsNotInCheck :: Board -> GameState -> U.Vector GenMove
+legalGenPromotionsNotInCheck b gs =
+    let pinned = pinnedBits b gs
+    in U.filter (isLegalSafe b gs pinned) (pseudoLegalPromotions b gs)
 
 -- | Generate only legal moves when the king is in check.
 generateEvasions :: Board -> GameState -> U.Vector GenMove
@@ -469,16 +493,6 @@ fillKingEvasions b gs targetMask mv !startIdx =
             let valid = att .&. complement friends .&. targetMask
             let writeMove idx2 to = do
                     let toI = unSquare to
-                    -- Must verify safety!
-                    -- We can assume the King moves out of check?
-                    -- No, we must check if 'to' is attacked.
-                    -- Note: 'isLegal' checks this.
-                    -- We can generate pseudo-legal and filter manually or rely on 'isLegal'.
-                    -- Since we want 'generateEvasions' to be strict, we check here.
-                    -- However, 'isAttackedBy' is expensive.
-                    -- We can defer or do it here.
-                    -- Let's do it here to ensure strictness.
-
                     let isCap = testBit (occupiedBy b (oppositeColor c)) toI
                     let gm = if isCap
                              then GenCapture from to King (findPieceType b (oppositeColor c) to)
@@ -512,9 +526,6 @@ fillPieceEvasions b gs pt targetMask mv !startIdx =
             let att = getAttacks from
             let valid = att .&. complement friends .&. targetMask
             let writeMove idx2 to = do
-                    -- We know we are blocking or capturing.
-                    -- But we must still ensure we don't expose king to another check (pinned pieces).
-                    -- So we must check isLegal.
                     let toI = unSquare to
                     let isCap = testBit enemies toI
                     let gm = if isCap
@@ -798,6 +809,77 @@ isLegalOptimized b gs gm =
                     midAttacked = isAttackedBy b (oppositeColor c1) mid
                 in not startAttacked && not midAttacked
          castlingSafe _ _ _ = True
+
+-- | Compute a bitboard of pieces pinned to the king.
+pinnedBits :: Board -> GameState -> Bitboard
+pinnedBits b gs =
+    let c = turn gs
+        kingSq = fromMaybe (Square 0) (kingSquare b c)
+        occ = occupiedTotal b
+        friends = occupiedBy b c
+        oppC = oppositeColor c
+        -- Enemy sliders
+        bAttacks = bishopAttacks kingSq occ
+        rAttacks = rookAttacks kingSq occ
+        -- Potential pinners (intersect attacks with enemy sliders)
+        pinners = (bAttacks .&. (pieceBitboard b oppC Bishop .|. pieceBitboard b oppC Queen))
+              .|. (rAttacks .&. (pieceBitboard b oppC Rook   .|. pieceBitboard b oppC Queen))
+    in foldBitboard (pinnedAcc kingSq occ friends) 0 pinners
+    where
+        pinnedAcc k occ friends acc pinner =
+            let r = between k pinner
+                pinned = r .&. occ
+            in if popCount pinned == 1 && (pinned .&. friends /= 0)
+               then acc .|. pinned
+               else acc
+
+-- | Check if squares are collinear (same rank, file, or diagonal).
+areCollinear :: Square -> Square -> Square -> Bool
+areCollinear (Square s1) (Square s2) (Square s3) =
+    let r1 = s1 `div` 8; f1 = s1 `mod` 8
+        r2 = s2 `div` 8; f2 = s2 `mod` 8
+        r3 = s3 `div` 8; f3 = s3 `mod` 8
+    in (r1 == r2 && r2 == r3) || -- Same Rank
+       (f1 == f2 && f2 == f3) || -- Same File
+       (abs (r1 - r2) == abs (f1 - f2) && abs (r2 - r3) == abs (f2 - f3) && -- Same Diagonal (slope 1 or -1)
+        ((r1 - r2) * (f2 - f3) == (r2 - r3) * (f1 - f2))) -- Check slope consistency strictly
+
+-- | Specialized legality check for NotInCheck positions.
+-- Unpinned pieces are always legal (except King moves).
+-- Pinned pieces must move along the ray.
+isLegalSafe :: Board -> GameState -> Bitboard -> GenMove -> Bool
+isLegalSafe b gs pinned gm =
+    case gm of
+        GenQuiet from to pt ->
+            if pt == King
+            then isLegalOptimized b gs gm
+            else
+                if not (testBit pinned (unSquare from))
+                then True -- Unpinned, not King -> Legal (NotInCheck)
+                else isAligned (fromMaybe (Square 0) (kingSquare b (turn gs))) from to
+
+        GenCapture from to pt _ ->
+            if pt == King
+            then isLegalOptimized b gs gm
+            else
+                if not (testBit pinned (unSquare from))
+                then True
+                else isAligned (fromMaybe (Square 0) (kingSquare b (turn gs))) from to
+
+        GenPromotion from to _ ->
+             if not (testBit pinned (unSquare from))
+             then True
+             else isAligned (fromMaybe (Square 0) (kingSquare b (turn gs))) from to
+
+        GenPromotionCapture from to _ _ ->
+             if not (testBit pinned (unSquare from))
+             then True
+             else isAligned (fromMaybe (Square 0) (kingSquare b (turn gs))) from to
+
+        _ -> isLegalOptimized b gs gm -- Fallback (EP, Castling)
+
+    where
+        isAligned k f t = areCollinear k f t
 
 -- | Optimized check if a square is attacked by 'attackerColor'.
 -- Uses 'b' for attacker bitboards, but masks out 'capturedMask'.
@@ -1490,9 +1572,50 @@ givesCheck b gs gm =
 
             in direct || discovered
 
-        GenCastling _ _ ->
-             let b' = applyMoveBoardFast b gs gm
-             in isAttackedBy b' c kingSq
+        GenCastling from to ->
+            -- Optimized Castling check (avoiding board allocation)
+            let (rookFrom, rookTo) = castlingRookMove from to
+                occ = occupiedTotal b
+                fromI = unSquare from
+                toI = unSquare to
+                rfI = unSquare rookFrom
+                rtI = unSquare rookTo
+
+                -- Move King and Rook
+                occ' = (((occ `clearBit` fromI) `setBit` toI) `clearBit` rfI) `setBit` rtI
+
+                -- Magic Lookups from Enemy King
+                bAtt = bishopAttacks kingSq occ'
+                rAtt = rookAttacks kingSq occ'
+
+                -- 1. Direct Check from Rook
+                -- Rook is now at rookTo.
+                direct = testBit rAtt rtI
+
+                -- 2. Discovered Check
+                -- Both King and Rook moved.
+                -- King at 'to' cannot check (unless fairy).
+                -- We check for discovered checks from friendly sliders.
+                (fDiag, fOrth) = if c == White
+                                 then (whiteDiagonal b, whiteOrthogonal b)
+                                 else (blackDiagonal b, blackOrthogonal b)
+
+                -- Remove old positions from slider bitboards?
+                -- Wait, King is not a slider, Rook is a slider (Orthogonal).
+                -- If Rook was blocking, moving it might reveal a check.
+                -- If King was blocking, moving it might reveal a check.
+
+                fDiag' = fDiag -- Neither King nor Rook are diagonal sliders (Rook is Orth)
+
+                -- Rook is Orthogonal slider.
+                -- If Rook moves, we need to update fOrth.
+                -- But Rook is still a Rook after move.
+                -- So we remove rookFrom, add rookTo to fOrth.
+                fOrth' = (fOrth `clearBit` rfI) `setBit` rtI
+
+                discovered = (bAtt .&. fDiag' /= 0) || (rAtt .&. fOrth' /= 0)
+
+            in direct || discovered
 
 {-# INLINE givesCheckGeneric #-}
 givesCheckGeneric :: Board -> GameState -> Color -> Square -> Square -> Square -> PieceType -> Bool

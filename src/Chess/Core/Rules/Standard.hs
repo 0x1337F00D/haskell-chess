@@ -28,6 +28,7 @@ import qualified Chess.Board.Fen as Fen
 import qualified Chess.Board as FastBoard
 import Chess.Board (legalGenMoves, applyGenMoveFast, pseudoLegalGenMoves, isKingSafe, pattern GenCastling) -- Import fast board ops
 import Data.Bits (testBit, countTrailingZeros, (.|.))
+import qualified Data.Vector.Unboxed as U
 
 -- | Create the initial game state for Standard chess.
 initialGame :: Game 'Standard 'Active
@@ -72,16 +73,9 @@ instance ChessVariant 'Standard where
         baseMoves = case checkStatus ag of
              SChecked ->
                  -- If in check, castling is illegal. Construct pseudo-legal moves excluding castling.
-                 let pseudos = concat
-                        [ MG.pawnMovesList baseBoard gs
-                        , MG.pieceMovesList baseBoard gs T.Knight
-                        , MG.pieceMovesList baseBoard gs T.Bishop
-                        , MG.pieceMovesList baseBoard gs T.Rook
-                        , MG.pieceMovesList baseBoard gs T.Queen
-                        , MG.pieceMovesList baseBoard gs T.King
-                        ]
-                 in filter (MG.isLegal baseBoard gs) pseudos
-             _ -> MG.legalGenMovesList baseBoard gs
+                 -- Actually, MG.generateEvasions returns all legal moves when in check.
+                 U.toList $ MG.generateEvasions baseBoard gs
+             _ -> U.toList $ MG.legalGenMovesNotInCheck baseBoard gs
 
     in map toCoreMove baseMoves
 
@@ -93,23 +87,28 @@ instance ChessVariant 'Standard where
       let b = internalBoard ag
           gs = toGameState ag
           board = FastBoard.Board b gs []
-      in fastPerft depth board
+          inCheck = case checkStatus ag of
+            SChecked -> True
+            _ -> False
+      in fastPerft depth board inCheck
 
-fastPerft :: Int -> FastBoard.Board -> Int
-fastPerft 0 _ = 1
-fastPerft 1 b = length (legalGenMoves b)
-fastPerft d b =
-    let moves = pseudoLegalGenMoves b
-        c = GS.turn (FastBoard.state b)
+fastPerft :: Int -> FastBoard.Board -> Bool -> Int
+fastPerft 0 _ _ = 1
+fastPerft 1 b inCheck =
+    if inCheck
+    then U.length (MG.generateEvasions (FastBoard.pieces b) (FastBoard.state b))
+    else U.length (MG.legalGenMovesNotInCheck (FastBoard.pieces b) (FastBoard.state b))
+fastPerft d b inCheck =
+    let pieces = FastBoard.pieces b
+        st = FastBoard.state b
+        moves = if inCheck
+                then U.toList (MG.generateEvasions pieces st) -- Already legal
+                else
+                    let pinned = MG.pinnedBits pieces st
+                        pseudos = U.toList (MG.pseudoLegalMoves pieces st)
+                    in filter (MG.isLegalSafe pieces st pinned) pseudos
     in sum $ map (\m ->
-        case m of
-            GenCastling _ _ ->
-                if MG.isLegal (FastBoard.pieces b) (FastBoard.state b) m
-                then fastPerft (d - 1) (applyGenMoveFast b m)
-                else 0
-            _ ->
-                let b' = applyGenMoveFast b m
-                in if isKingSafe b' c
-                   then fastPerft (d - 1) b'
-                   else 0
+        let b' = applyGenMoveFast b m
+            givesCheck = MG.givesCheck pieces st m
+        in fastPerft (d - 1) b' givesCheck
        ) moves
