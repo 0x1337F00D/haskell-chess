@@ -264,6 +264,7 @@ packedKingTableFlip   = U.zipWith packScore rawMgKingTable   rawEgKingTable
 -- `packedPawnTableFlip` (Black) uses raw.
 -- This seems correct.
 
+{-# INLINE pstValue #-}
 pstValue :: Color -> PieceType -> Square -> PackedScore
 pstValue White pt (Square i) = case pt of
     Pawn   -> packedPawnTable   `U.unsafeIndex` i
