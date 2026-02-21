@@ -220,9 +220,9 @@ parseSan b gs str =
                         else charToPieceType (head (tail promoStr))
 
                 (pt, targetStr) =
-                     if not (null baseStr) && head baseStr `elem` "NBRQK"
-                     then (charToPieceType (head baseStr), tail baseStr)
-                     else (Just Pawn, baseStr)
+                     case baseStr of
+                        (ch:rest) | ch `elem` "NBRQK" -> (charToPieceType ch, rest)
+                        _ -> (Just Pawn, baseStr)
 
                 (targetS) =
                      if length targetStr >= 2
