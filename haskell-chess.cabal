@@ -117,7 +117,7 @@ library
 
     -- Other library packages from which modules are imported.
     build-depends:
-        base ^>=4.17.2.0,
+        base >= 4.17.2.0,
         containers >= 0.6,
         vector >= 0.13,
         bytestring >= 0.11,
@@ -150,7 +150,7 @@ executable haskell-chess
 
     -- Executable dependencies.
     build-depends:
-        base ^>=4.17.2.0,
+        base >= 4.17.2.0,
         haskell-chess,
         time
 
@@ -161,7 +161,7 @@ executable bench-magic
     hs-source-dirs:   bench
     ghc-options:      -threaded -rtsopts -with-rtsopts=-N -O2
     build-depends:
-        base ^>=4.17.2.0,
+        base >= 4.17.2.0,
         haskell-chess,
         time
 
@@ -212,7 +212,7 @@ test-suite haskell-chess-test
 
     -- Test dependencies.
     build-depends:
-        base ^>=4.17.2.0,
+        base >= 4.17.2.0,
         haskell-chess,
         hspec >= 2.11,
         containers >= 0.6,
@@ -229,7 +229,7 @@ executable bench-search
     hs-source-dirs:   scripts
     ghc-options:      -threaded -rtsopts -with-rtsopts=-N
     build-depends:
-        base ^>=4.17.2.0,
+        base >= 4.17.2.0,
         haskell-chess,
         time
 executable bench-core
@@ -238,7 +238,7 @@ executable bench-core
     main-is:          BenchCore.hs
     hs-source-dirs:   scripts
     build-depends:
-        base ^>=4.17.2.0,
+        base >= 4.17.2.0,
         haskell-chess,
         time
 
@@ -249,7 +249,7 @@ executable bench-elo
     hs-source-dirs:   scripts
     ghc-options:      -threaded -rtsopts -with-rtsopts=-N
     build-depends:
-        base ^>=4.17.2.0,
+        base >= 4.17.2.0,
         haskell-chess,
         process,
         async,
@@ -265,7 +265,7 @@ executable bench-tactics
     hs-source-dirs:   scripts
     ghc-options:      -threaded -rtsopts -with-rtsopts=-N
     build-depends:
-        base ^>=4.17.2.0,
+        base >= 4.17.2.0,
         haskell-chess
 
 executable bench-report
@@ -275,7 +275,7 @@ executable bench-report
     hs-source-dirs:   bench
     ghc-options:      -threaded -rtsopts -with-rtsopts=-N
     build-depends:
-        base ^>=4.17.2.0,
+        base >= 4.17.2.0,
         haskell-chess,
         time
 
@@ -286,7 +286,7 @@ executable micro-bench
     hs-source-dirs:   bench
     ghc-options:      -threaded -rtsopts -with-rtsopts=-N -O2
     build-depends:
-        base ^>=4.17.2.0,
+        base >= 4.17.2.0,
         haskell-chess,
         time,
         vector
@@ -298,7 +298,7 @@ executable bench-eval
     hs-source-dirs:   scripts
     ghc-options:      -threaded -rtsopts -with-rtsopts=-N -O2
     build-depends:
-        base ^>=4.17.2.0,
+        base >= 4.17.2.0,
         haskell-chess,
         time
 
@@ -309,6 +309,6 @@ executable bench-evasions
     hs-source-dirs:   scripts
     ghc-options:      -threaded -rtsopts -with-rtsopts=-N -O2
     build-depends:
-        base ^>=4.17.2.0,
+        base >= 4.17.2.0,
         haskell-chess,
         time

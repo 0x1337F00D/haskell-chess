@@ -1,6 +1,7 @@
 module Chess.Core.Fen where
 
-import Chess.Board.Fen (parseFenRest, fen)
+import Chess.Board.Fen (fen)
+import qualified Chess.Board.Fen as Fen
 import Chess.Board.Base (Board)
 import Chess.Board.GameState (GameState)
 import Text.Read (readMaybe)
@@ -10,21 +11,38 @@ import Data.List (stripPrefix)
 -- Returns Board, GameState, and (WhiteChecks, BlackChecks)
 parseThreeCheckFen :: String -> Maybe (Board, GameState, (Int, Int))
 parseThreeCheckFen s = do
-  (b, gs, extra) <- parseFenRest s
-  checks <- case extra of
-              (cStr:_) -> parseThreeCheckExtra cStr
-              _ -> Just (0, 0) -- Default to 0+0 if missing
-  return (b, gs, checks)
+  let parts = words s
+  if length parts >= 4 then do
+      let (pre, post) = splitAt 4 parts
+      -- pre = [board, turn, castle, ep]
+
+      let (checksStr, rest) = case post of
+             (x:xs) | '+' `elem` x -> (Just x, xs)
+             _ -> (Nothing, post)
+
+      -- Reconstruct standard FEN part for generic parsing
+      let standardFen = unwords (pre ++ rest)
+      (b, gs) <- Fen.parseFen standardFen
+
+      checks <- case checksStr of
+          Just cs -> parseThreeCheckExtra cs
+          Nothing -> return (0, 0)
+
+      return (b, gs, checks)
+  else Nothing
 
 parseThreeCheckExtra :: String -> Maybe (Int, Int)
 parseThreeCheckExtra s = do
-  -- Format: +W+B
-  -- E.g. +0+0, +2+1
-  rest <- stripPrefix "+" s
-  let (wStr, rest2) = break (== '+') rest
-  rest3 <- stripPrefix "+" rest2
+  -- Format: +W+B or 3+3 (PyChess uses 3+3 without + prefix sometimes? No, lboard uses checksChr.split('+'))
+  -- PyChess output from PyChessData seems to be "2+2".
+  -- parseThreeCheckExtra original implementation expects prefix "+".
+  -- Let's support both "2+2" and "+2+2".
+
+  let s' = if head s == '+' then tail s else s
+  let (wStr, rest) = break (== '+') s'
+  rest2 <- stripPrefix "+" rest
   w <- readMaybe wStr
-  b <- readMaybe rest3
+  b <- readMaybe rest2
   return (w, b)
 
 -- | Serialize ThreeCheck FEN.
