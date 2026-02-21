@@ -2,7 +2,7 @@ module Chess.Board.Fen where
 
 import Control.Monad (foldM, guard)
 import Data.Char (isDigit, ord, chr, toLower)
-import Data.List (intercalate)
+import Data.List (foldl', intercalate)
 import Data.Bits ((.|.), testBit)
 import Text.Read (readMaybe)
 
@@ -80,7 +80,7 @@ parseBoard s = do
   where
     addRank b (r, str) = do
       pieces <- parseRank r str
-      return $ foldl (\acc (sq, p) -> Board.putPiece acc sq p) b pieces
+      return $ foldl' (\acc (sq, p) -> Board.putPiece acc sq p) b pieces
 
     parseRank r str = go 0 str
       where
