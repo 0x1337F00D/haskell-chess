@@ -436,10 +436,10 @@ instance MoveGenerator 'InCheck where
     legalPromotionsValidated vb = filter isPromotion (legalMovesValidated vb)
 
 instance MoveGenerator 'NotInCheck where
-    legalMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.legalGenMoves b gs
-    captureMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.legalGenCaptures b gs
-    legalQuietsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.legalGenQuiets b gs
-    legalPromotionsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.legalGenPromotions b gs
+    legalMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.pseudoLegalMoves b gs
+    captureMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.pseudoLegalCaptures b gs
+    legalQuietsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.pseudoLegalQuiets b gs
+    legalPromotionsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.pseudoLegalPromotions b gs
 
 mkLegalMove :: MoveGen.GenMove -> LegalMove
 mkLegalMove = LegalMove

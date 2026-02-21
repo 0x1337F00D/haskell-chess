@@ -9,7 +9,7 @@ import Chess.Types (Depth(..), unDepth, decDepth, depthZero, CheckStatus(..))
 import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, pieces, applyLegalMove, isCheck, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated, getGenMove, MoveGenerator(..))
 import qualified Chess.Board
 import Chess.Board.MoveGen (givesCheck)
-import qualified Chess.Board.MoveGen
+import qualified Chess.Board.MoveGen as MoveGen
 import qualified Chess.Board.GameState as GS
 import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
 import Chess.Board.Phase (Position(..))
@@ -88,16 +88,24 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
   where
     go [] a = return a
     go (lm:lms) a = do
-        score <- case applyLegalMove vBoard lm of
-            InCheckBoard newVBoard -> do
-                let newCtx = ctx { scCheckState = InCheck, scPly = scPly ctx + 1 } :: SearchContext p
-                s <- quiescence newCtx newVBoard tt (-beta) (-a) nodes (decDepth depth)
-                return (-s)
-            NotInCheckBoard newVBoard -> do
-                let newCtx = ctx { scCheckState = NotInCheck, scPly = scPly ctx + 1 } :: SearchContext p
-                s <- quiescence newCtx newVBoard tt (-beta) (-a) nodes (decDepth depth)
-                return (-s)
+        let inCheck = case scCheckState ctx of InCheck -> True; NotInCheck -> False
+        let board = getBoard vBoard
+        let gm = getGenMove lm
+        let legal = if inCheck then True else MoveGen.isLegal (pieces board) (state board) gm
 
-        if score >= beta
-        then return beta
-        else go lms (max a score)
+        if not legal
+        then go lms a
+        else do
+            score <- case applyLegalMove vBoard lm of
+                InCheckBoard newVBoard -> do
+                    let newCtx = ctx { scCheckState = InCheck, scPly = scPly ctx + 1 } :: SearchContext p
+                    s <- quiescence newCtx newVBoard tt (-beta) (-a) nodes (decDepth depth)
+                    return (-s)
+                NotInCheckBoard newVBoard -> do
+                    let newCtx = ctx { scCheckState = NotInCheck, scPly = scPly ctx + 1 } :: SearchContext p
+                    s <- quiescence newCtx newVBoard tt (-beta) (-a) nodes (decDepth depth)
+                    return (-s)
+
+            if score >= beta
+            then return beta
+            else go lms (max a score)
