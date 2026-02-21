@@ -282,6 +282,13 @@ legalGenPromotions b gs = U.filter (isLegal b gs) (pseudoLegalPromotions b gs)
 -- | Generate only legal moves when the king is in check.
 generateEvasions :: Board -> GameState -> U.Vector GenMove
 generateEvasions b gs = U.create $ do
+    -- Allocate sufficient space. Max chess moves is ~218.
+    mv <- M.unsafeNew 256
+    generateEvasionsInto b gs mv 0 >>= \idx -> return (M.slice 0 idx mv)
+
+{-# INLINE generateEvasionsInto #-}
+generateEvasionsInto :: Board -> GameState -> U.MVector s GenMove -> Int -> ST s Int
+generateEvasionsInto b gs mv !startIdx = do
     let c = turn gs
     let kingSq = case kingSquare b c of
                     Just k -> k
@@ -293,18 +300,15 @@ generateEvasions b gs = U.create $ do
     let attackers = attackersTo b kingSq occ .&. enemies
     let numAttackers = popCount attackers
 
-    -- Allocate sufficient space.
-    -- Max chess moves is ~218.
-    mv <- M.unsafeNew 256
-
     if numAttackers == 0
-    then return (M.slice 0 0 mv) -- Should not happen if called correctly
+    then return startIdx -- Should not happen if called correctly
     else do
         -- 1. King Moves (always allowed if safe)
-        idx0 <- fillKingEvasions b gs mv 0
+        -- Pass all 1s mask to allow any safe square (captures or quiets)
+        idx0 <- fillKingEvasions b gs (complement 0) mv startIdx
 
         if numAttackers > 1
-        then return (M.slice 0 idx0 mv) -- Double check: only king moves
+        then return idx0 -- Double check: only king moves
         else do
             -- Single check
             let attackerSq = Square (fromMaybe 0 (lsb attackers))
@@ -312,9 +316,7 @@ generateEvasions b gs = U.create $ do
             -- Target mask: capture attacker or block ray
             let targetMask = if r == 0 then bbFromSquare attackerSq else r
 
-            -- Handle En Passant:
-            -- If the capture is EP, the pawn moves to epSquare but captures piece at (epSquare +/- 8).
-            -- If attacker is the pawn at (epSquare +/- 8), we can capture it by moving to epSquare.
+            -- Handle En Passant
             let ep = epSquare gs
             let realTargetMask = case ep of
                     NoSquare -> targetMask
@@ -331,17 +333,109 @@ generateEvasions b gs = U.create $ do
             idx4 <- fillPieceEvasions b gs Rook realTargetMask mv idx3
             idx5 <- fillPieceEvasions b gs Queen realTargetMask mv idx4
 
+            return idx5
+
+generateEvasionCaptures :: Board -> GameState -> U.Vector GenMove
+generateEvasionCaptures b gs = U.create $ do
+    mv <- M.unsafeNew 256
+    let c = turn gs
+    let kingSq = case kingSquare b c of Just k -> k; Nothing -> Square 0
+    let occ = occupiedTotal b
+    let enemies = occupiedBy b (oppositeColor c)
+    let attackers = attackersTo b kingSq occ .&. enemies
+    let numAttackers = popCount attackers
+
+    if numAttackers == 0 then return (M.slice 0 0 mv)
+    else do
+        -- King Captures: Mask = enemies
+        idx0 <- fillKingEvasions b gs enemies mv 0
+
+        if numAttackers > 1 then return (M.slice 0 idx0 mv)
+        else do
+            let attackerSq = Square (fromMaybe 0 (lsb attackers))
+            -- Capture mask is just the attacker square (plus EP logic)
+            let targetMask = bbFromSquare attackerSq
+
+            let ep = epSquare gs
+            let realTargetMask = case ep of
+                    NoSquare -> targetMask
+                    Square e ->
+                         let captureSq = if c == White then Square (e - 8) else Square (e + 8)
+                         in if captureSq == attackerSq
+                            then targetMask `setBit` e
+                            else targetMask
+
+            -- Only generate if there is something to capture
+            idx1 <- fillPawnEvasions b gs realTargetMask mv idx0
+            idx2 <- fillPieceEvasions b gs Knight realTargetMask mv idx1
+            idx3 <- fillPieceEvasions b gs Bishop realTargetMask mv idx2
+            idx4 <- fillPieceEvasions b gs Rook realTargetMask mv idx3
+            idx5 <- fillPieceEvasions b gs Queen realTargetMask mv idx4
+
             return (M.slice 0 idx5 mv)
 
+generateEvasionQuiets :: Board -> GameState -> U.Vector GenMove
+generateEvasionQuiets b gs = U.create $ do
+    mv <- M.unsafeNew 256
+    let c = turn gs
+    let kingSq = case kingSquare b c of Just k -> k; Nothing -> Square 0
+    let occ = occupiedTotal b
+    let enemies = occupiedBy b (oppositeColor c)
+    let attackers = attackersTo b kingSq occ .&. enemies
+    let numAttackers = popCount attackers
+
+    if numAttackers == 0 then return (M.slice 0 0 mv)
+    else do
+        -- King Quiets: Mask = complement enemies
+        idx0 <- fillKingEvasions b gs (complement enemies) mv 0
+
+        if numAttackers > 1 then return (M.slice 0 idx0 mv)
+        else do
+            let attackerSq = Square (fromMaybe 0 (lsb attackers))
+            let r = ray kingSq attackerSq
+            -- Quiet mask is only the ray (empty squares). Attacker square is occupied.
+            let targetMask = r
+
+            if targetMask == 0
+            then return (M.slice 0 idx0 mv) -- No blocking squares
+            else do
+                idx1 <- fillPawnEvasions b gs targetMask mv idx0
+                idx2 <- fillPieceEvasions b gs Knight targetMask mv idx1
+                idx3 <- fillPieceEvasions b gs Bishop targetMask mv idx2
+                idx4 <- fillPieceEvasions b gs Rook targetMask mv idx3
+                idx5 <- fillPieceEvasions b gs Queen targetMask mv idx4
+
+                return (M.slice 0 idx5 mv)
+
+generateEvasionPromotions :: Board -> GameState -> U.Vector GenMove
+generateEvasionPromotions b gs = U.create $ do
+    mv <- M.unsafeNew 64
+    let c = turn gs
+    let kingSq = case kingSquare b c of Just k -> k; Nothing -> Square 0
+    let occ = occupiedTotal b
+    let enemies = occupiedBy b (oppositeColor c)
+    let attackers = attackersTo b kingSq occ .&. enemies
+    let numAttackers = popCount attackers
+
+    if numAttackers > 1
+    then return (M.slice 0 0 mv)
+    else do
+         let attackerSq = Square (fromMaybe 0 (lsb attackers))
+         let r = ray kingSq attackerSq
+         let targetMask = if r == 0 then bbFromSquare attackerSq else r
+
+         idx0 <- fillPawnEvasionPromotions b gs targetMask mv 0
+         return (M.slice 0 idx0 mv)
+
 {-# INLINE fillKingEvasions #-}
-fillKingEvasions :: Board -> GameState -> U.MVector s GenMove -> Int -> ST s Int
-fillKingEvasions b gs mv !startIdx =
+fillKingEvasions :: Board -> GameState -> Bitboard -> U.MVector s GenMove -> Int -> ST s Int
+fillKingEvasions b gs targetMask mv !startIdx =
     let c = turn gs
         bb = pieceBitboard b c King
         friends = occupiedBy b c
         fillAcc !idx from = do
             let att = kingAttacks from
-            let valid = att .&. complement friends
+            let valid = att .&. complement friends .&. targetMask
             let writeMove idx2 to = do
                     let toI = unSquare to
                     -- Must verify safety!
@@ -403,6 +497,76 @@ fillPieceEvasions b gs pt targetMask mv !startIdx =
                     else return idx2
             foldBitboardM writeMove idx valid
     in foldBitboardM fillAcc startIdx bb
+
+{-# INLINE fillPawnEvasionPromotions #-}
+fillPawnEvasionPromotions :: Board -> GameState -> Bitboard -> U.MVector s GenMove -> Int -> ST s Int
+fillPawnEvasionPromotions b gs targetMask mv !startIdx =
+    let c = turn gs
+        pawns = pieceBitboard b c Pawn
+        occ = occupiedTotal b
+        enemy = occupiedBy b (oppositeColor c)
+        oppC = oppositeColor c
+
+        fillMoves !idx from = do
+            let i = unSquare from
+            -- Quiets (Push)
+            idx1 <- if c == White
+               then do
+                   let to8 = i + 8
+                   if to8 >= 56 && not (testBit occ to8) && testBit targetMask to8
+                   then do
+                       let dest = Square to8
+                       if isLegal b gs (GenPromotion from dest Queen) then do
+                           M.unsafeWrite mv idx     (GenPromotion from dest Queen)
+                           M.unsafeWrite mv (idx+1) (GenPromotion from dest Rook)
+                           M.unsafeWrite mv (idx+2) (GenPromotion from dest Bishop)
+                           M.unsafeWrite mv (idx+3) (GenPromotion from dest Knight)
+                           return (idx + 4)
+                       else return idx
+                   else return idx
+               else do
+                   let to8 = i - 8
+                   if to8 <= 7 && not (testBit occ to8) && testBit targetMask to8
+                   then do
+                       let dest = Square to8
+                       if isLegal b gs (GenPromotion from dest Queen) then do
+                           M.unsafeWrite mv idx     (GenPromotion from dest Queen)
+                           M.unsafeWrite mv (idx+1) (GenPromotion from dest Rook)
+                           M.unsafeWrite mv (idx+2) (GenPromotion from dest Bishop)
+                           M.unsafeWrite mv (idx+3) (GenPromotion from dest Knight)
+                           return (idx + 4)
+                       else return idx
+                   else return idx
+
+            -- Captures
+            let checkCapture !ix toSq = do
+                    if testBit enemy (unSquare toSq) && testBit targetMask (unSquare toSq)
+                    then do
+                        let dest = toSq
+                        if unSquare dest >= 56 || unSquare dest <= 7
+                        then do -- Promotion Capture
+                            let capPt = findPieceType b oppC dest
+                            if isLegal b gs (GenPromotionCapture from dest Queen capPt) then do
+                                M.unsafeWrite mv ix     (GenPromotionCapture from dest Queen capPt)
+                                M.unsafeWrite mv (ix+1) (GenPromotionCapture from dest Rook capPt)
+                                M.unsafeWrite mv (ix+2) (GenPromotionCapture from dest Bishop capPt)
+                                M.unsafeWrite mv (ix+3) (GenPromotionCapture from dest Knight capPt)
+                                return (ix + 4)
+                            else return ix
+                        else return ix
+                    else return ix
+
+            idx2 <- if c == White
+                    then do
+                        i2 <- if (i `mod` 8) /= 7 then checkCapture idx1 (Square (i+9)) else return idx1
+                        if (i `mod` 8) /= 0 then checkCapture i2 (Square (i+7)) else return i2
+                    else do
+                        i2 <- if (i `mod` 8) /= 7 then checkCapture idx1 (Square (i-7)) else return idx1
+                        if (i `mod` 8) /= 0 then checkCapture i2 (Square (i-9)) else return i2
+
+            return idx2
+
+    in foldBitboardM fillMoves startIdx pawns
 
 {-# INLINE fillPawnEvasions #-}
 fillPawnEvasions :: Board -> GameState -> Bitboard -> U.MVector s GenMove -> Int -> ST s Int
