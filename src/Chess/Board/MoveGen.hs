@@ -829,7 +829,7 @@ isLegal b gs gm =
         kingSq' = kingSquare b' c
         isCastling = case gm of GenCastling _ _ -> True; _ -> False
     in case kingSq' of
-        Nothing -> False
+        Nothing -> True
         Just k -> not (isAttackedBy b' (oppositeColor c) k) && (if isCastling then castlingSafe b gs gm else True)
 
     where
