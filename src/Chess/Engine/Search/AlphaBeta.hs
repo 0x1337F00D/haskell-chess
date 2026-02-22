@@ -169,6 +169,12 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
                 else do
                     queue <- newMVar lms
 
+                    -- Capture context variables explicitly for the worker closure
+                    let !kSq = kingSq
+                    let !pBB = pinnedBB
+                    let !cpBB = crossPinnedBB
+                    let !chk = inCheck
+
                     let worker _ = do
                             localNodes <- newIORef 0
 
@@ -190,9 +196,9 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
                                             else do
                                                 let gmWorker = getGenMove lmWorker
                                                 let mWorker = fromGenMove gmWorker
-                                                let legalWorker = if inCheck
+                                                let legalWorker = if chk
                                                                   then True
-                                                                  else MoveGen.isLegalFast (pieces board) (state board) pinnedBB crossPinnedBB kingSq gmWorker
+                                                                  else MoveGen.isLegalFast (pieces board) (state board) pBB cpBB kSq gmWorker
 
                                                 if not legalWorker
                                                 then loop bestRes
