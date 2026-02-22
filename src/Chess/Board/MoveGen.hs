@@ -708,6 +708,77 @@ isLegal b gs gm =
                 in not startAttacked && not midAttacked
          castlingSafe _ _ _ = True
 
+-- | Fast legality check for NotInCheck positions.
+-- Relies on precomputed pinned bitboard to avoid full board updates.
+{-# INLINE isLegalFast #-}
+isLegalFast :: Board -> GameState -> Bitboard -> Bitboard -> Maybe Square -> GenMove -> Bool
+isLegalFast b gs pinned crossPinned mKingSq gm =
+    case mKingSq of
+        Nothing -> False -- No king, no legal moves (matches isLegal behavior)
+        Just k ->
+            case gm of
+                GenEnPassant _ _ -> isLegal b gs gm
+                GenCastling _ _ -> isLegal b gs gm
+                GenQuiet f t p ->
+                    if p == King
+                    then isLegal b gs gm
+                    else checkPinned k f t
+                GenCapture f t p _ ->
+                    if p == King
+                    then isLegal b gs gm -- Should not happen (King capture)
+                    else checkPinned k f t
+                GenPromotion f t _ -> checkPinned k f t
+                GenPromotionCapture f t _ _ -> checkPinned k f t
+                _ -> isLegal b gs gm -- Fallback
+  where
+    checkPinned k f t =
+        if testBit crossPinned (unSquare f)
+        then False -- Cross-pinned pieces are paralyzed
+        else if testBit pinned (unSquare f)
+        then areCollinear k f t
+        else True
+
+-- | Check if three squares are collinear.
+-- Used to verify moves of pinned pieces.
+{-# INLINE areCollinear #-}
+areCollinear :: Square -> Square -> Square -> Bool
+areCollinear k f t =
+    let r1 = ray k f
+        r2 = ray f k
+    in testBit (r1 .|. r2) (unSquare t)
+
+-- | Compute a bitboard of friendly pieces pinned to the King.
+-- Returns (pinned, crossPinned). Cross-pinned pieces are paralyzed.
+pinnedBits :: Board -> GameState -> Square -> (Bitboard, Bitboard)
+pinnedBits b gs kingSq =
+    let c = turn gs
+        oppC = oppositeColor c
+        occ = occupiedTotal b
+        friends = occupiedBy b c
+        enemies = occupiedBy b oppC
+
+        (eDiag, eOrth) = if c == White
+                         then (blackDiagonal b, blackOrthogonal b)
+                         else (whiteDiagonal b, whiteOrthogonal b)
+
+        xRayD = bishopAttacks kingSq enemies
+        xRayR = rookAttacks kingSq enemies
+
+        pinners = (xRayD .&. eDiag) .|. (xRayR .&. eOrth)
+
+        accPinned (!pinned, !cross) !pinnerSq =
+            let r = between kingSq pinnerSq
+                blockers = r .&. friends
+            in if popCount blockers == 1
+               then
+                   let b = blockers
+                   in if b .&. pinned /= 0
+                      then (pinned, cross .|. b)
+                      else (pinned .|. b, cross)
+               else (pinned, cross)
+
+    in foldBitboard accPinned (0, 0) pinners
+
 -- | Attempt to convert a Move to GenMove and check legality.
 isLegalMove :: Board -> GameState -> Move -> Bool
 isLegalMove b gs m = case toGenMove b gs m of
@@ -1438,4 +1509,5 @@ pieceMovesList b gs pt = U.toList (pieceMoves b gs pt)
 castlingMovesList :: Board -> GameState -> [GenMove]
 castlingMovesList b gs = U.toList (castlingMoves b gs)
 
--- | Optimized version of pawnMoves to avoid intermediate allocations.
+-- | Fast legality check for NotInCheck positions.
+-- Relies on precomputed pinned bitboard to avoid full board updates.

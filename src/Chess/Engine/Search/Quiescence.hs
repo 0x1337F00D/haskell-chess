@@ -33,6 +33,9 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
             InCheck -> True
             NotInCheck -> False
 
+    let kingSq = if inCheck then Nothing else MoveGen.kingSquare (pieces board) (GS.turn (state board))
+    let (pinned, crossPinned) = case kingSq of Just k -> MoveGen.pinnedBits (pieces board) (state board) k; Nothing -> (0, 0)
+
     if inCheck
     then do
         -- If in check, we must search all evasions (legal moves)
@@ -42,7 +45,7 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
         else do
             let sortedMoves = orderGenMoves vBoard evasions Nothing
             -- Search evasions. No stand-pat logic.
-            go sortedMoves alpha
+            go sortedMoves alpha pinned crossPinned kingSq
     else do
         -- Not in check: Standard QSearch
         -- Use cached eval if available
@@ -84,17 +87,19 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
 
             let sortedMoves = orderQSMoves vBoard qsMoves proms quietChecks
 
-            go sortedMoves a
+            go sortedMoves a pinned crossPinned kingSq
   where
-    go [] a = return a
-    go (lm:lms) a = do
+    go [] a _ _ _ = return a
+    go (lm:lms) a pinned crossPinned kingSq = do
         let inCheck = case scCheckState ctx of InCheck -> True; NotInCheck -> False
         let board = getBoard vBoard
         let gm = getGenMove lm
-        let legal = if inCheck then True else MoveGen.isLegal (pieces board) (state board) gm
+        let legal = if inCheck
+                    then True
+                    else MoveGen.isLegalFast (pieces board) (state board) pinned crossPinned kingSq gm
 
         if not legal
-        then go lms a
+        then go lms a pinned crossPinned kingSq
         else do
             score <- case applyLegalMove vBoard lm of
                 InCheckBoard newVBoard -> do
@@ -108,4 +113,4 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
 
             if score >= beta
             then return beta
-            else go lms (max a score)
+            else go lms (max a score) pinned crossPinned kingSq

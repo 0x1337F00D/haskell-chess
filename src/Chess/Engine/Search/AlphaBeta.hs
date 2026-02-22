@@ -125,11 +125,16 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
     -- Helper to find first legal move
     let inCheck = case scCheckState ctx of InCheck -> True; NotInCheck -> False
 
+    let kingSq = if inCheck then Nothing else MoveGen.kingSquare (pieces board) (GS.turn (state board))
+    let (pinned, crossPinned) = case kingSq of Just k -> MoveGen.pinnedBits (pieces board) (state board) k; Nothing -> (0, 0)
+
     let searchFirstLegal [] = return Nothing
         searchFirstLegal (lm:lms) = do
             let gm = getGenMove lm
             let m = fromGenMove gm
-            let legal = if inCheck then True else MoveGen.isLegal (pieces board) (state board) gm
+            let legal = if inCheck
+                        then True
+                        else MoveGen.isLegalFast (pieces board) (state board) pinned crossPinned kingSq gm
 
             if not legal
             then searchFirstLegal lms
@@ -185,7 +190,9 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
                                             else do
                                                 let gmWorker = getGenMove lmWorker
                                                 let mWorker = fromGenMove gmWorker
-                                                let legalWorker = if inCheck then True else MoveGen.isLegal (pieces board) (state board) gmWorker
+                                                let legalWorker = if inCheck
+                                                                  then True
+                                                                  else MoveGen.isLegalFast (pieces board) (state board) pinned crossPinned kingSq gmWorker
 
                                                 if not legalWorker
                                                 then loop bestRes
@@ -228,7 +235,9 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
             let m = fromGenMove gm
             let board = getBoard vBoard
             let inCheck = case scCheckState ctx of InCheck -> True; NotInCheck -> False
-            let legal = if inCheck then True else MoveGen.isLegal (pieces board) (state board) gm
+            let legal = if inCheck
+                        then True
+                        else MoveGen.isLegalFast (pieces board) (state board) pinned crossPinned kingSq gm
 
             if not legal
             then go lms bestM bestScore alpha beta
@@ -290,6 +299,9 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
         let nodeKind = scNodeKind ctx
         let checkState = scCheckState ctx
         let inCheck = case checkState of InCheck -> True; NotInCheck -> False
+
+        let kingSq = if inCheck then Nothing else MoveGen.kingSquare (pieces board) (GS.turn (state board))
+        let (pinned, crossPinned) = case kingSq of Just k -> MoveGen.pinnedBits (pieces board) (state board) k; Nothing -> (0, 0)
 
         ttEntry <- probeTT tt hash
         let (ttMove, ttScore, ttDepth, ttFlag) = case ttEntry of
@@ -401,7 +413,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                             let sortedGood = Ordering.pickAndSort (filterTT goodCaps) sortingTT
                             let countGood = length sortedGood
 
-                            (score1, flag1, bestM1, found1, alpha1) <- searchStage sortedGood (0 :: Int) inCheck staticEval alpha0 beta depth flag0 score0 bestM0 found0
+                            (score1, flag1, bestM1, found1, alpha1) <- searchStage sortedGood (0 :: Int) inCheck pinned crossPinned kingSq staticEval alpha0 beta depth flag0 score0 bestM0 found0
 
                             if score1 >= beta
                             then storeAndReturn score1 bestM1 TTLower
@@ -410,7 +422,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                                 let sortedPromotions = Ordering.pickAndSort (filterTT promotions) sortingTT
                                 let countProms = length sortedPromotions
 
-                                (score2, flag2, bestM2, found2, alpha2) <- searchStage sortedPromotions countGood inCheck staticEval alpha1 beta depth flag1 score1 bestM1 found1
+                                (score2, flag2, bestM2, found2, alpha2) <- searchStage sortedPromotions countGood inCheck pinned crossPinned kingSq staticEval alpha1 beta depth flag1 score1 bestM1 found1
 
                                 if score2 >= beta
                                 then storeAndReturn score2 bestM2 TTLower
@@ -421,13 +433,13 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                                     sortedQuiets <- orderQuiets ctx (filterTT quiets) killers counterMove sortingTT
                                     let countQuiets = length sortedQuiets
 
-                                    (score3, flag3, bestM3, found3, alpha3) <- searchStage sortedQuiets (countGood + countProms) inCheck staticEval alpha2 beta depth flag2 score2 bestM2 found2
+                                    (score3, flag3, bestM3, found3, alpha3) <- searchStage sortedQuiets (countGood + countProms) inCheck pinned crossPinned kingSq staticEval alpha2 beta depth flag2 score2 bestM2 found2
 
                                     if score3 >= beta
                                     then storeAndReturn score3 bestM3 flag3
                                     else do
                                         let sortedBad = Ordering.pickAndSort (filterTT badCaps) sortingTT
-                                        (score4, flag4, bestM4, found4, _) <- searchStage sortedBad (countGood + countProms + countQuiets) inCheck staticEval alpha3 beta depth flag3 score3 bestM3 found3
+                                        (score4, flag4, bestM4, found4, _) <- searchStage sortedBad (countGood + countProms + countQuiets) inCheck pinned crossPinned kingSq staticEval alpha3 beta depth flag3 score3 bestM3 found3
 
                                         if not found4
                                         then return $ if inCheck then -mateValue else 0
@@ -444,8 +456,8 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
             storeTT tt hash depth s f m
             return s
 
-    searchStage [] _ _ _ a _ _ flag bestScore bestM found = return (bestScore, flag, bestM, found, a)
-    searchStage (lm:lms) !index inCheck staticEval a b d flag bestScore bestM found = do
+    searchStage [] _ _ _ _ _ _ a _ _ flag bestScore bestM found = return (bestScore, flag, bestM, found, a)
+    searchStage (lm:lms) !index inCheck pinned crossPinned kingSq staticEval a b d flag bestScore bestM found = do
         let isCap = isCapture lm
         let isProm = isPromotion lm
         let isQuiet = not isCap && not isProm
@@ -468,12 +480,14 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                 _ -> False
 
         if pruneQuiet
-        then searchStage lms (index + 1) inCheck staticEval a b d flag bestScore bestM True
+        then searchStage lms (index + 1) inCheck pinned crossPinned kingSq staticEval a b d flag bestScore bestM True
         else do
-            let legal = if inCheck then True else MoveGen.isLegal (pieces board) (state board) gm
+            let legal = if inCheck
+                        then True
+                        else MoveGen.isLegalFast (pieces board) (state board) pinned crossPinned kingSq gm
 
             if not legal
-            then searchStage lms index inCheck staticEval a b d flag bestScore bestM found
+            then searchStage lms index inCheck pinned crossPinned kingSq staticEval a b d flag bestScore bestM found
             else do
                 let extension = if inCheck then depthOne else depthZero
                 let nextDepth = (decDepth d) `plusDepth` extension
@@ -542,4 +556,4 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                          updateCounterMove ctx lastMove m
                      else return ()
                      return (score, TTLower, m, True, newAlpha)
-                else searchStage lms (index + 1) inCheck staticEval newAlpha b d newFlag newBestScore newBestM True
+                else searchStage lms (index + 1) inCheck pinned crossPinned kingSq staticEval newAlpha b d newFlag newBestScore newBestM True
