@@ -729,7 +729,7 @@ isLegalFast b gs pinned crossPinned mKingSq gm =
                     else checkPinned k f t
                 GenPromotion f t _ -> checkPinned k f t
                 GenPromotionCapture f t _ _ -> checkPinned k f t
-                _ -> isLegal b gs gm -- Fallback
+                -- _ -> isLegal b gs gm -- Fallback (redundant with COMPLETE)
   where
     checkPinned k f t =
         if testBit crossPinned (unSquare f)
@@ -753,7 +753,7 @@ pinnedBits :: Board -> GameState -> Square -> (Bitboard, Bitboard)
 pinnedBits b gs kingSq =
     let c = turn gs
         oppC = oppositeColor c
-        occ = occupiedTotal b
+        -- occ = occupiedTotal b -- unused
         friends = occupiedBy b c
         enemies = occupiedBy b oppC
 
@@ -771,10 +771,10 @@ pinnedBits b gs kingSq =
                 blockers = r .&. friends
             in if popCount blockers == 1
                then
-                   let b = blockers
-                   in if b .&. pinned /= 0
-                      then (pinned, cross .|. b)
-                      else (pinned .|. b, cross)
+                   let blocker = blockers
+                   in if blocker .&. pinned /= 0
+                      then (pinned, cross .|. blocker)
+                      else (pinned .|. blocker, cross)
                else (pinned, cross)
 
     in foldBitboard accPinned (0, 0) pinners
