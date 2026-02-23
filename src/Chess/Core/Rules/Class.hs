@@ -12,6 +12,7 @@ module Chess.Core.Rules.Class where
 import Chess.Core.Game.Internal
 import Chess.Core.Move.Internal
 import Chess.Core.Board.Internal (Color(..), KnownColor(..), sColor, SColor(..))
+import Control.Parallel.Strategies (parMap, rseq)
 
 -- Type-level Opposite Color
 type family Opposite (c :: Color) :: Color where
@@ -36,6 +37,7 @@ class ChessVariant (v :: Variant) where
 perftWhite :: ChessVariant v => Int -> ActiveGame v 'White s -> Int
 perftWhite depth game
   | depth == 0 = 1
+  | depth >= 3 = sum $ parMap rseq go (generateMoves game)
   | otherwise = sum $ map go (generateMoves game)
   where
     go m = case executeMove m game of
@@ -45,6 +47,7 @@ perftWhite depth game
 perftBlack :: ChessVariant v => Int -> ActiveGame v 'Black s -> Int
 perftBlack depth game
   | depth == 0 = 1
+  | depth >= 3 = sum $ parMap rseq go (generateMoves game)
   | otherwise = sum $ map go (generateMoves game)
   where
     go m = case executeMove m game of

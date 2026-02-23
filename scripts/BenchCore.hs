@@ -12,8 +12,11 @@ import Chess.Core.Game
 import Chess.Core.Game.Internal
 import Chess.Core.Rules
 import Chess.Core.Rules.Class (Opposite)
+import Chess.Core.Rules.Atomic ()
 import Chess.Core.Perft
-import Chess.Core.Board.Internal (KnownColor(..), SColor(..), sColor)
+import qualified Chess.Core.Board.Internal as CoreBoard
+import Chess.Core.Board.Internal (KnownColor(..), SColor(..), sColor, Color(..))
+import qualified Chess.Board.GameState as GS
 import Chess.Types (Depth, mkDepth, unDepth)
 import Data.Time.Clock
 import Text.Printf
@@ -43,6 +46,18 @@ benchGame :: String -> Depth -> Game 'Standard 'Active -> IO ()
 benchGame name depth (InProgressGame (ag :: ActiveGame 'Standard c s)) =
     withOpposite @c (runPerft name depth ag)
 
+benchAtomic :: String -> Depth -> IO ()
+benchAtomic name depth = do
+    let b = CoreBoard.initialBoard
+        baseBoard = toBaseBoard b
+        ag = ActiveGame
+           { internalBoard = baseBoard
+           , gameState = GS.initialGameState
+           , variantState = ()
+           , checkStatus = SSafe
+           } :: ActiveGame 'Atomic 'White 'Safe
+    withOpposite @'White (runPerft name depth ag)
+
 main :: IO ()
 main = do
     putStrLn "Benchmarking Chess.Core..."
@@ -56,3 +71,6 @@ main = do
     case gameFromFEN kiwiFen of
         Just game -> benchGame "KiwiPete" (mkDepth 4) game
         _ -> putStrLn "Error: Failed to parse KiwiPete FEN"
+
+    -- Atomic Start Position
+    benchAtomic "Atomic Start" (mkDepth 4)
