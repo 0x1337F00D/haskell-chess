@@ -200,6 +200,75 @@ genMoveToMove (GenCastling f t) = Move f t Nothing
 genMoveToMove (GenPromotion f t p) = Move f t (Just p)
 genMoveToMove (GenPromotionCapture f t p _) = Move f t (Just p)
 
+-- | Pinned bitboard calculation
+{-# INLINE pinnedBits #-}
+pinnedBits :: Board -> Color -> Bitboard
+pinnedBits b c =
+    case kingSquare b c of
+        Nothing -> 0 -- No King, no pins (e.g. Horde White)
+        Just kingSq ->
+            let occ = occupiedTotal b
+                friends = occupiedBy b c
+                oppC = oppositeColor c
+                -- Gather all enemy sliders (R, B, Q)
+                rooks = pieceBitboard b oppC Rook .|. pieceBitboard b oppC Queen
+                bishops = pieceBitboard b oppC Bishop .|. pieceBitboard b oppC Queen
+                sliders = rooks .|. bishops
+
+                checkPinner acc pinner =
+                    let r = ray kingSq pinner
+                    in if r == 0
+                       then acc
+                       else
+                           -- Check compatibility (Rook/Queen for Orth, Bishop/Queen for Diag)
+                           let isOrth = squareFile kingSq == squareFile pinner || squareRank kingSq == squareRank pinner
+                               compatible = if isOrth then testBit rooks (unSquare pinner) else testBit bishops (unSquare pinner)
+                           in if not compatible then acc
+                              else
+                                  let blockers = between kingSq pinner .&. occ
+                                  in if popCount blockers == 1 && (blockers .&. friends /= 0)
+                                     then acc .|. blockers
+                                     else acc
+            in foldBitboard checkPinner 0 sliders
+
+-- | Check if three squares are collinear.
+{-# INLINE areCollinear #-}
+areCollinear :: Square -> Square -> Square -> Bool
+areCollinear (Square s1) (Square s2) (Square s3) =
+    let f1 = s1 .&. 7
+        r1 = s1 `shiftR` 3
+        f2 = s2 .&. 7
+        r2 = s2 `shiftR` 3
+        f3 = s3 .&. 7
+        r3 = s3 `shiftR` 3
+    in (f1 - f2) * (r2 - r3) == (f2 - f3) * (r1 - r2)
+
+-- | Context-Aware Legality Check
+{-# INLINE isLegalSafe #-}
+isLegalSafe :: Board -> GameState -> Bitboard -> GenMove -> Bool
+isLegalSafe b gs pinned gm = case gm of
+    GenQuiet from to pt ->
+        if pt == King then isLegal b gs gm
+        else checkPinned from to
+    GenCapture from to pt _ ->
+        if pt == King then isLegal b gs gm
+        else checkPinned from to
+    GenPromotion from to _ -> checkPinned from to
+    GenPromotionCapture from to _ _ -> checkPinned from to
+    GenEnPassant _ _ -> isLegal b gs gm
+    GenCastling _ _ -> isLegal b gs gm
+    GenDrop _ _ -> True
+    GenCastling960 _ _ -> isLegal b gs gm
+
+  where
+    c = turn gs
+    kingSq = case kingSquare b c of Just k -> k; Nothing -> Square 0
+
+    checkPinned from to =
+        if not (testBit pinned (unSquare from))
+        then True
+        else areCollinear kingSq from to
+
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> GameState -> U.Vector GenMove
 pseudoLegalMoves b gs = U.concat
@@ -214,15 +283,36 @@ pseudoLegalMoves b gs = U.concat
 
 -- | Generate all legal moves.
 legalMoves :: Board -> GameState -> [Move]
-legalMoves b gs = U.foldr step [] (pseudoLegalMoves b gs)
-  where
-    step gm acc
-      | isLegal b gs gm = genMoveToMove gm : acc
-      | otherwise       = acc
+legalMoves b gs =
+    let c = turn gs
+        occ = occupiedTotal b
+        mbKing = kingSquare b c
+        attackers = case mbKing of
+            Nothing -> 0
+            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+    in if attackers /= 0
+       then map genMoveToMove $ U.toList $ generateEvasions b gs
+       else
+           let pinned = pinnedBits b c
+               pseudo = pseudoLegalMoves b gs
+               step gm acc = if isLegalSafe b gs pinned gm then genMoveToMove gm : acc else acc
+           in U.foldr step [] pseudo
 
 -- | Generate all legal moves returning GenMove.
 legalGenMoves :: Board -> GameState -> U.Vector GenMove
-legalGenMoves b gs = U.filter (isLegal b gs) (pseudoLegalMoves b gs)
+legalGenMoves b gs =
+    let c = turn gs
+        occ = occupiedTotal b
+        mbKing = kingSquare b c
+        attackers = case mbKing of
+            Nothing -> 0
+            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+    in if attackers /= 0
+       then generateEvasions b gs
+       else
+           let pinned = pinnedBits b c
+               pseudo = pseudoLegalMoves b gs
+           in U.filter (isLegalSafe b gs pinned) pseudo
 
 -- | Generate all pseudo-legal capture moves.
 pseudoLegalCaptures :: Board -> GameState -> U.Vector GenMove
@@ -237,15 +327,36 @@ pseudoLegalCaptures b gs = U.concat
 
 -- | Generate all legal capture moves.
 legalCaptures :: Board -> GameState -> [Move]
-legalCaptures b gs = U.foldr step [] (pseudoLegalCaptures b gs)
-  where
-    step gm acc
-      | isLegal b gs gm = genMoveToMove gm : acc
-      | otherwise       = acc
+legalCaptures b gs =
+    let c = turn gs
+        occ = occupiedTotal b
+        mbKing = kingSquare b c
+        attackers = case mbKing of
+            Nothing -> 0
+            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+    in if attackers /= 0
+       then map genMoveToMove $ U.toList $ generateEvasionCaptures b gs
+       else
+           let pinned = pinnedBits b c
+               pseudo = pseudoLegalCaptures b gs
+               step gm acc = if isLegalSafe b gs pinned gm then genMoveToMove gm : acc else acc
+           in U.foldr step [] pseudo
 
 -- | Generate all legal capture moves returning GenMove.
 legalGenCaptures :: Board -> GameState -> U.Vector GenMove
-legalGenCaptures b gs = U.filter (isLegal b gs) (pseudoLegalCaptures b gs)
+legalGenCaptures b gs =
+    let c = turn gs
+        occ = occupiedTotal b
+        mbKing = kingSquare b c
+        attackers = case mbKing of
+            Nothing -> 0
+            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+    in if attackers /= 0
+       then generateEvasionCaptures b gs
+       else
+           let pinned = pinnedBits b c
+               pseudo = pseudoLegalCaptures b gs
+           in U.filter (isLegalSafe b gs pinned) pseudo
 
 -- | Generate all pseudo-legal quiet moves.
 pseudoLegalQuiets :: Board -> GameState -> U.Vector GenMove
@@ -261,7 +372,19 @@ pseudoLegalQuiets b gs = U.concat
 
 -- | Generate all legal quiet moves returning GenMove.
 legalGenQuiets :: Board -> GameState -> U.Vector GenMove
-legalGenQuiets b gs = U.filter (isLegal b gs) (pseudoLegalQuiets b gs)
+legalGenQuiets b gs =
+    let c = turn gs
+        occ = occupiedTotal b
+        mbKing = kingSquare b c
+        attackers = case mbKing of
+            Nothing -> 0
+            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+    in if attackers /= 0
+       then generateEvasionQuiets b gs
+       else
+           let pinned = pinnedBits b c
+               pseudo = pseudoLegalQuiets b gs
+           in U.filter (isLegalSafe b gs pinned) pseudo
 
 -- | Generate all pseudo-legal promotion moves.
 pseudoLegalPromotions :: Board -> GameState -> U.Vector GenMove
@@ -269,7 +392,19 @@ pseudoLegalPromotions b gs = pawnPromotions b gs
 
 -- | Generate all legal promotion moves returning GenMove.
 legalGenPromotions :: Board -> GameState -> U.Vector GenMove
-legalGenPromotions b gs = U.filter (isLegal b gs) (pseudoLegalPromotions b gs)
+legalGenPromotions b gs =
+    let c = turn gs
+        occ = occupiedTotal b
+        mbKing = kingSquare b c
+        attackers = case mbKing of
+            Nothing -> 0
+            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+    in if attackers /= 0
+       then generateEvasionPromotions b gs
+       else
+           let pinned = pinnedBits b c
+               pseudo = pseudoLegalPromotions b gs
+           in U.filter (isLegalSafe b gs pinned) pseudo
 
 -- | Generate only legal moves when the king is in check.
 generateEvasions :: Board -> GameState -> U.Vector GenMove
@@ -694,7 +829,7 @@ isLegal b gs gm =
         kingSq' = kingSquare b' c
         isCastling = case gm of GenCastling _ _ -> True; _ -> False
     in case kingSq' of
-        Nothing -> False
+        Nothing -> True
         Just k -> not (isAttackedBy b' (oppositeColor c) k) && (if isCastling then castlingSafe b gs gm else True)
 
     where
@@ -1424,7 +1559,71 @@ pseudoLegalMovesList b gs = U.toList (pseudoLegalMoves b gs)
 
 {-# INLINE legalGenMovesList #-}
 legalGenMovesList :: Board -> GameState -> [GenMove]
-legalGenMovesList b gs = U.toList (legalGenMoves b gs)
+legalGenMovesList b gs =
+    let c = turn gs
+        occ = occupiedTotal b
+        mbKing = kingSquare b c
+        attackers = case mbKing of
+            Nothing -> 0
+            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+    in if attackers /= 0
+       then U.toList (generateEvasions b gs)
+       else
+           let pinned = pinnedBits b c
+               pseudo = pseudoLegalMoves b gs
+               step gm acc = if isLegalSafe b gs pinned gm then gm : acc else acc
+           in U.foldr step [] pseudo
+
+{-# INLINE legalGenCapturesList #-}
+legalGenCapturesList :: Board -> GameState -> [GenMove]
+legalGenCapturesList b gs =
+    let c = turn gs
+        occ = occupiedTotal b
+        mbKing = kingSquare b c
+        attackers = case mbKing of
+            Nothing -> 0
+            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+    in if attackers /= 0
+       then U.toList (generateEvasionCaptures b gs)
+       else
+           let pinned = pinnedBits b c
+               pseudo = pseudoLegalCaptures b gs
+               step gm acc = if isLegalSafe b gs pinned gm then gm : acc else acc
+           in U.foldr step [] pseudo
+
+{-# INLINE legalGenQuietsList #-}
+legalGenQuietsList :: Board -> GameState -> [GenMove]
+legalGenQuietsList b gs =
+    let c = turn gs
+        occ = occupiedTotal b
+        mbKing = kingSquare b c
+        attackers = case mbKing of
+            Nothing -> 0
+            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+    in if attackers /= 0
+       then U.toList (generateEvasionQuiets b gs)
+       else
+           let pinned = pinnedBits b c
+               pseudo = pseudoLegalQuiets b gs
+               step gm acc = if isLegalSafe b gs pinned gm then gm : acc else acc
+           in U.foldr step [] pseudo
+
+{-# INLINE legalGenPromotionsList #-}
+legalGenPromotionsList :: Board -> GameState -> [GenMove]
+legalGenPromotionsList b gs =
+    let c = turn gs
+        occ = occupiedTotal b
+        mbKing = kingSquare b c
+        attackers = case mbKing of
+            Nothing -> 0
+            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+    in if attackers /= 0
+       then U.toList (generateEvasionPromotions b gs)
+       else
+           let pinned = pinnedBits b c
+               pseudo = pseudoLegalPromotions b gs
+               step gm acc = if isLegalSafe b gs pinned gm then gm : acc else acc
+           in U.foldr step [] pseudo
 
 {-# INLINE pawnMovesList #-}
 pawnMovesList :: Board -> GameState -> [GenMove]
