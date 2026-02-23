@@ -271,15 +271,18 @@ isLegalSafe b gs pinned gm = case gm of
 
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> GameState -> U.Vector GenMove
-pseudoLegalMoves b gs = U.concat
-    [ pawnMoves b gs
-    , pieceMoves b gs Knight
-    , pieceMoves b gs Bishop
-    , pieceMoves b gs Rook
-    , pieceMoves b gs Queen
-    , pieceMoves b gs King
-    , castlingMoves b gs
-    ]
+pseudoLegalMoves b gs = U.create $ do
+    mv <- M.unsafeNew 256
+    idx0 <- fillPawnQuiets b gs mv 0
+    idx1 <- fillPawnCaptures b gs mv idx0
+    idx2 <- fillPawnPromotions b gs mv idx1
+    idx3 <- fillPieceMoves b gs Knight mv idx2
+    idx4 <- fillPieceMoves b gs Bishop mv idx3
+    idx5 <- fillPieceMoves b gs Rook mv idx4
+    idx6 <- fillPieceMoves b gs Queen mv idx5
+    idx7 <- fillPieceMoves b gs King mv idx6
+    idx8 <- fillCastlingMoves b gs mv idx7
+    return (M.slice 0 idx8 mv)
 
 -- | Generate all legal moves.
 legalMoves :: Board -> GameState -> [Move]
@@ -316,14 +319,15 @@ legalGenMoves b gs =
 
 -- | Generate all pseudo-legal capture moves.
 pseudoLegalCaptures :: Board -> GameState -> U.Vector GenMove
-pseudoLegalCaptures b gs = U.concat
-    [ pawnCaptures b gs
-    , pieceCaptures b gs Knight
-    , pieceCaptures b gs Bishop
-    , pieceCaptures b gs Rook
-    , pieceCaptures b gs Queen
-    , pieceCaptures b gs King
-    ]
+pseudoLegalCaptures b gs = U.create $ do
+    mv <- M.unsafeNew 256
+    idx0 <- fillPawnCaptures b gs mv 0
+    idx1 <- fillPieceCaptures b gs Knight mv idx0
+    idx2 <- fillPieceCaptures b gs Bishop mv idx1
+    idx3 <- fillPieceCaptures b gs Rook mv idx2
+    idx4 <- fillPieceCaptures b gs Queen mv idx3
+    idx5 <- fillPieceCaptures b gs King mv idx4
+    return (M.slice 0 idx5 mv)
 
 -- | Generate all legal capture moves.
 legalCaptures :: Board -> GameState -> [Move]
@@ -360,15 +364,16 @@ legalGenCaptures b gs =
 
 -- | Generate all pseudo-legal quiet moves.
 pseudoLegalQuiets :: Board -> GameState -> U.Vector GenMove
-pseudoLegalQuiets b gs = U.concat
-    [ pawnQuiets b gs
-    , pieceQuiets b gs Knight
-    , pieceQuiets b gs Bishop
-    , pieceQuiets b gs Rook
-    , pieceQuiets b gs Queen
-    , pieceQuiets b gs King
-    , castlingMoves b gs
-    ]
+pseudoLegalQuiets b gs = U.create $ do
+    mv <- M.unsafeNew 256
+    idx0 <- fillPawnQuiets b gs mv 0
+    idx1 <- fillPieceQuiets b gs Knight mv idx0
+    idx2 <- fillPieceQuiets b gs Bishop mv idx1
+    idx3 <- fillPieceQuiets b gs Rook mv idx2
+    idx4 <- fillPieceQuiets b gs Queen mv idx3
+    idx5 <- fillPieceQuiets b gs King mv idx4
+    idx6 <- fillCastlingMoves b gs mv idx5
+    return (M.slice 0 idx6 mv)
 
 -- | Generate all legal quiet moves returning GenMove.
 legalGenQuiets :: Board -> GameState -> U.Vector GenMove
@@ -1083,7 +1088,12 @@ fillPieceQuiets b gs pt mv !startIdx =
     in foldBitboardM fillAcc startIdx bb
 
 pawnMoves :: Board -> GameState -> U.Vector GenMove
-pawnMoves b gs = U.concat [pawnQuiets b gs, pawnCaptures b gs, pawnPromotions b gs]
+pawnMoves b gs = U.create $ do
+    mv <- M.unsafeNew 256
+    idx0 <- fillPawnQuiets b gs mv 0
+    idx1 <- fillPawnCaptures b gs mv idx0
+    idx2 <- fillPawnPromotions b gs mv idx1
+    return (M.slice 0 idx2 mv)
 
 pawnQuiets :: Board -> GameState -> U.Vector GenMove
 pawnQuiets b gs = U.create $ do
