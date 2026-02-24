@@ -16,7 +16,7 @@ import System.IO (withBinaryFile, IOMode(ReadMode), hFileSize, hSeek, SeekMode(A
 
 import Chess.Types
 import Chess.Board.Base
-import Chess.Board.GameState
+import Chess.Board.GameState hiding (GameState)
 
 -- | 781 random numbers for Zobrist hashing.
 random64 :: V.Vector Word64
@@ -220,9 +220,10 @@ random64 = V.fromList [
   ]
 
 -- | Zobrist key generation for a given board position.
-polyglotKey :: Board -> GameState -> Word64
-polyglotKey b gs =
+polyglotKey :: Board -> Word64
+polyglotKey b =
     let
+        gs = statePacked b
         -- 1. Pieces
         pieceKey = V.foldl' xor 0 $ V.fromList [
             pieceRandom (pieceAt b sq) sq
@@ -239,7 +240,7 @@ polyglotKey b gs =
         -- 3. En Passant
         -- Polyglot only includes EP if a capture is actually possible by a pawn.
         -- "If the opponent has performed a double pawn push and there is now a pawn next to it belonging to the player to move"
-        epKey = let epSq = epSquare gs in
+        epKey = let epSq = getEpSquare gs in
             if epSq == NoSquare
             then 0
             else
@@ -248,7 +249,7 @@ polyglotKey b gs =
                     -- Pawn location is one rank behind/forward of epSq depending on turn
                     -- If White to move, EP target is rank 5 (index), so pawn is rank 4.
                     -- If Black to move, EP target is rank 2, so pawn is rank 3.
-                    pawnRank = if turn gs == White then 4 else 3
+                    pawnRank = if getTurn gs == White then 4 else 3
 
                     -- Check if neighbor squares have friendly pawns
                     leftFile = file - 1
@@ -256,12 +257,12 @@ polyglotKey b gs =
 
                     hasLeft = if leftFile >= 0
                               then case pieceAt b (Square (pawnRank * 8 + leftFile)) of
-                                     Just (Piece c Pawn) -> c == turn gs
+                                     Just (Piece c Pawn) -> c == getTurn gs
                                      _ -> False
                               else False
                     hasRight = if rightFile <= 7
                                then case pieceAt b (Square (pawnRank * 8 + rightFile)) of
-                                      Just (Piece c Pawn) -> c == turn gs
+                                      Just (Piece c Pawn) -> c == getTurn gs
                                       _ -> False
                                else False
                 in if hasLeft || hasRight
@@ -269,7 +270,7 @@ polyglotKey b gs =
                    else 0
 
         -- 4. Turn
-        turnKey = if turn gs == White then random64 V.! 780 else 0
+        turnKey = if getTurn gs == White then random64 V.! 780 else 0
     in
         pieceKey `xor` castleKey `xor` epKey `xor` turnKey
 

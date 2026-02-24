@@ -873,7 +873,7 @@ applyMoveBoardFast b gm =
 
         GenPromotionCapture from to promoPt capPt ->
             let b1 = unsafeRemovePiece b from c Pawn
-            b2 = unsafeRemovePiece b1 to (oppositeColor c) capPt
+                b2 = unsafeRemovePiece b1 to (oppositeColor c) capPt
             in unsafePutPiece b2 to (Piece c promoPt)
 
 movePieceFast :: Board -> Square -> Square -> Color -> PieceType -> Board

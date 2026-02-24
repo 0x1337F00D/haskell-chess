@@ -3,13 +3,13 @@ module Chess.Core.Fen where
 import Chess.Board.Fen (fen)
 import qualified Chess.Board.Fen as Fen
 import Chess.Board.Base (Board)
-import Chess.Board.GameState (GameState)
 import Text.Read (readMaybe)
 import Data.List (stripPrefix, partition)
 
 -- | Parse ThreeCheck FEN string.
--- Returns Board, GameState, and (WhiteChecks, BlackChecks)
-parseThreeCheckFen :: String -> Maybe (Board, GameState, (Int, Int))
+-- Returns Board and (WhiteChecks, BlackChecks).
+-- Board contains the GameState.
+parseThreeCheckFen :: String -> Maybe (Board, (Int, Int))
 parseThreeCheckFen s = do
   let parts = words s
   if length parts >= 4 then do
@@ -25,13 +25,13 @@ parseThreeCheckFen s = do
 
       -- Reconstruct standard FEN part for generic parsing
       let standardFen = unwords (pre ++ otherParts)
-      (b, gs) <- Fen.parseFen standardFen
+      b <- Fen.parseFen standardFen
 
       checks <- case checksStr of
           Just cs -> parseThreeCheckExtra cs
           Nothing -> return (0, 0)
 
-      return (b, gs, checks)
+      return (b, checks)
   else Nothing
 
 parseThreeCheckExtra :: String -> Maybe (Int, Int)
@@ -45,7 +45,7 @@ parseThreeCheckExtra s = do
   return (w, b)
 
 -- | Serialize ThreeCheck FEN.
-threeCheckFen :: Board -> GameState -> (Int, Int) -> String
-threeCheckFen b gs (wChecks, bChecks) =
-  let baseFen = fen b gs
+threeCheckFen :: Board -> (Int, Int) -> String
+threeCheckFen b (wChecks, bChecks) =
+  let baseFen = fen b
   in baseFen ++ " +" ++ show wChecks ++ "+" ++ show bChecks

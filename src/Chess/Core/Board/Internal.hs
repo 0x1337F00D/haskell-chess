@@ -199,7 +199,7 @@ initialBoard = Board
 -- fromFEN implementation
 fromFEN :: String -> Maybe Board
 fromFEN s = do
-  (baseBoard, _) <- Fen.parseFen s
+  baseBoard <- Fen.parseFen s
   fromBaseBoard baseBoard
 
 -- Helper to convert Base Square to Core Square
