@@ -458,6 +458,13 @@ applyLegalMove (ValidatedBoard b) (LegalMove gm) =
        then InCheckBoard (ValidatedBoard b')
        else NotInCheckBoard (ValidatedBoard b')
 
+applyLegalMoveValidated :: ValidatedBoard s -> LegalMove -> Bool -> SomeValidatedBoard
+applyLegalMoveValidated (ValidatedBoard b) (LegalMove gm) givesCheck =
+    let b' = applyGenMove b gm
+    in if givesCheck
+       then InCheckBoard (ValidatedBoard b')
+       else NotInCheckBoard (ValidatedBoard b')
+
 -- Safe Accessors for LegalMove
 
 moveFrom :: LegalMove -> Square
