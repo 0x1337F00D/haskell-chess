@@ -1403,3 +1403,40 @@ pieceMovesList b gs pt = U.toList (pieceMoves b gs pt)
 castlingMovesList :: Board -> GameState -> [GenMove]
 castlingMovesList b gs = U.toList (castlingMoves b gs)
 
+-- | Generate legal moves assuming the king is not in check (Safe).
+-- This skips the expensive attackers check and uses isLegalSafe directly.
+{-# INLINE legalGenMovesSafeList #-}
+legalGenMovesSafeList :: Board -> GameState -> [GenMove]
+legalGenMovesSafeList b gs =
+    let c = turn gs
+        pinned = pinnedBits b c
+        pseudo = pseudoLegalMoves b gs
+        step gm acc = if isLegalSafe b gs pinned gm then gm : acc else acc
+    in U.foldr step [] pseudo
+
+{-# INLINE legalGenCapturesSafeList #-}
+legalGenCapturesSafeList :: Board -> GameState -> [GenMove]
+legalGenCapturesSafeList b gs =
+    let c = turn gs
+        pinned = pinnedBits b c
+        pseudo = pseudoLegalCaptures b gs
+        step gm acc = if isLegalSafe b gs pinned gm then gm : acc else acc
+    in U.foldr step [] pseudo
+
+{-# INLINE legalGenQuietsSafeList #-}
+legalGenQuietsSafeList :: Board -> GameState -> [GenMove]
+legalGenQuietsSafeList b gs =
+    let c = turn gs
+        pinned = pinnedBits b c
+        pseudo = pseudoLegalQuiets b gs
+        step gm acc = if isLegalSafe b gs pinned gm then gm : acc else acc
+    in U.foldr step [] pseudo
+
+{-# INLINE legalGenPromotionsSafeList #-}
+legalGenPromotionsSafeList :: Board -> GameState -> [GenMove]
+legalGenPromotionsSafeList b gs =
+    let c = turn gs
+        pinned = pinnedBits b c
+        pseudo = pseudoLegalPromotions b gs
+        step gm acc = if isLegalSafe b gs pinned gm then gm : acc else acc
+    in U.foldr step [] pseudo
