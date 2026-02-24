@@ -40,6 +40,7 @@ module Chess.Board
   , getGenMove
   , MoveGenerator(..)
   , applyLegalMove
+  , applyLegalMoveValidated
   , moveFrom
   , moveTo
   , movePromotion

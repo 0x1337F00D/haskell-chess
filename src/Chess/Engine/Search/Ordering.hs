@@ -55,7 +55,8 @@ orderGenMoves vBoard moves ttM = sortOn (Down . orderScore) moves
 
 -- | Specialized move ordering for Quiescence Search.
 -- Avoids concatenating lists and re-partitioning.
-orderQSMoves :: ValidatedBoard s -> [LegalMove] -> [LegalMove] -> [LegalMove] -> [LegalMove]
+-- Returns moves with known check status (True if known to give check, Nothing if unknown).
+orderQSMoves :: ValidatedBoard s -> [LegalMove] -> [LegalMove] -> [LegalMove] -> [(LegalMove, Maybe Bool)]
 orderQSMoves vBoard caps proms quietChecks =
     let (Board b gs _) = getBoard vBoard
         turn = GS.turn gs
@@ -74,8 +75,11 @@ orderQSMoves vBoard caps proms quietChecks =
 
         sortDesc = sortOn (negate . scoreMove . getGenMove)
 
+        tagUnknown ms = map (\m -> (m, Nothing)) ms
+        tagCheck ms = map (\m -> (m, Just True)) ms
+
         -- Order: PromoCaps > GoodCaps > Proms > QuietChecks > BadCaps
-    in sortDesc promoCaps ++ sortDesc goodCaps ++ sortDesc proms ++ quietChecks ++ sortDesc badCaps
+    in tagUnknown (sortDesc promoCaps) ++ tagUnknown (sortDesc goodCaps) ++ tagUnknown (sortDesc proms) ++ tagCheck quietChecks ++ tagCheck (sortDesc badCaps)
 
 scoreMove :: GenMove -> Int
 scoreMove (GenCapture _ _ pt capPt) = 1000 + (pieceValue capPt * 10) - (pieceValue pt)
