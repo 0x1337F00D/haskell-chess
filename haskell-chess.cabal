@@ -60,6 +60,7 @@ library
 
     -- Modules exported by the library.
     exposed-modules:  Chess.Types
+                    , Chess.Internal.Builder
                     , Chess.Bitboard
                     , Chess.SquareSet
                     , Chess.Board.Base

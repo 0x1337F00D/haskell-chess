@@ -19,18 +19,20 @@ import qualified Chess.Board.Zobrist as Zobrist
 parseFenRest :: String -> Maybe (Board, GameState, [String])
 parseFenRest s = do
   let parts = words s
-  guard (length parts >= 4)
-  let (boardStrFull:turnStr:castlingStr:epStr:rest) = parts
 
-      -- Extract pocket if attached to board string (e.g. "RNBQKBNR[P]")
-      (boardStr, pocketPart) = span (/= '[') boardStrFull
+  (boardStrFull, turnStr, castlingStr, epStr, rest) <- case parts of
+      (b:t:c:e:r) -> Just (b, t, c, e, r)
+      _           -> Nothing
 
-      (halfmoveStr, fullmoveStr, extra) = case rest of
+  -- Extract pocket if attached to board string (e.g. "RNBQKBNR[P]")
+  let (boardStr, pocketPart) = span (/= '[') boardStrFull
+
+  let (halfmoveStr, fullmoveStr, extra) = case rest of
                                             (h:f:r) -> (h, f, r)
                                             [h] -> (h, "1", [])
                                             [] -> ("0", "1", [])
 
-      extra' = if null pocketPart then extra else pocketPart : extra
+  let extra' = if null pocketPart then extra else pocketPart : extra
 
   board <- parseBoard boardStr
   turnVal <- parseTurn turnStr
