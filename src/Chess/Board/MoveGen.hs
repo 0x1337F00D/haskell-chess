@@ -384,7 +384,8 @@ legalGenQuiets b =
        else
            let pinned = pinnedBits b c
                pseudo = pseudoLegalQuiets b
-           in U.filter (isLegalSafe b pinned) pseudo
+               step gm acc = if isLegalSafe b pinned gm then genMoveToMove gm : acc else acc
+           in U.foldr step [] pseudo
 
 -- | Generate all pseudo-legal promotion moves.
 pseudoLegalPromotions :: Board -> U.Vector GenMove
@@ -1419,6 +1420,104 @@ applyMoveBoard b m =
     case toGenMove b m of
         Just gm -> applyMoveBoardFast b gm
         Nothing -> b
+
+-- | Check if a move gives check without fully applying it.
+-- This handles all move types efficiently.
+givesCheck :: Board -> GenMove -> Bool
+givesCheck b gm =
+    let c = getTurn (statePacked b)
+        oppC = oppositeColor c
+        kingSq = case kingSquare b oppC of
+                   Just k -> k
+                   Nothing -> Square 0
+    in case gm of
+        GenQuiet from to pt ->
+            givesCheckGeneric b c kingSq from to pt
+
+        GenCapture from to pt _ ->
+            givesCheckGeneric b c kingSq from to pt
+
+        GenPromotion from to promoPt ->
+            givesCheckGeneric b c kingSq from to promoPt
+
+        GenPromotionCapture from to promoPt _ ->
+            givesCheckGeneric b c kingSq from to promoPt
+
+        GenEnPassant from to ->
+            let
+                occ = occupiedTotal b
+                fromI = unSquare from
+                toI = unSquare to
+                capSqI = if c == White then toI - 8 else toI + 8
+                -- Remove from, set to, remove captured pawn
+                occ' = ((occ `clearBit` fromI) `setBit` toI) `clearBit` capSqI
+
+                -- Magic Lookups from King (Symmetric)
+                bAtt = bishopAttacks kingSq occ'
+                rAtt = rookAttacks kingSq occ'
+
+                -- 1. Direct Check from 'to' (Pawn)
+                direct = testBit (pawnAttacks c to) (unSquare kingSq)
+
+                -- 2. Discovered Check
+                (fDiag, fOrth) = if c == White
+                                 then (whiteDiagonal b, whiteOrthogonal b)
+                                 else (blackDiagonal b, blackOrthogonal b)
+
+                fDiag' = fDiag `clearBit` fromI
+                fOrth' = fOrth `clearBit` fromI
+
+                discovered = (bAtt .&. fDiag' /= 0) || (rAtt .&. fOrth' /= 0)
+
+            in direct || discovered
+
+        GenCastling _ _ ->
+             let b' = applyMoveBoardFast b gm
+             in isAttackedBy b' c kingSq
+
+        _ -> False
+
+{-# INLINE givesCheckGeneric #-}
+givesCheckGeneric :: Board -> Color -> Square -> Square -> Square -> PieceType -> Bool
+givesCheckGeneric b c kingSq from to pt =
+    let
+        occ = occupiedTotal b
+        fromI = unSquare from
+        toI = unSquare to
+        -- Remove from, set to (overwrites capture if any)
+        occ' = (occ `clearBit` fromI) `setBit` toI
+
+        -- Magic Lookups from King (Symmetric)
+        bAtt = bishopAttacks kingSq occ'
+        rAtt = rookAttacks kingSq occ'
+
+        -- 1. Direct Check from 'to'
+        direct = case pt of
+            Pawn -> testBit (pawnAttacks c to) (unSquare kingSq)
+            Knight -> testBit (knightAttacks to) (unSquare kingSq)
+            Bishop -> testBit bAtt toI
+            Rook -> testBit rAtt toI
+            Queen -> testBit bAtt toI || testBit rAtt toI
+            King -> False
+
+        -- 2. Discovered Check from other sliders
+        (fDiag, fOrth) = if c == White
+                         then (whiteDiagonal b, whiteOrthogonal b)
+                         else (blackDiagonal b, blackOrthogonal b)
+
+        -- Remove the moving piece from friendly sliders if it was one.
+        -- We don't check if it was actually a slider, just clearing the bit is safe
+        -- as long as 'from' is the moving piece's square.
+        -- Note: If we promoted, 'pt' is the new piece, but 'from' held a Pawn (not a slider).
+        -- If we captured, 'to' held an enemy.
+        -- We only care about friendly sliders BEHIND 'from'.
+        fDiag' = fDiag `clearBit` fromI
+        fOrth' = fOrth `clearBit` fromI
+
+        discovered = (bAtt .&. fDiag' /= 0) || (rAtt .&. fOrth' /= 0)
+
+    in direct || discovered
+
 
 -- List Adapters for Core
 {-# INLINE pseudoLegalMovesList #-}

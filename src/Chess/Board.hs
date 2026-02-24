@@ -459,7 +459,7 @@ isLegalMove (Board b _) m = MoveGen.isLegalMove b m
 applyLegalMove :: ValidatedBoard s -> LegalMove -> SomeValidatedBoard
 applyLegalMove (ValidatedBoard b) (LegalMove gm) =
     let b' = applyGenMove b gm
-    in if MoveGen.givesCheck (pieces b) gm
+    in if MoveGen.givesCheck b gm
        then InCheckBoard (ValidatedBoard b')
        else NotInCheckBoard (ValidatedBoard b')
 
