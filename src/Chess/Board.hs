@@ -436,10 +436,10 @@ instance MoveGenerator 'InCheck where
     legalPromotionsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.generateEvasionPromotions b gs
 
 instance MoveGenerator 'NotInCheck where
-    legalMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.pseudoLegalMoves b gs
-    captureMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.pseudoLegalCaptures b gs
-    legalQuietsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.pseudoLegalQuiets b gs
-    legalPromotionsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.pseudoLegalPromotions b gs
+    legalMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ MoveGen.legalGenMovesSafeList b gs
+    captureMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ MoveGen.legalGenCapturesSafeList b gs
+    legalQuietsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ MoveGen.legalGenQuietsSafeList b gs
+    legalPromotionsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ MoveGen.legalGenPromotionsSafeList b gs
 
 mkLegalMove :: MoveGen.GenMove -> LegalMove
 mkLegalMove = LegalMove

@@ -88,14 +88,7 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
   where
     go [] a = return a
     go (lm:lms) a = do
-        let inCheck = case scCheckState ctx of InCheck -> True; NotInCheck -> False
-        let board = getBoard vBoard
-        let gm = getGenMove lm
-        let legal = if inCheck then True else MoveGen.isLegal (pieces board) (state board) gm
-
-        if not legal
-        then go lms a
-        else do
+        do
             score <- case applyLegalMove vBoard lm of
                 InCheckBoard newVBoard -> do
                     let newCtx = ctx { scCheckState = InCheck, scPly = scPly ctx + 1 } :: SearchContext p
