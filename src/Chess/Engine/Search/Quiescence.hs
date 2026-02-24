@@ -90,7 +90,9 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
     go ((lm, mbCheck):lms) a = do
         let givesCheck = case mbCheck of
                 Just c -> c
-                Nothing -> MoveGen.givesCheck (pieces board) (state board) (getGenMove lm)
+                Nothing ->
+                    let b = getBoard vBoard
+                    in MoveGen.givesCheck (pieces b) (state b) (getGenMove lm)
 
         do
             score <- case applyLegalMoveValidated vBoard lm givesCheck of
