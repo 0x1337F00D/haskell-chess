@@ -9,15 +9,15 @@ import Chess.Types
 import Chess.Bitboard (bbFromSquare, pattern BB_A1, pattern BB_H1, pattern BB_A8, pattern BB_H8, scanForward, pawnAttacks)
 import Chess.Board.Base
 import Chess.Board.GameState
-import Chess.Board.MoveGen (isLegal, applyMoveBoard, pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture)
+import Chess.Board.MoveGen (isLegal, applyMoveBoardFast, pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture)
 import Chess.Board.Validation (isCheck, isCheckmate)
 
 -- | Convert a move to Standard Algebraic Notation (SAN).
-san :: Board -> GameState -> Move -> String
-san board gs move@(Move from to promo) =
+san :: Board -> Move -> String
+san board move@(Move from to promo) =
     let p = pieceAt board from
-        c = turn gs
-        isCapture = isJust (pieceAt board to) || isEpCapture board gs move
+        c = getTurn (statePacked board)
+        isCapture = isJust (pieceAt board to) || isEpCapture board move
     in case p of
         Nothing -> ""
         Just (Piece _ pt) ->
@@ -32,7 +32,7 @@ san board gs move@(Move from to promo) =
                             else squareName to
                         _ ->
                             let sym = [pieceSymbol pt]
-                                candidates = getCandidates board gs (Piece c pt) to
+                                candidates = getCandidates board (Piece c pt) to
                                 disamb = disambiguate from candidates
                                 capt = if isCapture then "x" else ""
                             in sym ++ disamb ++ capt ++ squareName to
@@ -41,45 +41,62 @@ san board gs move@(Move from to promo) =
                         Just ppt -> "=" ++ [pieceSymbol ppt]
                         Nothing -> ""
 
-                    (nextB, nextGS) = applyMove board gs move
-                    suffix = if isCheckmate nextB nextGS then "#"
-                             else if isCheck nextB nextGS then "+"
+                    nextB = applyMove board move
+                    suffix = if isCheckmate nextB then "#"
+                             else if isCheck nextB then "+"
                              else ""
                 in base ++ promStr ++ suffix
-san _ _ _ = ""
+san _ _ = ""
 
 -- | Apply move to board and state (minimal version for check detection).
-applyMove :: Board -> GameState -> Move -> (Board, GameState)
-applyMove b gs m@(Move from to _ ) =
-    let b' = applyMoveBoard b gs m
-        p = pieceAt b from
-        c = turn gs
+-- Does not update Zobrist or full counters, just enough for validation.
+applyMove :: Board -> Move -> Board
+applyMove b m@(Move from to _ ) =
+    let b' = applyMoveBoardFast b (case mkGenMove b m of Just gm -> gm; Nothing -> GenQuiet from to Pawn) -- Fallback should not happen
+        -- We need GenMove. Re-deriving it.
 
-        cr = castlingRights gs
-        cr1 = case p of
-            Just (Piece _ King) ->
-                 let mask = if c == White then (BB_A1 .|. BB_H1) else (BB_A8 .|. BB_H8)
-                 in cr .&. complement mask
-            Just (Piece _ Rook) ->
-                 cr .&. complement (bbFromSquare from)
-            _ -> cr
+        -- Better: use standard derivation.
+        -- But applyMoveBoardFast logic is:
+        -- applyMoveBoardFast b gm
+        -- It returns b with OLD state.
+        -- We need to update state (turn, ep).
 
-        captured = pieceAt b to
-        cr2 = case captured of
-            Just (Piece _ Rook) -> cr1 .&. complement (bbFromSquare to)
-            _ -> cr1
+        s = statePacked b
+        c = getTurn s
 
+        -- Simplified update: Toggle turn.
+        -- EP Square update?
         ep = if isDoublePush b from to
              then midSquare from to
              else NoSquare
 
-        gs' = gs
-            { turn = oppositeColor c
-            , castlingRights = cr2
-            , epSquare = ep
-            }
-    in (b', gs')
-applyMove b gs _ = (b, gs)
+        s' = mkStatePacked (oppositeColor c) (getCastlingRights s) ep (getHalfmoveClock s) (getFullmoveNumber s)
+
+    in b' { statePacked = s' }
+applyMove b _ = b
+
+mkGenMove :: Board -> Move -> Maybe GenMove
+mkGenMove b (Move from to promo) =
+    let s = statePacked b
+        ep = getEpSquare s
+        isEp = ep == to && pieceAt b from == Just (Piece (getTurn s) Pawn)
+
+        capPt = fmap pieceType (pieceAt b to)
+        pt = fmap pieceType (pieceAt b from)
+
+    in case pt of
+        Just pType ->
+             case promo of
+                Just p -> case capPt of
+                            Just cp -> Just (GenPromotionCapture from to p cp)
+                            Nothing -> Just (GenPromotion from to p)
+                Nothing ->
+                    if isEp then Just (GenEnPassant from to)
+                    else if pType == King && abs (squareFile from - squareFile to) > 1 then Just (GenCastling from to)
+                    else case capPt of
+                            Just cp -> Just (GenCapture from to pType cp)
+                            Nothing -> Just (GenQuiet from to pType)
+        Nothing -> Nothing
 
 isDoublePush :: Board -> Square -> Square -> Bool
 isDoublePush b f t =
@@ -90,8 +107,8 @@ midSquare :: Square -> Square -> Square
 midSquare f t = Square ((unSquare f + unSquare t) `div` 2)
 
 -- | Optimized candidate finder using bitboards.
-getCandidates :: Board -> GameState -> Piece -> Square -> [Square]
-getCandidates b gs (Piece c pt) target =
+getCandidates :: Board -> Piece -> Square -> [Square]
+getCandidates b (Piece c pt) target =
     let candidates =
             case pt of
                 Pawn -> getPawnCandidates
@@ -107,23 +124,14 @@ getCandidates b gs (Piece c pt) target =
         let pseudo = case pt of
                 Pawn -> isPawnMove from
                 _    -> testBit (attacks b from) (unSquare target)
-        in pseudo && isLegal b gs (mkGenMove from)
-
-    mkGenMove from =
-        let isEp = isEpSquare target
-            capPt = fmap pieceType (pieceAt b target)
-        in case promo of
-            Just p -> case capPt of
-                        Just cp -> GenPromotionCapture from target p cp
-                        Nothing -> GenPromotion from target p
-            Nothing ->
-                if isEp then GenEnPassant from target
-                else case capPt of
-                        Just cp -> GenCapture from target pt cp
-                        Nothing -> GenQuiet from target pt
+        in pseudo && case mkGenMove b (Move from target promo) of
+                       Just gm -> isLegal b gm
+                       Nothing -> False
 
     promo = if pt == Pawn && isPromotionRank target then Just Queen else Nothing
     isPromotionRank s = (c == White && squareRank s == 7) || (c == Black && squareRank s == 0)
+
+    gs = statePacked b
 
     isPawnMove :: Square -> Bool
     isPawnMove from =
@@ -141,7 +149,7 @@ getCandidates b gs (Piece c pt) target =
 
     isStartRank s = (c == White && squareRank s == 1) || (c == Black && squareRank s == 6)
 
-    isEpSquare t = epSquare gs == t
+    isEpSquare t = getEpSquare gs == t
 
 disambiguate :: Square -> [Square] -> String
 disambiguate src candidates
@@ -159,47 +167,29 @@ fileChar f = fileNames !! f
 rankChar :: Int -> Char
 rankChar r = rankNames !! r
 
-isEpCapture :: Board -> GameState -> Move -> Bool
-isEpCapture b _ (Move from to _ ) =
+isEpCapture :: Board -> Move -> Bool
+isEpCapture b (Move from to _ ) =
     case pieceAt b from of
         Just (Piece _ Pawn) ->
              case pieceAt b to of
                  Nothing -> squareFile from /= squareFile to
                  _ -> False
         _ -> False
-isEpCapture _ _ _ = False
+isEpCapture _ _ = False
 
 -- | Parse SAN string to Move.
-parseSan :: Board -> GameState -> String -> Maybe Move
-parseSan b gs str =
+parseSan :: Board -> String -> Maybe Move
+parseSan b str =
     let cleanStr = filter (`notElem` "+#") str
-        c = turn gs
+        c = getTurn (statePacked b)
 
         -- Helper to check legality of a Move (converting to GenMove first)
-        checkLegal m@(Move from to promo) =
-            let p = pieceAt b from
-                pt = maybe Pawn pieceType p
+        checkLegal m =
+            case mkGenMove b m of
+                Just gm -> isLegal b gm
+                Nothing -> False
 
-                isEp = pt == Pawn && isEpCapture b gs m
-                isCastling = pt == King && abs (unSquare from - unSquare to) == 2
-
-                capturedPt = fmap pieceType (pieceAt b to)
-
-                gm = if isCastling then GenCastling from to
-                     else case promo of
-                        Just ppt ->
-                            case capturedPt of
-                                Just cp -> GenPromotionCapture from to ppt cp
-                                Nothing -> GenPromotion from to ppt
-                        Nothing ->
-                            if isEp then GenEnPassant from to
-                            else case capturedPt of
-                                Just cp -> GenCapture from to pt cp
-                                Nothing -> GenQuiet from to pt
-            in isLegal b gs gm
-        checkLegal _ = False
-
-        findMatch candidates = find (\m -> checkLegal m && (san b gs m == str || san b gs m == cleanStr)) candidates
+        findMatch candidates = find (\m -> checkLegal m && (san b m == str || san b m == cleanStr)) candidates
 
         rank = if c == White then 0 else 7
         kingSq = Square (rank * 8 + 4)
@@ -231,7 +221,7 @@ parseSan b gs str =
 
             in case (pt, parseSquare targetS) of
                 (Just pType, Just target) ->
-                    let candidates = getCandidates b gs (Piece c pType) target
+                    let candidates = getCandidates b (Piece c pType) target
                         moves = map (\from -> Move from target promo) candidates
                     in findMatch moves
 

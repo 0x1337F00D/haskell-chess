@@ -29,10 +29,9 @@ import Data.Bits ((.&.), complement, (.|.))
 instance ChessVariant 'Atomic where
   generateMoves (ag :: ActiveGame 'Atomic c s) =
     let baseBoard = internalBoard ag
-        gs = toGameState ag
         c = colorVal @c
 
-        pseudos = MG.pseudoLegalMovesList baseBoard gs
+        pseudos = MG.pseudoLegalMovesList baseBoard
 
         isKingCapture :: MG.GenMove -> Bool
         isKingCapture gm =
@@ -61,7 +60,7 @@ instance ChessVariant 'Atomic where
                 _ -> False
 
         atomicMoves = filter (\gm -> not (isKingCapture gm) && not (isSelfExplosion gm)) pseudos
-        validMoves = filter (MG.isLegal baseBoard gs) atomicMoves
+        validMoves = filter (MG.isLegal baseBoard) atomicMoves
 
     in map toCoreMove validMoves
 
@@ -139,7 +138,7 @@ instance ChessVariant 'Atomic where
             in Base.updateOccupancy b2
           else bBasic
 
-        gs = gameState ag
+        gs = Base.statePacked internalB
         gsUpdated = updateCastlingRights gs m
 
         newEP = case m of
@@ -149,18 +148,19 @@ instance ChessVariant 'Atomic where
                     else T.NoSquare
                   _ -> T.NoSquare
 
-        newHMC = if isPawn || isCapture then 0 else GS.halfmoveClock gs + 1
-        newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
+        newHMC = if isPawn || isCapture then 0 else GS.getHalfmoveClock gs + 1
+        newFMN = GS.getFullmoveNumber gs + (if c == Black then 1 else 0)
 
-        newGS = gsUpdated
-          { GS.turn = toColor (colorVal @(Opposite c))
-          , GS.epSquare = newEP
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          , GS.zobristHash = 0
-          }
+        newGS = GS.mkStatePacked
+          (toColor (colorVal @(Opposite c)))
+          (GS.getCastlingRights gsUpdated)
+          newEP
+          newHMC
+          newFMN
 
-        nextAg = ActiveGame bFinal newGS () SUnchecked
+        bFinalWithState = bFinal { Base.statePacked = newGS, Base.stateZobrist = 0 }
+
+        nextAg = ActiveGame bFinalWithState () SUnchecked
 
     in Transition nextAg
 
@@ -175,7 +175,7 @@ instance ChessVariant 'Atomic where
          in if enemyKingExploded
             then Checkmate (Winner (colorVal @c))
             else
-                let checked = Val.isCheck baseBoard (toGameState nextAg)
+                let checked = Val.isCheck baseBoard
                     (hasMoves, nextAgChecked) = if checked
                         then
                            let agChecked = setStatus SChecked nextAg

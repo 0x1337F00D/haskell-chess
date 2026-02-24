@@ -1,5 +1,3 @@
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-}
@@ -24,8 +22,8 @@ allCastling :: CastlingRights
 allCastling = BB_A1 .|. BB_H1 .|. BB_A8 .|. BB_H8
 
 -- | State needed to play a game, excluding piece placement.
--- Packed into 2 Word64s to avoid heap allocation.
--- Word 1: _packed
+-- Packed into a single Word64 to avoid heap allocation.
+-- Layout:
 --   Bit 0      (1): Turn (0=White, 1=Black)
 --   Bits 1-4   (4): White Rook 1 (3 bits File, 1 bit Present)
 --   Bits 5-8   (4): White Rook 2
@@ -35,50 +33,45 @@ allCastling = BB_A1 .|. BB_H1 .|. BB_A8 .|. BB_H8
 --   Bits 24-33 (10): Halfmove Clock
 --   Bits 34-49 (16): Fullmove Number
 --   Bits 50-63 (14): Unused
--- Word 2: _zobrist (64 bits)
-data GameState = GameStatePacked
-  { _packed      :: {-# UNPACK #-} !Word64
-  , _zobristHash :: {-# UNPACK #-} !Word64
-  } deriving (Eq)
 
-instance Show GameState where
-  show gs = "GameState {turn = " ++ show (turn gs) ++
-            ", castlingRights = " ++ show (castlingRights gs) ++
-            ", epSquare = " ++ show (epSquare gs) ++
-            ", halfmoveClock = " ++ show (halfmoveClock gs) ++
-            ", fullmoveNumber = " ++ show (fullmoveNumber gs) ++
-            ", zobristHash = " ++ show (zobristHash gs) ++
-            "}"
+{-# INLINE mkStatePacked #-}
+mkStatePacked :: Color -> CastlingRights -> Square -> HalfmoveClock -> FullmoveNumber -> Word64
+mkStatePacked t c e h f =
+    (if t == Black then 1 else 0) .|.
+    (packCastling c `shiftL` 1) .|.
+    (fromIntegral (unSquare e) `shiftL` 17) .|.
+    (fromIntegral (unHalfmoveClock h) `shiftL` 24) .|.
+    (fromIntegral (unFullmoveNumber f) `shiftL` 34)
 
--- | Pattern synonym to expose the record interface.
-pattern GameState :: Color -> CastlingRights -> Square -> HalfmoveClock -> FullmoveNumber -> Word64 -> GameState
-pattern GameState { turn, castlingRights, epSquare, halfmoveClock, fullmoveNumber, zobristHash } <-
-    (unpackGameState -> (turn, castlingRights, epSquare, halfmoveClock, fullmoveNumber, zobristHash))
-    where
-        GameState t c e h f z = mkGameState t c e h f z
-
-{-# COMPLETE GameState #-}
-
-{-# INLINE unpackGameState #-}
-unpackGameState :: GameState -> (Color, CastlingRights, Square, HalfmoveClock, FullmoveNumber, Word64)
-unpackGameState (GameStatePacked p z) =
+{-# INLINE unpackStatePacked #-}
+unpackStatePacked :: Word64 -> (Color, CastlingRights, Square, HalfmoveClock, FullmoveNumber)
+unpackStatePacked p =
     ( if testBit p 0 then Black else White
     , unpackCastling ((p `shiftR` 1) .&. 0xFFFF)
     , Square (fromIntegral ((p `shiftR` 17) .&. 0x7F))
     , HalfmoveClock (fromIntegral ((p `shiftR` 24) .&. 0x3FF))
     , FullmoveNumber (fromIntegral ((p `shiftR` 34) .&. 0xFFFF))
-    , z
     )
 
-{-# INLINE mkGameState #-}
-mkGameState :: Color -> CastlingRights -> Square -> HalfmoveClock -> FullmoveNumber -> Word64 -> GameState
-mkGameState t c e h f z =
-    let !p = (if t == Black then 1 else 0) .|.
-             (packCastling c `shiftL` 1) .|.
-             (fromIntegral (unSquare e) `shiftL` 17) .|.
-             (fromIntegral (unHalfmoveClock h) `shiftL` 24) .|.
-             (fromIntegral (unFullmoveNumber f) `shiftL` 34)
-    in GameStatePacked p z
+{-# INLINE getTurn #-}
+getTurn :: Word64 -> Color
+getTurn p = if testBit p 0 then Black else White
+
+{-# INLINE getCastlingRights #-}
+getCastlingRights :: Word64 -> CastlingRights
+getCastlingRights p = unpackCastling ((p `shiftR` 1) .&. 0xFFFF)
+
+{-# INLINE getEpSquare #-}
+getEpSquare :: Word64 -> Square
+getEpSquare p = Square (fromIntegral ((p `shiftR` 17) .&. 0x7F))
+
+{-# INLINE getHalfmoveClock #-}
+getHalfmoveClock :: Word64 -> HalfmoveClock
+getHalfmoveClock p = HalfmoveClock (fromIntegral ((p `shiftR` 24) .&. 0x3FF))
+
+{-# INLINE getFullmoveNumber #-}
+getFullmoveNumber :: Word64 -> FullmoveNumber
+getFullmoveNumber p = FullmoveNumber (fromIntegral ((p `shiftR` 34) .&. 0xFFFF))
 
 -- | Helper to pack castling rights into 16 bits.
 -- 4 Slots (4 bits each: Present + File).
@@ -114,22 +107,15 @@ unpackCastling w =
        unpackSlot 8 56 .|.    -- Black Slot 1 (Rank 8, shift 56)
        unpackSlot 12 56       -- Black Slot 2
 
--- | Initial game state for standard chess.
-initialGameState :: GameState
-initialGameState = GameState
-  { turn = White
-  , castlingRights = allCastling
-  , epSquare = NoSquare
-  , halfmoveClock = 0
-  , fullmoveNumber = 1
-  , zobristHash = 0
-  }
+-- | Initial game state for standard chess (Packed).
+initialStatePacked :: Word64
+initialStatePacked = mkStatePacked White allCastling NoSquare 0 1
 
 -- | Check if the given side has kingside castling rights.
 -- For standard chess, checks H1/H8.
 {-# INLINE canCastleStandardKingside #-}
-canCastleStandardKingside :: GameState -> Color -> Bool
-canCastleStandardKingside (GameStatePacked p _) c =
+canCastleStandardKingside :: Word64 -> Color -> Bool
+canCastleStandardKingside p c =
     let shiftVal = if c == White then 1 else 9
         p' = p `shiftR` shiftVal
         s1 = p' .&. 0xF
@@ -140,8 +126,8 @@ canCastleStandardKingside (GameStatePacked p _) c =
 -- | Check if the given side has queenside castling rights.
 -- For standard chess, checks A1/A8.
 {-# INLINE canCastleStandardQueenside #-}
-canCastleStandardQueenside :: GameState -> Color -> Bool
-canCastleStandardQueenside (GameStatePacked p _) c =
+canCastleStandardQueenside :: Word64 -> Color -> Bool
+canCastleStandardQueenside p c =
     let shiftVal = if c == White then 1 else 9
         p' = p `shiftR` shiftVal
         s1 = p' .&. 0xF
@@ -151,14 +137,14 @@ canCastleStandardQueenside (GameStatePacked p _) c =
 
 -- | Remove castling rights for a color (e.g. king moved).
 {-# INLINE removeColorCastlingRights #-}
-removeColorCastlingRights :: GameState -> Color -> GameState
-removeColorCastlingRights (GameStatePacked p z) White = GameStatePacked (p .&. complement (0xFF `shiftL` 1)) z -- Clear White slots (8 bits at 1)
-removeColorCastlingRights (GameStatePacked p z) Black = GameStatePacked (p .&. complement (0xFF `shiftL` 9)) z -- Clear Black slots (8 bits at 9)
+removeColorCastlingRights :: Word64 -> Color -> Word64
+removeColorCastlingRights p White = p .&. complement (0xFF `shiftL` 1) -- Clear White slots (8 bits at 1)
+removeColorCastlingRights p Black = p .&. complement (0xFF `shiftL` 9) -- Clear Black slots (8 bits at 9)
 
 -- | Remove castling rights for a specific rook square (e.g. rook moved or captured).
 {-# INLINE removeCastlingRight #-}
-removeCastlingRight :: GameState -> Square -> GameState
-removeCastlingRight (GameStatePacked p z) sq =
+removeCastlingRight :: Word64 -> Square -> Word64
+removeCastlingRight p sq =
     let rank = squareRank sq
         file = squareFile sq
     in if rank == 0 -- White
@@ -171,7 +157,7 @@ removeCastlingRight (GameStatePacked p z) sq =
                -- We construct a mask to clear bit 3 if file matches
                p' = if s1 == mask1 then p `clearBit` (1 + 3) else p
                p'' = if s2 == mask1 then p' `clearBit` (5 + 3) else p'
-           in GameStatePacked p'' z
+           in p''
        else if rank == 7 -- Black
        then
            let mask1 = (1 `shiftL` 3) .|. (fromIntegral file)
@@ -180,5 +166,5 @@ removeCastlingRight (GameStatePacked p z) sq =
 
                p' = if s1 == mask1 then p `clearBit` (9 + 3) else p
                p'' = if s2 == mask1 then p' `clearBit` (13 + 3) else p'
-           in GameStatePacked p'' z
-       else GameStatePacked p z
+           in p''
+       else p

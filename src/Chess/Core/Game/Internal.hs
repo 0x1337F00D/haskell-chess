@@ -101,7 +101,6 @@ castlingBlackQueenSide = 0x8
 -- Indexed by the current turn, check status, and variant.
 data ActiveGame (v :: Variant) (turn :: Color) (status :: CheckStatus) = ActiveGame
   { internalBoard :: Base.Board
-  , gameState :: GS.GameState
   , variantState :: VariantState v
   , checkStatus :: SCheckStatus status
   }

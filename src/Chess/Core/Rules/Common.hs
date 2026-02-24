@@ -23,7 +23,7 @@ import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
 import Data.Bits (setBit, clearBit, (.&.), (.|.), testBit, complement)
-import Data.Word (Word8)
+import Data.Word (Word8, Word64)
 import qualified Data.Map as Map
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
@@ -91,6 +91,8 @@ toBaseBoard b = Base.computeScores $ Base.Board
   , Base.scoreWhite = 0
   , Base.scoreBlack = 0
   , Base.gamePhase = 0
+  , Base.statePacked = 0
+  , Base.stateZobrist = 0
   }
   where
     mmToPieceType :: MajorMinorPiece c -> PieceType
@@ -142,9 +144,9 @@ toBaseBoard b = Base.computeScores $ Base.Board
     wOcc = wPawns .|. wKnights .|. wBishops .|. wRooks .|. wQueens .|. wKings
     bOcc = bPawns .|. bKnights .|. bBishops .|. bRooks .|. bQueens .|. bKings
 
--- | Convert ActiveGame to Engine GameState
-toGameState :: forall v c s. KnownColor c => ActiveGame v c s -> GS.GameState
-toGameState ag = gameState ag
+-- | Convert ActiveGame to Engine GameState (Word64)
+toGameState :: forall v c s. KnownColor c => ActiveGame v c s -> Word64
+toGameState ag = Base.statePacked (internalBoard ag)
 
 epRank :: Color -> Rank
 epRank White = Rank6
@@ -152,9 +154,13 @@ epRank Black = Rank3
 
 -- | Check if side `c` is in check.
 isCheck :: Board -> Color -> Bool
-isCheck b c = Val.isCheck (toBaseBoard b) (dummyGameState c)
-  where
-    dummyGameState col = GS.initialGameState { GS.turn = toColor col }
+isCheck b c =
+    let base = toBaseBoard b
+        -- Set turn to c for isCheck
+        s = Base.statePacked base
+        s' = GS.mkStatePacked (toColor c) GS.noCastling T.NoSquare 0 1
+        base' = base { Base.statePacked = s' }
+    in Val.isCheck base'
 
 -- Generate Legal Moves
 generateLegalMoves :: forall v c s. (KnownColor c, ChessVariant v) => ActiveGame v c s -> [Move c]
@@ -194,7 +200,7 @@ isDoublePush _ _ = False
 getFile :: Square -> File
 getFile (Square f _) = f
 
-updateCastlingRights :: forall c. KnownColor c => GS.GameState -> Move c -> GS.GameState
+updateCastlingRights :: forall c. KnownColor c => Word64 -> Move c -> Word64
 updateCastlingRights gs m =
   let c = colorVal @c
       (from, to) = case m of
@@ -220,9 +226,14 @@ updateCastlingRights gs m =
                  _ -> False
 
       mask = if c == White then complement BB.bbRank1 else complement BB.bbRank8
-  in if isKing
-     then gs2 { GS.castlingRights = GS.castlingRights gs2 .&. mask }
-     else gs2
+
+      -- If King moved, we must clear all rights for this color.
+      -- removeColorCastlingRights handles this.
+      gs3 = if isKing
+            then GS.removeColorCastlingRights gs2 (toColor c)
+            else gs2
+
+  in gs3
 
 -- Apply Move Helper (Base Board update)
 applyMoveBase :: forall c. KnownColor c => Move c -> Base.Board -> Base.Board
@@ -302,7 +313,6 @@ applyMoveBase m b =
 setStatus :: SCheckStatus new -> ActiveGame v c old -> ActiveGame v c new
 setStatus s ag = ActiveGame
   { internalBoard = internalBoard ag
-  , gameState = gameState ag
   , variantState = variantState ag
   , checkStatus = s
   }
@@ -313,17 +323,8 @@ genericApplyMove m ag =
         c = colorVal @c
         internalB = internalBoard ag
         internalB' = applyMoveBase m internalB
-        (from, to) = case m of
-                       QuietMove f t _ -> (f, t)
-                       CaptureMove f t _ _ -> (f, t)
-                       PromotionMove f t _ -> (f, t)
-                       PromotionCaptureMove f t _ _ -> (f, t)
-                       CastlingMove f t -> (f, t)
-                       EnPassantMove f t -> (f, t)
-                       DropMove _ t -> (t, t)
-                       Castling960Move _ _ -> error "Castling960Move not supported in genericApplyMove"
 
-        gs = gameState ag
+        gs = Base.statePacked internalB
         gs3 = updateCastlingRights gs m
 
         isPawn = case m of
@@ -348,20 +349,21 @@ genericApplyMove m ag =
                       EnPassantMove _ _ -> True
                       _ -> False
 
-        newHMC = if isPawn || isCapture then 0 else GS.halfmoveClock gs + 1
-        newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
+        newHMC = if isPawn || isCapture then 0 else GS.getHalfmoveClock gs + 1
+        newFMN = GS.getFullmoveNumber gs + (if c == Black then 1 else 0)
 
-        newGS = gs3
-          { GS.turn = toColor (colorVal @(Opposite c))
-          , GS.epSquare = newEP
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          , GS.zobristHash = 0 -- Reset hash as we don't track it incrementally yet
-          }
+        newGS = GS.mkStatePacked
+          (toColor (colorVal @(Opposite c)))
+          (GS.getCastlingRights gs3)
+          newEP
+          newHMC
+          newFMN
+
+        -- Update state in internalB'
+        internalBFinal = internalB' { Base.statePacked = newGS, Base.stateZobrist = 0 } -- Reset hash
 
         nextAg = ActiveGame
-          { internalBoard = internalB'
-          , gameState = newGS
+          { internalBoard = internalBFinal
           , variantState = variantState ag
           , checkStatus = SUnchecked
           }
@@ -372,7 +374,7 @@ genericExecuteMove m ag =
   case applyMove m ag of
     Transition nextAg ->
       let
-         checked = Val.isCheck (internalBoard nextAg) (toGameState nextAg)
+         checked = Val.isCheck (internalBoard nextAg)
 
          (hasMoves, nextAgChecked) = if checked
             then

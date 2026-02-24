@@ -83,7 +83,6 @@ import qualified Chess.Board.Zobrist as Zobrist
 -- | The primary board type combining piece placement and game state.
 data Board = Board
   { pieces :: !Base.Board
-  , state  :: {-# UNPACK #-} !GS.GameState
   , history :: ![Word64]
   } deriving (Eq, Show)
 
@@ -91,13 +90,13 @@ data Board = Board
 initialBoard :: Board
 initialBoard =
   case Fen.parseFen startingFEN of
-    Just (b, gs) -> Board b gs []
-    Nothing      -> error "Internal error: Failed to parse starting FEN"
+    Just b -> Board b []
+    Nothing -> error "Internal error: Failed to parse starting FEN"
 
 -- | Apply a move to the board, updating pieces and game state (counters, rights, etc).
 applyMove :: Board -> Move -> Board
-applyMove board@(Board b gs _) (Move from to promo) =
-    let c = GS.turn gs
+applyMove board@(Board b _) (Move from to promo) =
+    let c = GS.getTurn (Base.statePacked b)
         fromI = unSquare from
     in if not (testBit (Base.occupiedBy b c) fromI)
        then board -- Invalid move (empty or wrong color)
@@ -142,12 +141,14 @@ applyGenMoveFast board gm = applyMoveHelperFast board gm
 -- | Helper to apply move logic given resolved pieces.
 {-# INLINE applyMoveHelper #-}
 applyMoveHelper :: Board -> MoveGen.GenMove -> Board
-applyMoveHelper (Board b gs hist) gm =
+applyMoveHelper (Board b hist) gm =
     let
-        -- 1. Update pieces (using fast path)
-        b' = MoveGen.applyMoveBoardFast b gs gm
+        -- 1. Apply move to pieces (returns board with OLD state)
+        b' = MoveGen.applyMoveBoardFast b gm
 
-        c = GS.turn gs
+        s = Base.statePacked b
+        z = Base.stateZobrist b
+        c = GS.getTurn s
         oppC = Base.oppositeColor c
 
         -- Extract info from GenMove
@@ -162,9 +163,12 @@ applyMoveHelper (Board b gs hist) gm =
         isPawn = pt == Pawn
 
         -- Zobrist Updates ----------------------------------------------------
-        h0 = GS.zobristHash gs
-             `xor` Zobrist.zobristEp (GS.epSquare gs)           -- Remove old EP
-             `xor` Zobrist.zobristCastling (GS.castlingRights gs) -- Remove old CR
+        epSq = GS.getEpSquare s
+        castlingRights = GS.getCastlingRights s
+
+        h0 = z
+             `xor` Zobrist.zobristEp epSq           -- Remove old EP
+             `xor` Zobrist.zobristCastling castlingRights -- Remove old CR
              `xor` Zobrist.zobristBlackMove                     -- Toggle turn
 
         -- Remove moving piece from 'from'
@@ -199,26 +203,29 @@ applyMoveHelper (Board b gs hist) gm =
 
         -- --------------------------------------------------------------------
 
+        halfmove = GS.getHalfmoveClock s
+        fullmove = GS.getFullmoveNumber s
+
         -- Halfmove clock: Reset on pawn move or capture
-        halfmove' = if isPawn || isCap then 0 else GS.halfmoveClock gs + 1
+        halfmove' = if isPawn || isCap then 0 else halfmove + 1
 
         -- Fullmove number: Increment after Black's move
-        fullmove' = if c == Black then GS.fullmoveNumber gs + 1 else GS.fullmoveNumber gs
+        fullmove' = if c == Black then fullmove + 1 else fullmove
 
         -- Castling rights updates
         -- If moving King, lose castling rights for that color
-        gs1 = case pt of
-                King -> GS.removeColorCastlingRights gs c
-                Rook -> GS.removeCastlingRight gs from
-                _ -> gs
+        s1 = case pt of
+                King -> GS.removeColorCastlingRights s c
+                Rook -> GS.removeCastlingRight s from
+                _ -> s
 
         -- If capturing Rook, lose castling rights for that rook's square
-        gs2 = case captured of
+        s2 = case captured of
                 Just Rook ->
                     -- For EP, capture is Pawn, so this won't trigger.
                     -- Normal capture of Rook triggers.
-                    GS.removeCastlingRight gs1 to
-                _ -> gs1
+                    GS.removeCastlingRight s1 to
+                _ -> s1
 
         -- En Passant square
         -- Set if pawn double push
@@ -227,34 +234,36 @@ applyMoveHelper (Board b gs hist) gm =
               else NoSquare
 
         -- Finalize Hash
-        hFinal = h4 `xor` Zobrist.zobristCastling (GS.castlingRights gs2)
+        hFinal = h4 `xor` Zobrist.zobristCastling (GS.getCastlingRights s2)
                     `xor` Zobrist.zobristEp ep'
 
         nextTurn = oppC
 
+        -- Pack new state
+        newState = GS.mkStatePacked nextTurn (GS.getCastlingRights s2) ep' halfmove' fullmove'
+
         -- 0. Update history
-        -- Store the Zobrist hash of the previous position (gs)
-        hist' = GS.zobristHash gs : hist
+        -- Store the Zobrist hash of the previous position (z)
+        hist' = z : hist
 
         -- Optimization: Clear history if halfmove clock resets (pawn move or capture)
         histFinal = if halfmove' == 0 then [] else hist'
 
-    in Board b' (gs2 { GS.turn = nextTurn
-                     , GS.epSquare = ep'
-                     , GS.halfmoveClock = halfmove'
-                     , GS.fullmoveNumber = fullmove'
-                     , GS.zobristHash = hFinal
-                     }) histFinal
+        -- Update fields in b'
+        bFinal = b' { Base.statePacked = newState, Base.stateZobrist = hFinal }
+
+    in Board bFinal histFinal
 
 -- | Helper to apply move logic given resolved pieces (no Zobrist).
 {-# INLINE applyMoveHelperFast #-}
 applyMoveHelperFast :: Board -> MoveGen.GenMove -> Board
-applyMoveHelperFast (Board b gs _) gm =
+applyMoveHelperFast (Board b _) gm =
     let
         -- 1. Update pieces (using fast path)
-        b' = MoveGen.applyMoveBoardFast b gs gm
+        b' = MoveGen.applyMoveBoardFast b gm
 
-        c = GS.turn gs
+        s = Base.statePacked b
+        c = GS.getTurn s
         oppC = Base.oppositeColor c
 
         -- Extract info from GenMove
@@ -265,132 +274,129 @@ applyMoveHelperFast (Board b gs _) gm =
             MoveGen.GenCastling f t -> (f, t, King, Nothing, False, False)
             MoveGen.GenPromotion f t _ -> (f, t, Pawn, Nothing, False, True)
             MoveGen.GenPromotionCapture f t _ cap -> (f, t, Pawn, Just cap, True, True)
-            -- GenDrop and GenCastling960 are not used in standard perft and covered by COMPLETE pragma
+
+        halfmove = GS.getHalfmoveClock s
+        fullmove = GS.getFullmoveNumber s
 
         -- Halfmove clock: Reset on pawn move or capture
-        halfmove' = if isPawn || isCap then 0 else GS.halfmoveClock gs + 1
+        halfmove' = if isPawn || isCap then 0 else halfmove + 1
 
         -- Fullmove number: Increment after Black's move
-        fullmove' = if c == Black then GS.fullmoveNumber gs + 1 else GS.fullmoveNumber gs
+        fullmove' = if c == Black then fullmove + 1 else fullmove
 
         -- Castling rights updates
-        -- If moving King, lose castling rights for that color
-        gs1 = case pt of
-                King -> GS.removeColorCastlingRights gs c
-                Rook -> GS.removeCastlingRight gs from
-                _ -> gs
+        s1 = case pt of
+                King -> GS.removeColorCastlingRights s c
+                Rook -> GS.removeCastlingRight s from
+                _ -> s
 
-        -- If capturing Rook, lose castling rights for that rook's square
-        gs2 = case captured of
-                Just Rook -> GS.removeCastlingRight gs1 to
-                _ -> gs1
+        s2 = case captured of
+                Just Rook -> GS.removeCastlingRight s1 to
+                _ -> s1
 
         -- En Passant square
-        -- Set if pawn double push
         ep' = if isPawn && abs (squareRank from - squareRank to) == 2
               then midSquare from to
               else NoSquare
 
         nextTurn = oppC
 
-        -- No history tracking for fast perft
-        histFinal = []
+        newState = GS.mkStatePacked nextTurn (GS.getCastlingRights s2) ep' halfmove' fullmove'
 
-    in Board b' (gs2 { GS.turn = nextTurn
-                     , GS.epSquare = ep'
-                     , GS.halfmoveClock = halfmove'
-                     , GS.fullmoveNumber = fullmove'
-                     -- Zobrist hash is not updated
-                     }) histFinal
+        -- No history tracking for fast perft
+        -- Zobrist hash is not updated (kept stale)
+        bFinal = b' { Base.statePacked = newState }
+
+    in Board bFinal []
 
 -- | Generate all legal moves for the current position.
 legalMoves :: Board -> [Move]
-legalMoves (Board b gs _) = MoveGen.legalMoves b gs
+legalMoves (Board b _) = MoveGen.legalMoves b
 
 -- | Generate all legal moves preserving piece info.
 legalGenMoves :: Board -> [MoveGen.GenMove]
-legalGenMoves (Board b gs _) = U.toList $ MoveGen.legalGenMoves b gs
+legalGenMoves (Board b _) = U.toList $ MoveGen.legalGenMoves b
 
 -- | Generate all legal moves as an unboxed vector.
 legalGenMovesVector :: Board -> U.Vector MoveGen.GenMove
-legalGenMovesVector (Board b gs _) = MoveGen.legalGenMoves b gs
+legalGenMovesVector (Board b _) = MoveGen.legalGenMoves b
 
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> [Move]
-pseudoLegalMoves (Board b gs _) = map MoveGen.genMoveToMove $ U.toList $ MoveGen.pseudoLegalMoves b gs
+pseudoLegalMoves (Board b _) = map MoveGen.genMoveToMove $ U.toList $ MoveGen.pseudoLegalMoves b
 
 -- | Generate all pseudo-legal moves as GenMoves.
 pseudoLegalGenMoves :: Board -> [MoveGen.GenMove]
-pseudoLegalGenMoves (Board b gs _) = MoveGen.pseudoLegalMovesList b gs
+pseudoLegalGenMoves (Board b _) = MoveGen.pseudoLegalMovesList b
 
 -- | Check if the king of the given color is safe (not attacked).
 isKingSafe :: Board -> Color -> Bool
-isKingSafe (Board b _ _) c =
+isKingSafe (Board b _) c =
     case MoveGen.kingSquare b c of
         Nothing -> False -- Should not happen
         Just k -> not (Base.isAttackedBy b (Base.oppositeColor c) k)
 
 -- | Generate all legal capture moves.
 captureMoves :: Board -> [Move]
-captureMoves (Board b gs _) = MoveGen.legalCaptures b gs
+captureMoves (Board b _) = MoveGen.legalCaptures b
 
 -- | Generate all legal capture moves preserving piece info.
 captureGenMoves :: Board -> [MoveGen.GenMove]
-captureGenMoves (Board b gs _) = U.toList $ MoveGen.legalGenCaptures b gs
+captureGenMoves (Board b _) = U.toList $ MoveGen.legalGenCaptures b
 
 -- | Generate all legal quiet moves preserving piece info.
 legalGenQuiets :: Board -> [MoveGen.GenMove]
-legalGenQuiets (Board b gs _) = U.toList $ MoveGen.legalGenQuiets b gs
+legalGenQuiets (Board b _) = U.toList $ MoveGen.legalGenQuiets b
 
 -- | Generate all legal promotion moves preserving piece info.
 legalGenPromotions :: Board -> [MoveGen.GenMove]
-legalGenPromotions (Board b gs _) = U.toList $ MoveGen.legalGenPromotions b gs
+legalGenPromotions (Board b _) = U.toList $ MoveGen.legalGenPromotions b
 
 -- | Generate all pseudo-legal quiet moves.
 pseudoLegalQuiets :: Board -> [Move]
-pseudoLegalQuiets (Board b gs _) = map MoveGen.genMoveToMove $ U.toList $ MoveGen.pseudoLegalQuiets b gs
+pseudoLegalQuiets (Board b _) = map MoveGen.genMoveToMove $ U.toList $ MoveGen.pseudoLegalQuiets b
 
 -- | Generate all pseudo-legal promotion moves.
 pseudoLegalPromotions :: Board -> [Move]
-pseudoLegalPromotions (Board b gs _) = map MoveGen.genMoveToMove $ U.toList $ MoveGen.pseudoLegalPromotions b gs
+pseudoLegalPromotions (Board b _) = map MoveGen.genMoveToMove $ U.toList $ MoveGen.pseudoLegalPromotions b
 
 -- | Check if the side to move is in check.
 isCheck :: Board -> Bool
-isCheck (Board b gs _) = Val.isCheck b gs
+isCheck (Board b _) = Val.isCheck b
 
 -- | Check if the side to move is checkmated.
 isCheckmate :: Board -> Bool
-isCheckmate (Board b gs _) = Val.isCheckmate b gs
+isCheckmate (Board b _) = Val.isCheckmate b
 
 -- | Check if the game is in stalemate.
 isStalemate :: Board -> Bool
-isStalemate (Board b gs _) = Val.isStalemate b gs
+isStalemate (Board b _) = Val.isStalemate b
 
 -- | Check if the game is drawn by insufficient material.
 hasInsufficientMaterial :: Board -> Bool
-hasInsufficientMaterial (Board b _ _) = Val.hasInsufficientMaterial b
+hasInsufficientMaterial (Board b _) = Val.hasInsufficientMaterial b
 
 -- | Determine the outcome of the game, if ended.
 outcome :: Board -> Maybe Outcome
-outcome (Board b gs h) = Val.outcome b gs h
+outcome (Board b h) = Val.outcome b h
 
 -- | Convert board to FEN string.
 fen :: Board -> String
-fen (Board b gs _) = Fen.fen b gs
+fen (Board b _) = Fen.fen b
 
 -- | Parse FEN string to Board.
 parseFen :: String -> Maybe Board
 parseFen s = case Fen.parseFen s of
-    Just (b, gs) -> Just (Board b gs [])
-    Nothing      -> Nothing
+    Just b -> Just (Board b [])
+    Nothing -> Nothing
 
 -- | Convert move to SAN.
 san :: Board -> Move -> String
-san (Board b gs _) m = San.san b gs m
+san (Board b _) m = San.san b m
 
 -- | Parse SAN string to Move.
 parseSan :: Board -> String -> Maybe Move
-parseSan (Board b gs _) s = San.parseSan b gs s
+parseSan (Board b _) s = San.parseSan b s
 
 -- | Convert move to UCI.
 uci :: Move -> String
@@ -412,8 +418,8 @@ deriving instance Show SomeValidatedBoard
 newtype LegalMove = LegalMove MoveGen.GenMove deriving (Eq, Show)
 
 trustBoard :: Board -> SomeValidatedBoard
-trustBoard b@(Board bb gs _) =
-    if Val.isCheck bb gs
+trustBoard b@(Board bb _) =
+    if Val.isCheck bb
     then InCheckBoard (ValidatedBoard b)
     else NotInCheckBoard (ValidatedBoard b)
 
@@ -430,30 +436,30 @@ class MoveGenerator (s :: CheckStatus) where
     legalPromotionsValidated :: ValidatedBoard s -> [LegalMove]
 
 instance MoveGenerator 'InCheck where
-    legalMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.generateEvasions b gs
-    captureMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.generateEvasionCaptures b gs
-    legalQuietsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.generateEvasionQuiets b gs
-    legalPromotionsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.generateEvasionPromotions b gs
+    legalMovesValidated (ValidatedBoard (Board b _)) = map LegalMove $ U.toList $ MoveGen.generateEvasions b
+    captureMovesValidated (ValidatedBoard (Board b _)) = map LegalMove $ U.toList $ MoveGen.generateEvasionCaptures b
+    legalQuietsValidated (ValidatedBoard (Board b _)) = map LegalMove $ U.toList $ MoveGen.generateEvasionQuiets b
+    legalPromotionsValidated (ValidatedBoard (Board b _)) = map LegalMove $ U.toList $ MoveGen.generateEvasionPromotions b
 
 instance MoveGenerator 'NotInCheck where
-    legalMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.pseudoLegalMoves b gs
-    captureMovesValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.pseudoLegalCaptures b gs
-    legalQuietsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.pseudoLegalQuiets b gs
-    legalPromotionsValidated (ValidatedBoard (Board b gs _)) = map LegalMove $ U.toList $ MoveGen.pseudoLegalPromotions b gs
+    legalMovesValidated (ValidatedBoard (Board b _)) = map LegalMove $ U.toList $ MoveGen.pseudoLegalMoves b
+    captureMovesValidated (ValidatedBoard (Board b _)) = map LegalMove $ U.toList $ MoveGen.pseudoLegalCaptures b
+    legalQuietsValidated (ValidatedBoard (Board b _)) = map LegalMove $ U.toList $ MoveGen.pseudoLegalQuiets b
+    legalPromotionsValidated (ValidatedBoard (Board b _)) = map LegalMove $ U.toList $ MoveGen.pseudoLegalPromotions b
 
 mkLegalMove :: MoveGen.GenMove -> LegalMove
 mkLegalMove = LegalMove
 
 toGenMove :: Board -> Move -> Maybe MoveGen.GenMove
-toGenMove (Board b gs _) m = MoveGen.toGenMove b gs m
+toGenMove (Board b _) m = MoveGen.toGenMove b m
 
 isLegalMove :: Board -> Move -> Bool
-isLegalMove (Board b gs _) m = MoveGen.isLegalMove b gs m
+isLegalMove (Board b _) m = MoveGen.isLegalMove b m
 
 applyLegalMove :: ValidatedBoard s -> LegalMove -> SomeValidatedBoard
 applyLegalMove (ValidatedBoard b) (LegalMove gm) =
     let b' = applyGenMove b gm
-    in if MoveGen.givesCheck (pieces b) (state b) gm
+    in if MoveGen.givesCheck (pieces b) gm
        then InCheckBoard (ValidatedBoard b')
        else NotInCheckBoard (ValidatedBoard b')
 

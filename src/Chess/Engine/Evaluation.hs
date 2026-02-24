@@ -32,7 +32,7 @@ class Evaluate (p :: Phase) where
 instance Evaluate 'Opening where
     {-# INLINE evaluatePos #-}
     evaluatePos (Position vBoard) =
-        let (Board b gs _) = getBoard vBoard
+        let (Board b _) = getBoard vBoard
             clampedPhase = min totalPhase (max 0 (Base.gamePhase b))
 
             (mgW, egW) = unpackScore (Base.scoreWhite b)
@@ -46,12 +46,12 @@ instance Evaluate 'Opening where
             -- No MopUp in Opening
             egScoreTotal = egScore + safetyAdj
             finalScore = (((mgScore + safetyAdj) * clampedPhase) + (egScoreTotal * (totalPhase - clampedPhase))) `div` totalPhase
-        in if turn gs == White then finalScore else -finalScore
+        in if getTurn (Base.statePacked b) == White then finalScore else -finalScore
 
 instance Evaluate 'Middlegame where
     {-# INLINE evaluatePos #-}
     evaluatePos (Position vBoard) =
-        let (Board b gs _) = getBoard vBoard
+        let (Board b _) = getBoard vBoard
             clampedPhase = min totalPhase (max 0 (Base.gamePhase b))
 
             (mgW, egW) = unpackScore (Base.scoreWhite b)
@@ -68,12 +68,12 @@ instance Evaluate 'Middlegame where
 
             egScoreTotal = egScore + safetyAdj + mopUpAdj
             finalScore = (((mgScore + safetyAdj) * clampedPhase) + (egScoreTotal * (totalPhase - clampedPhase))) `div` totalPhase
-        in if turn gs == White then finalScore else -finalScore
+        in if getTurn (Base.statePacked b) == White then finalScore else -finalScore
 
 instance Evaluate 'Endgame where
     {-# INLINE evaluatePos #-}
     evaluatePos (Position vBoard) =
-        let (Board b gs _) = getBoard vBoard
+        let (Board b _) = getBoard vBoard
             clampedPhase = min totalPhase (max 0 (Base.gamePhase b))
 
             (mgW, egW) = unpackScore (Base.scoreWhite b)
@@ -88,7 +88,7 @@ instance Evaluate 'Endgame where
             mopUpAdj = evalMopUp b
             egScoreTotal = egScore + safetyAdj + mopUpAdj
             finalScore = (((mgScore + safetyAdj) * clampedPhase) + (egScoreTotal * (totalPhase - clampedPhase))) `div` totalPhase
-        in if turn gs == White then finalScore else -finalScore
+        in if getTurn (Base.statePacked b) == White then finalScore else -finalScore
 
 -- | Calculate King Safety Score (MG bias usually).
 -- Returns (White Safety Penalty, Black Safety Penalty). Positive means penalty (bad for that side).
@@ -128,7 +128,7 @@ evalMopUp b =
 -- Now composed of helper functions.
 evaluate :: ValidatedBoard s -> Score
 evaluate vBoard =
-    let (Board b gs _) = getBoard vBoard
+    let (Board b _) = getBoard vBoard
 
         clampedPhase = min totalPhase (max 0 (Base.gamePhase b))
 
@@ -146,7 +146,7 @@ evaluate vBoard =
         egScoreTotal = egScore + safetyAdj + mopUpAdj
 
         finalScore = (((mgScore + safetyAdj) * clampedPhase) + (egScoreTotal * (totalPhase - clampedPhase))) `div` totalPhase
-    in if turn gs == White then finalScore else -finalScore
+    in if getTurn (Base.statePacked b) == White then finalScore else -finalScore
 
 -- | Calculate King Safety Penalty
 kingSafety :: Base.Board -> Color -> Square -> Score

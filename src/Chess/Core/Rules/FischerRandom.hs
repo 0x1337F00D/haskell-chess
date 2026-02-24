@@ -33,34 +33,36 @@ import Data.Maybe (mapMaybe)
 -- | Create a game from FEN string (Fischer Random variant).
 fischerRandomGameFromFEN :: String -> Maybe (Game 'FischerRandom 'Active)
 fischerRandomGameFromFEN s = do
-  (baseBoard, gs) <- Fen.parseFen s
+  baseBoard <- Fen.parseFen s
 
-  let c = case GS.turn gs of
+  let gs = Base.statePacked baseBoard
+      c = case GS.getTurn gs of
             T.White -> White
             T.Black -> Black
 
       -- Extract Rook Files from GameState CastlingRights (Bitboard)
-      whiteRooks = GS.castlingRights gs .&. BB.bbRank1
-      blackRooks = GS.castlingRights gs .&. BB.bbRank8
+      cr = GS.getCastlingRights gs
+      whiteRooks = cr .&. BB.bbRank1
+      blackRooks = cr .&. BB.bbRank8
 
       frState = FischerRandomState whiteRooks blackRooks
 
-      checked = Val.isCheck baseBoard gs
+      checked = Val.isCheck baseBoard
 
       -- Check for moves using 960 generator
       -- We need to construct a temp ActiveGame to call generateMoves
       hasMoves = case c of
-        White -> not (null (generateMoves (ActiveGame baseBoard gs frState SSafe :: ActiveGame 'FischerRandom 'White 'Safe)))
-        Black -> not (null (generateMoves (ActiveGame baseBoard gs frState SSafe :: ActiveGame 'FischerRandom 'Black 'Safe)))
+        White -> not (null (generateMoves (ActiveGame baseBoard frState SSafe :: ActiveGame 'FischerRandom 'White 'Safe)))
+        Black -> not (null (generateMoves (ActiveGame baseBoard frState SSafe :: ActiveGame 'FischerRandom 'Black 'Safe)))
 
   if hasMoves
     then case c of
       White -> if checked
-               then return $ InProgressGame (ActiveGame baseBoard gs frState SChecked :: ActiveGame 'FischerRandom 'White 'Checked)
-               else return $ InProgressGame (ActiveGame baseBoard gs frState SSafe    :: ActiveGame 'FischerRandom 'White 'Safe)
+               then return $ InProgressGame (ActiveGame baseBoard frState SChecked :: ActiveGame 'FischerRandom 'White 'Checked)
+               else return $ InProgressGame (ActiveGame baseBoard frState SSafe    :: ActiveGame 'FischerRandom 'White 'Safe)
       Black -> if checked
-               then return $ InProgressGame (ActiveGame baseBoard gs frState SChecked :: ActiveGame 'FischerRandom 'Black 'Checked)
-               else return $ InProgressGame (ActiveGame baseBoard gs frState SSafe    :: ActiveGame 'FischerRandom 'Black 'Safe)
+               then return $ InProgressGame (ActiveGame baseBoard frState SChecked :: ActiveGame 'FischerRandom 'Black 'Checked)
+               else return $ InProgressGame (ActiveGame baseBoard frState SSafe    :: ActiveGame 'FischerRandom 'Black 'Safe)
     else Nothing
 
 instance ChessVariant 'FischerRandom where
@@ -69,7 +71,7 @@ instance ChessVariant 'FischerRandom where
         gs = toGameState ag
         c = colorVal @c
 
-        baseMoves = MG.legalGenMovesList baseBoard gs
+        baseMoves = MG.legalGenMovesList baseBoard
         standardMoves = map toCoreMove baseMoves
         -- Filter out standard CastlingMoves
         nonCastlingMoves = filter (not . isStandardCastling) standardMoves
@@ -85,7 +87,7 @@ instance ChessVariant 'FischerRandom where
                    Just sq -> sq
                    Nothing -> T.Square 0
 
-        currentRights = GS.castlingRights gs
+        currentRights = GS.getCastlingRights gs
 
         kFile = T.squareFile kingSq
         kRank = T.squareRank kingSq
@@ -125,7 +127,7 @@ instance ChessVariant 'FischerRandom where
                        DropMove _ t -> (t, t)
                        Castling960Move f _ -> (f, f)
 
-        gs = gameState ag
+        gs = Base.statePacked internalB
         gsUpdated = updateCastlingRights gs m
 
         isPawn = case m of
@@ -150,20 +152,21 @@ instance ChessVariant 'FischerRandom where
                       EnPassantMove _ _ -> True
                       _ -> False
 
-        newHMC = if isPawn || isCapture then 0 else GS.halfmoveClock gs + 1
-        newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
+        newHMC = if isPawn || isCapture then 0 else GS.getHalfmoveClock gs + 1
+        newFMN = GS.getFullmoveNumber gs + (if c == Black then 1 else 0)
 
-        newGS = gsUpdated
-          { GS.turn = toColor (colorVal @(Opposite c))
-          , GS.epSquare = newEP
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          , GS.zobristHash = 0
-          }
+        newGS = GS.mkStatePacked
+          (toColor (colorVal @(Opposite c)))
+          (GS.getCastlingRights gsUpdated)
+          newEP
+          newHMC
+          newFMN
 
         frState = variantState ag
 
-        nextAg = ActiveGame internalB' newGS frState SUnchecked
+        bFinalWithState = internalB' { Base.statePacked = newGS, Base.stateZobrist = 0 }
+
+        nextAg = ActiveGame bFinalWithState frState SUnchecked
 
     in Transition nextAg
 
@@ -210,4 +213,3 @@ isCastlingValid b c kSq rSq isKSide =
         pathROk = loop startR endR checkPred
 
     in path1Ok && pathROk && pathKOk
-

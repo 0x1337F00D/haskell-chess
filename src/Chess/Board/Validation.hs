@@ -10,28 +10,29 @@ import Chess.Board.GameState
 import Chess.Board.MoveGen (pseudoLegalMoves, isLegal, kingSquare, hasLegalMove)
 
 -- | Check if the side to move is in check.
-isCheck :: Board -> GameState -> Bool
-isCheck b gs =
-    let c = turn gs
+isCheck :: Board -> Bool
+isCheck b =
+    let s = statePacked b
+        c = getTurn s
     in case kingSquare b c of
         Nothing -> False -- Should not happen if king exists
         Just k -> isAttackedBy b (oppositeColor c) k
 
 -- | Check if the side to move has any legal moves.
-hasLegalMoves :: Board -> GameState -> Bool
+hasLegalMoves :: Board -> Bool
 hasLegalMoves = hasLegalMove
 
 -- | Check if the side to move is checkmated.
-isCheckmate :: Board -> GameState -> Bool
-isCheckmate b gs = isCheck b gs && not (hasLegalMoves b gs)
+isCheckmate :: Board -> Bool
+isCheckmate b = isCheck b && not (hasLegalMoves b)
 
 -- | Check if the game is in a stalemate.
-isStalemate :: Board -> GameState -> Bool
-isStalemate b gs = not (isCheck b gs) && not (hasLegalMoves b gs)
+isStalemate :: Board -> Bool
+isStalemate b = not (isCheck b) && not (hasLegalMoves b)
 
 -- | Check if the game is drawn by the fifty-move rule.
-isFiftyMoves :: GameState -> Bool
-isFiftyMoves gs = halfmoveClock gs >= 100
+isFiftyMoves :: Board -> Bool
+isFiftyMoves b = getHalfmoveClock (statePacked b) >= 100
 
 -- | Check if the game is drawn by insufficient material.
 -- Returns True if neither side has sufficient material to win.
@@ -84,20 +85,20 @@ hasInsufficientMaterial b =
               _ -> False -- Should not happen if we counted them
 
 -- | Check if the current position has occurred at least 3 times.
-isThreefoldRepetition :: Board -> GameState -> [Word64] -> Bool
-isThreefoldRepetition _ gs history =
-    let currentHash = zobristHash gs
+isThreefoldRepetition :: Board -> [Word64] -> Bool
+isThreefoldRepetition b history =
+    let currentHash = stateZobrist b
         -- Count occurrences of currentHash in history.
         -- We need 2 past occurrences + current = 3.
         count = length (filter (== currentHash) history)
     in count >= 2
 
 -- | Determine the outcome of the game, if it has ended.
-outcome :: Board -> GameState -> [Word64] -> Maybe Outcome
-outcome b gs history
-    | isCheckmate b gs = Just $ Outcome Checkmate (Just (oppositeColor (turn gs)))
-    | isStalemate b gs = Just $ Outcome Stalemate Nothing
-    | isThreefoldRepetition b gs history = Just $ Outcome ThreefoldRepetition Nothing
-    | isFiftyMoves gs  = Just $ Outcome FiftyMoves Nothing
+outcome :: Board -> [Word64] -> Maybe Outcome
+outcome b history
+    | isCheckmate b = Just $ Outcome Checkmate (Just (oppositeColor (getTurn (statePacked b))))
+    | isStalemate b = Just $ Outcome Stalemate Nothing
+    | isThreefoldRepetition b history = Just $ Outcome ThreefoldRepetition Nothing
+    | isFiftyMoves b  = Just $ Outcome FiftyMoves Nothing
     | hasInsufficientMaterial b = Just $ Outcome InsufficientMaterial Nothing
     | otherwise = Nothing

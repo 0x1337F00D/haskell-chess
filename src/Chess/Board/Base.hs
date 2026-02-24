@@ -2,6 +2,7 @@
 module Chess.Board.Base where
 
 import Data.Bits ((.|.), (.&.), testBit, setBit, clearBit, xor, shiftL, countTrailingZeros, countLeadingZeros, popCount)
+import Data.Word (Word64)
 
 import qualified Data.Vector.Unboxed as U
 import Chess.Types
@@ -34,11 +35,14 @@ data Board = Board
   , scoreWhite      :: {-# UNPACK #-} !PackedScore
   , scoreBlack      :: {-# UNPACK #-} !PackedScore
   , gamePhase       :: {-# UNPACK #-} !Int
+  -- Game State
+  , statePacked     :: {-# UNPACK #-} !Word64
+  , stateZobrist    :: {-# UNPACK #-} !Word64
   } deriving (Eq, Show)
 
 -- | An empty board.
 empty :: Board
-empty = Board 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+empty = Board 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 
 -- | Compute scores from scratch.
 computeScores :: Board -> Board

@@ -31,9 +31,9 @@ import Data.Word (Word8)
 -- | Create a game from FEN string (Crazyhouse variant).
 crazyhouseGameFromFEN :: String -> Maybe (Game 'Crazyhouse 'Active)
 crazyhouseGameFromFEN s = do
-  (baseBoard, gs, extra) <- Fen.parseFenRest s
+  (baseBoard, extra) <- Fen.parseFenRest s
 
-  let c = case GS.turn gs of
+  let c = case GS.getTurn (Base.statePacked baseBoard) of
             T.White -> White
             T.Black -> Black
 
@@ -61,7 +61,7 @@ crazyhouseGameFromFEN s = do
 
       vs = CrazyhouseState wPocket bPocket 0
 
-      checked = Val.isCheck baseBoard gs
+      checked = Val.isCheck baseBoard
 
       -- Check if any moves available (including drops)
       generateDrops :: forall col. KnownColor col => [Move col]
@@ -86,22 +86,22 @@ crazyhouseGameFromFEN s = do
                    , genDrops Queen (pocketQueens pocket)
                    ]
 
-               safe m = not (Val.isCheck (applyMoveBase m baseBoard) gs)
+               safe m = not (Val.isCheck (applyMoveBase m baseBoard))
            in filter safe drops
 
       hasMoves :: forall col. KnownColor col => Bool
-      hasMoves = Val.hasLegalMoves baseBoard gs || not (null (generateDrops @col))
+      hasMoves = Val.hasLegalMoves baseBoard || not (null (generateDrops @col))
 
   case c of
       White -> if hasMoves @'White
                then if checked
-                    then return $ InProgressGame (ActiveGame baseBoard gs vs SChecked :: ActiveGame 'Crazyhouse 'White 'Checked)
-                    else return $ InProgressGame (ActiveGame baseBoard gs vs SSafe    :: ActiveGame 'Crazyhouse 'White 'Safe)
+                    then return $ InProgressGame (ActiveGame baseBoard vs SChecked :: ActiveGame 'Crazyhouse 'White 'Checked)
+                    else return $ InProgressGame (ActiveGame baseBoard vs SSafe    :: ActiveGame 'Crazyhouse 'White 'Safe)
                else Nothing
       Black -> if hasMoves @'Black
                then if checked
-                    then return $ InProgressGame (ActiveGame baseBoard gs vs SChecked :: ActiveGame 'Crazyhouse 'Black 'Checked)
-                    else return $ InProgressGame (ActiveGame baseBoard gs vs SSafe    :: ActiveGame 'Crazyhouse 'Black 'Safe)
+                    then return $ InProgressGame (ActiveGame baseBoard vs SChecked :: ActiveGame 'Crazyhouse 'Black 'Checked)
+                    else return $ InProgressGame (ActiveGame baseBoard vs SSafe    :: ActiveGame 'Crazyhouse 'Black 'Safe)
                else Nothing
 
 instance ChessVariant 'Crazyhouse where
@@ -110,7 +110,7 @@ instance ChessVariant 'Crazyhouse where
         gs = toGameState ag
         c = colorVal @c
 
-        baseMoves = MG.legalGenMovesList baseBoard gs
+        baseMoves = MG.legalGenMovesList baseBoard
         standardMoves = map toCoreMove baseMoves
 
         (CrazyhouseState wPocket bPocket _) = variantState ag
@@ -136,7 +136,7 @@ instance ChessVariant 'Crazyhouse where
 
         isSafeDrop m =
            let nextBase = applyMoveBase m baseBoard
-           in not (Val.isCheck nextBase gs)
+           in not (Val.isCheck nextBase)
 
         validDropMoves = filter isSafeDrop dropMoves
 
@@ -219,7 +219,7 @@ instance ChessVariant 'Crazyhouse where
 
               in (pockets', p3)
 
-        gs = gameState ag
+        gs = Base.statePacked internalB
         gsUpdated = updateCastlingRights gs m
 
         isPawn = case m of
@@ -245,20 +245,21 @@ instance ChessVariant 'Crazyhouse where
                       _ -> False
 
         resetClock = isPawn || isCapture
-        newHMC = if resetClock then 0 else GS.halfmoveClock gs + 1
-        newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
+        newHMC = if resetClock then 0 else GS.getHalfmoveClock gs + 1
+        newFMN = GS.getFullmoveNumber gs + (if c == Black then 1 else 0)
 
-        newGS = gsUpdated
-          { GS.turn = toColor (colorVal @(Opposite c))
-          , GS.epSquare = newEP
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          , GS.zobristHash = 0
-          }
+        newGS = GS.mkStatePacked
+          (toColor (colorVal @(Opposite c)))
+          (GS.getCastlingRights gsUpdated)
+          newEP
+          newHMC
+          newFMN
 
         newState = CrazyhouseState wPocket' bPocket' promoted'
 
-        nextAg = ActiveGame internalB' newGS newState SUnchecked
+        bFinalWithState = internalB' { Base.statePacked = newGS, Base.stateZobrist = 0 }
+
+        nextAg = ActiveGame bFinalWithState newState SUnchecked
 
     in Transition nextAg
 

@@ -8,15 +8,14 @@ import Text.Read (readMaybe)
 
 import Chess.Types
 import Chess.Bitboard
-import Chess.Board.Base (Board)
+import Chess.Board.Base (Board, statePacked, stateZobrist)
 import qualified Chess.Board.Base as Board
 import Chess.Board.GameState
 import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.Zobrist as Zobrist
 
--- | Parse a FEN string into a Board and GameState.
--- | Parse a FEN string into a Board, GameState, and remaining parts.
-parseFenRest :: String -> Maybe (Board, GameState, [String])
+-- | Parse a FEN string into a Board and remaining parts.
+parseFenRest :: String -> Maybe (Board, [String])
 parseFenRest s = do
   let parts = words s
   guard (length parts >= 4)
@@ -39,34 +38,30 @@ parseFenRest s = do
   halfmove <- HalfmoveClock <$> readMaybe halfmoveStr
   fullmove <- FullmoveNumber <$> readMaybe fullmoveStr
 
-  let gsProto = GameState
-        { turn = turnVal
-        , castlingRights = castling
-        , epSquare = ep
-        , halfmoveClock = halfmove
-        , fullmoveNumber = fullmove
-        , zobristHash = 0
-        }
-      hash = Zobrist.computeHash board gsProto
-      gs = gsProto { zobristHash = hash }
+  let sPacked = mkStatePacked turnVal castling ep halfmove fullmove
+      bWithState = board { statePacked = sPacked }
+      hash = Zobrist.computeHash bWithState
+      bFinal = bWithState { stateZobrist = hash }
 
-  return (board, gs, extra')
+  return (bFinal, extra')
 
--- | Parse a FEN string into a Board and GameState.
-parseFen :: String -> Maybe (Board, GameState)
+-- | Parse a FEN string into a Board.
+parseFen :: String -> Maybe Board
 parseFen s = do
-  (b, gs, _) <- parseFenRest s
-  return (b, gs)
+  (b, _) <- parseFenRest s
+  return b
 
--- | Serialize Board and GameState to FEN string.
-fen :: Board -> GameState -> String
-fen board gs = unwords
+-- | Serialize Board to FEN string.
+fen :: Board -> String
+fen board =
+  let s = statePacked board
+  in unwords
   [ showBoard board
-  , showTurn (turn gs)
-  , showCastling (castlingRights gs)
-  , showEp (epSquare gs)
-  , show (halfmoveClock gs)
-  , show (fullmoveNumber gs)
+  , showTurn (getTurn s)
+  , showCastling (getCastlingRights s)
+  , showEp (getEpSquare s)
+  , show (getHalfmoveClock s)
+  , show (getFullmoveNumber s)
   ]
 
 -- Helper functions for parsing
