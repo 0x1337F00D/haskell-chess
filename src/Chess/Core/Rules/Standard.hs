@@ -26,9 +26,10 @@ import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
 import qualified Chess.Board.Fen as Fen
 import qualified Chess.Board as FastBoard
-import Chess.Board (legalGenMoves, applyGenMoveFast, pseudoLegalGenMoves, isKingSafe, pattern GenCastling) -- Import fast board ops
+import Chess.Board (legalGenMovesVector, applyGenMoveFast, pseudoLegalGenMoves, isKingSafe, pattern GenCastling) -- Import fast board ops
 import Data.Bits (testBit, countTrailingZeros, (.|.))
 import Control.Parallel.Strategies (parMap, rseq)
+import qualified Data.Vector.Unboxed as U
 
 -- | Create the initial game state for Standard chess.
 initialGame :: Game 'Standard 'Active
@@ -98,21 +99,10 @@ instance ChessVariant 'Standard where
 
 fastPerft :: Int -> FastBoard.Board -> Int
 fastPerft 0 _ = 1
-fastPerft 1 b = length (legalGenMoves b)
+fastPerft 1 b = U.length (legalGenMovesVector b)
 fastPerft d b =
-    let moves = pseudoLegalGenMoves b
-        c = GS.turn (FastBoard.state b)
-        evalMove m =
-            case m of
-                GenCastling _ _ ->
-                    if MG.isLegal (FastBoard.pieces b) (FastBoard.state b) m
-                    then fastPerft (d - 1) (applyGenMoveFast b m)
-                    else 0
-                _ ->
-                    let b' = applyGenMoveFast b m
-                    in if isKingSafe b' c
-                       then fastPerft (d - 1) b'
-                       else 0
+    let moves = legalGenMovesVector b
+        evalMove m = fastPerft (d - 1) (applyGenMoveFast b m)
     in if d >= 3
-       then sum $ parMap rseq evalMove moves
-       else sum $ map evalMove moves
+       then sum $ parMap rseq evalMove (U.toList moves)
+       else U.foldl' (\acc m -> acc + evalMove m) 0 moves
