@@ -51,6 +51,13 @@ hordeInitialGame =
       wOcc = wPawns
       bOcc = bPawns .|. bKnights .|. bBishops .|. bRooks .|. bQueens .|. bKings
 
+      -- Castling Rights: Black only (King Side + Queen Side)
+      -- White has no King, so no castling rights.
+      -- Black Rooks at A8 (56) and H8 (63).
+      crBB = BB.BB_A8 .|. BB.BB_H8
+
+      s = GS.mkStatePacked T.White crBB T.NoSquare 0 1
+
       baseBoard = Base.computeScores $ Base.Board
           { Base.whitePawns   = wPawns
           , Base.blackPawns   = bPawns
@@ -74,21 +81,12 @@ hordeInitialGame =
           , Base.scoreWhite = 0
           , Base.scoreBlack = 0
           , Base.gamePhase = 0
+          , Base.statePacked = s
+          , Base.stateZobrist = 0
           }
-
-      -- Castling Rights: Black only (King Side + Queen Side)
-      -- White has no King, so no castling rights.
-      -- Black Rooks at A8 (56) and H8 (63).
-      crBB = BB.BB_A8 .|. BB.BB_H8
-
-      gs = GS.initialGameState
-           { GS.castlingRights = crBB
-           , GS.turn = T.White
-           }
 
       ag = ActiveGame
            { internalBoard = baseBoard
-           , gameState = gs
            , variantState = ()
            , checkStatus = SSafe
            } :: ActiveGame 'Horde 'White 'Safe
@@ -98,14 +96,13 @@ hordeInitialGame =
 instance ChessVariant 'Horde where
   generateMoves (ag :: ActiveGame 'Horde c s) =
     let baseBoard = internalBoard ag
-        gs = toGameState ag
         c = colorVal @c
 
         -- For White (Horde), use pseudo-legal moves as there is no King to check.
         -- For Black, use standard legal moves.
         baseMoves = if c == White
-                    then MG.pseudoLegalMovesList baseBoard gs
-                    else MG.legalGenMovesList baseBoard gs
+                    then MG.pseudoLegalMovesList baseBoard
+                    else MG.legalGenMovesList baseBoard
 
         -- Custom White Pawn Moves (Rank 1 double push)
         whiteExtraMoves = if c == White
@@ -151,7 +148,7 @@ instance ChessVariant 'Horde where
                        DropMove _ t -> (t, t)
                        Castling960Move _ _ -> error "Castling960Move invalid in Horde"
 
-        gs = gameState ag
+        gs = Base.statePacked internalB
         gsUpdated = updateCastlingRights gs m
 
         isPawn = case m of
@@ -182,18 +179,19 @@ instance ChessVariant 'Horde where
                       EnPassantMove _ _ -> True
                       _ -> False
 
-        newHMC = if isPawn || isCapture then 0 else GS.halfmoveClock gs + 1
-        newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
+        newHMC = if isPawn || isCapture then 0 else GS.getHalfmoveClock gs + 1
+        newFMN = GS.getFullmoveNumber gs + (if c == Black then 1 else 0)
 
-        newGS = gsUpdated
-          { GS.turn = toColor (colorVal @(Opposite c))
-          , GS.epSquare = newEP
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          , GS.zobristHash = 0
-          }
+        newGS = GS.mkStatePacked
+          (toColor (colorVal @(Opposite c)))
+          (GS.getCastlingRights gsUpdated)
+          newEP
+          newHMC
+          newFMN
 
-        nextAg = ActiveGame internalB' newGS () SUnchecked
+        bFinalWithState = internalB' { Base.statePacked = newGS, Base.stateZobrist = 0 }
+
+        nextAg = ActiveGame bFinalWithState () SUnchecked
 
     in Transition nextAg
 
@@ -204,13 +202,11 @@ instance ChessVariant 'Horde where
            oppC = colorVal @(Opposite c)
            baseBoard = internalBoard nextAg
 
-           nextTurnGS = toGameState nextAg
-
            -- Win Conditions
 
            -- 1. White Wins if Black is Checkmated
            blackInCheck = if oppC == Black
-                          then Val.isCheck baseBoard nextTurnGS
+                          then Val.isCheck baseBoard
                           else False -- White has no King
 
            hasMovesHorde =
@@ -218,7 +214,7 @@ instance ChessVariant 'Horde where
                then
                     let -- White has no King, so all pseudo-legal moves are legal.
                         -- Val.hasLegalMoves fails because it looks for a King.
-                        pseudos = MG.pseudoLegalMoves baseBoard nextTurnGS
+                        pseudos = MG.pseudoLegalMoves baseBoard
                         standardHasMoves = not (U.null pseudos)
 
                         -- Check if any Rank 1 double push is possible
@@ -230,7 +226,7 @@ instance ChessVariant 'Horde where
                             not (testBit occ (i+16))
                         extraHasMoves = any canPushRank1 [0..7]
                     in standardHasMoves || extraHasMoves
-               else Val.hasLegalMoves baseBoard nextTurnGS -- Black
+               else Val.hasLegalMoves baseBoard -- Black
 
            -- 2. Black Wins if White has no pieces (Pawns + Promoted)
            whitePiecesCount = popCount (Base.occupiedBy baseBoard T.White)

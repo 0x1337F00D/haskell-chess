@@ -27,17 +27,28 @@ import qualified Chess.Board.Validation as Val
 instance ChessVariant 'RacingKings where
   generateMoves (ag :: ActiveGame 'RacingKings c s) =
     let baseBoard = internalBoard ag
-        gs = toGameState ag
-        baseMoves = MG.legalGenMovesList baseBoard gs
+        baseMoves = MG.legalGenMovesList baseBoard
         coreMoves = map toCoreMove baseMoves
         c = colorVal @c
         oppC = opposite c
 
         noGiveCheck m =
             let baseNext = applyMoveBase m baseBoard
-            in not (Val.isCheck baseNext (dummyGameState oppC))
-          where
-            dummyGameState col = GS.initialGameState { GS.turn = toColor col }
+                -- In Racing Kings, we must ensure the move doesn't give check to the opponent?
+                -- "A player may not make a move that puts their own king in check" (already handled by legalGenMovesList)
+                -- "A player may not make a move that puts the opponent's king in check" (noGiveCheck)
+                -- dummyGameState to set opponent's turn for validation (if needed for pawn attacks etc)
+                -- Val.isCheck checks if the side to move is in check.
+                -- We want to check if `oppC` (the side not moving) is in check in `baseNext`.
+                -- `baseNext` has `c` as the side that just moved. The state in `baseNext` is not updated yet?
+                -- `applyMoveBase` only moves pieces. It keeps `statePacked` intact (so turn is `c`).
+                -- We need to check if `oppC` king is attacked by `c`.
+                -- `Val.isCheck` checks if `turn` king is attacked.
+                -- So we set turn to `oppC`.
+
+                s' = GS.mkStatePacked (toColor oppC) GS.noCastling T.NoSquare 0 1
+                baseNext' = baseNext { Base.statePacked = s' }
+            in not (Val.isCheck baseNext')
 
     in filter noGiveCheck coreMoves
 

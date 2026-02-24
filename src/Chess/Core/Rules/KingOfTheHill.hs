@@ -27,8 +27,7 @@ import qualified Chess.Board.Validation as Val
 instance ChessVariant 'KingOfTheHill where
   generateMoves (ag :: ActiveGame 'KingOfTheHill c s) =
     let baseBoard = internalBoard ag
-        gs = toGameState ag
-        baseMoves = MG.legalGenMovesList baseBoard gs
+        baseMoves = MG.legalGenMovesList baseBoard
     in map toCoreMove baseMoves
 
   applyMove = genericApplyMove

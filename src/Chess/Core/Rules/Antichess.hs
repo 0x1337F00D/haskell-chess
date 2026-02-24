@@ -28,9 +28,14 @@ import Data.Bits (popCount)
 antichessInitialGame :: Game 'Antichess 'Active
 antichessInitialGame =
   let b = initialBoard
+      base = toBaseBoard b
+      -- Initial State: White, No Castling Rights, No EP, Clock 0, Move 1
+      s = GS.mkStatePacked T.White GS.noCastling T.NoSquare 0 1
+
+      baseWithState = base { Base.statePacked = s, Base.stateZobrist = 0 }
+
       ag = ActiveGame
-           { internalBoard = toBaseBoard b
-           , gameState = GS.initialGameState { GS.castlingRights = 0 }
+           { internalBoard = baseWithState
            , variantState = ()
            , checkStatus = SSafe
            } :: ActiveGame 'Antichess 'White 'Safe
@@ -39,11 +44,10 @@ antichessInitialGame =
 instance ChessVariant 'Antichess where
   generateMoves (ag :: ActiveGame 'Antichess c s) =
     let baseBoard = internalBoard ag
-        gs = toGameState ag
 
         -- Generate all pseudo-legal moves.
         -- In Antichess, King safety is ignored, so pseudo-legal moves are effectively legal.
-        pseudos = MG.pseudoLegalMovesList baseBoard gs
+        pseudos = MG.pseudoLegalMovesList baseBoard
 
         -- 1. Filter out Castling moves (Standard MG might generate them if rights exist)
         isCastling (MG.GenCastling _ _) = True
@@ -97,7 +101,7 @@ instance ChessVariant 'Antichess where
             -- We can't use Val.hasLegalMoves because it assumes Standard rules (checks).
             -- We need to replicate Antichess move generation logic for opponent.
 
-            oppPseudos = MG.pseudoLegalMovesList baseBoard (toGameState nextAg)
+            oppPseudos = MG.pseudoLegalMovesList baseBoard
             oppHasMoves = not (null oppPseudos)
 
             opponentStalemated = not oppHasMoves

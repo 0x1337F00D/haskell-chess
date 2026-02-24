@@ -27,8 +27,7 @@ import qualified Chess.Board.Validation as Val
 instance ChessVariant 'ThreeCheck where
   generateMoves (ag :: ActiveGame 'ThreeCheck c s) =
     let baseBoard = internalBoard ag
-        gs = toGameState ag
-        baseMoves = MG.legalGenMovesList baseBoard gs
+        baseMoves = MG.legalGenMovesList baseBoard
     in map toCoreMove baseMoves
 
   applyMove (m :: Move c) (ag :: ActiveGame 'ThreeCheck c s) =
@@ -47,7 +46,7 @@ instance ChessVariant 'ThreeCheck where
                        DropMove _ t -> (t, t)
                        Castling960Move _ _ -> error "Castling960Move invalid in ThreeCheck"
 
-        gs = gameState ag
+        gs = Base.statePacked internalB
         gsUpdated = updateCastlingRights gs m
 
         isPawn = case m of
@@ -72,19 +71,19 @@ instance ChessVariant 'ThreeCheck where
                     else T.NoSquare
                   _ -> T.NoSquare
 
-        newHMC = if isPawn || isCapture then 0 else GS.halfmoveClock gs + 1
-        newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
+        newHMC = if isPawn || isCapture then 0 else GS.getHalfmoveClock gs + 1
+        newFMN = GS.getFullmoveNumber gs + (if c == Black then 1 else 0)
 
-        baseBoard = internalB'
-        nextTurnGS = gsUpdated
-          { GS.turn = toColor oppC
-          , GS.epSquare = newEP
-          , GS.halfmoveClock = newHMC
-          , GS.fullmoveNumber = newFMN
-          , GS.zobristHash = 0
-          }
+        newGS = GS.mkStatePacked
+          (toColor (colorVal @(Opposite c)))
+          (GS.getCastlingRights gsUpdated)
+          newEP
+          newHMC
+          newFMN
 
-        isChecked = Val.isCheck baseBoard nextTurnGS
+        baseBoard = internalB' { Base.statePacked = newGS, Base.stateZobrist = 0 }
+
+        isChecked = Val.isCheck baseBoard
 
         (wChecks, bChecks) = variantState ag
         (wChecks', bChecks') = if isChecked
@@ -94,8 +93,8 @@ instance ChessVariant 'ThreeCheck where
         newVariantState = (wChecks', bChecks')
 
     in if isChecked
-       then Transition (ActiveGame internalB' nextTurnGS newVariantState SChecked)
-       else Transition (ActiveGame internalB' nextTurnGS newVariantState SSafe)
+       then Transition (ActiveGame baseBoard newVariantState SChecked)
+       else Transition (ActiveGame baseBoard newVariantState SSafe)
 
   executeMove (m :: Move c) (ag :: ActiveGame 'ThreeCheck c s) =
     case applyMove m ag of
