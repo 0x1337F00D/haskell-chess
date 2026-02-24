@@ -13,9 +13,7 @@ module Chess.Core.Game.Internal where
 import Chess.Core.Board.Internal
 import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
-import Chess.Types (HalfmoveClock, FullmoveNumber)
 import Data.Word (Word8)
-import Data.Bits ((.|.), (.&.), complement, testBit, setBit, clearBit)
 import Chess.Bitboard (Bitboard)
 
 -- 3. Game Phases as Type States

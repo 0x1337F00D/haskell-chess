@@ -4,7 +4,7 @@
 module Chess.Data.Evaluation where
 
 import qualified Data.Vector.Unboxed as U
-import Data.Bits (countTrailingZeros, clearBit, shiftL, shiftR, (.&.), (.|.))
+import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 
 import Chess.Types
 import Chess.Bitboard

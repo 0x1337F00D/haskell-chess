@@ -20,9 +20,9 @@ newtype Builder s a = Builder { unBuilder :: M.MVector s a -> Int -> ST s Int }
 --   One allocation, one pass. Returns the final slice.
 {-# INLINE runBuilder256 #-}
 runBuilder256 :: U.Unbox a => (forall s. Builder s a) -> U.Vector a
-runBuilder256 (Builder k) = U.create $ do
+runBuilder256 b = U.create $ do
   mv <- M.unsafeNew 256
-  !n  <- k mv 0
+  !n  <- unBuilder b mv 0
   pure (M.slice 0 n mv)
 
 -- | Emit exactly one element (very common).
