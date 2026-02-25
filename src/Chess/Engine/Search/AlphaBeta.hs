@@ -16,10 +16,9 @@ import qualified Data.Vector.Unboxed.Mutable as UM
 import qualified Data.Vector.Unboxed as U
 
 import Chess.Types
-import Chess.Board (Board(..), applyMove, isCheck, uci, GenMove, genMoveToMove
+import Chess.Board (Board(..), applyMove, uci, genMoveToMove
                    , ValidatedBoard, SomeValidatedBoard(..), trustBoard, getBoard, getGenMove, MoveGenerator(..)
-                   , applyLegalMove, applyLegalMoveValidated, isCapture, isPromotion, toGenMove, isLegalMove, mkLegalMove)
-import qualified Chess.Board
+                   , applyLegalMoveValidated, isCapture, isPromotion, toGenMove, isLegalMove, mkLegalMove)
 import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MoveGen
@@ -29,7 +28,6 @@ import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
 import Chess.Engine.Search.Types
 import Chess.Engine.Search.Pruning (lmrTable)
 import Chess.Engine.Search.Ordering
-import Chess.Engine.Search.Ordering hiding (orderGenMoves)
 import qualified Chess.Engine.Search.Ordering as Ordering
 import Chess.Engine.Search.Quiescence (quiescence)
 
@@ -427,7 +425,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
             return s
 
     searchStage [] _ _ _ a _ _ flag bestScore bestM found = return (bestScore, flag, bestM, found, a)
-    searchStage (lm:lms) !index inCheck staticEval !a !b !d !flag !bestScore !bestM !found = do
+    searchStage (lm:lms) !index inCheck staticEval !a !b !d !flag !bestScore !bestM !_ = do
         let isCap = isCapture lm
         let isProm = isPromotion lm
         let isQuiet = not isCap && not isProm
