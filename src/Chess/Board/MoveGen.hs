@@ -788,128 +788,24 @@ hasLegalMove b gs =
 -- | Check if a move is legal.
 isLegal :: Board -> GameState -> GenMove -> Bool
 isLegal b gs gm =
-    case gm of
-        GenQuiet from to pt ->
-            isLegalGeneric b gs (turn gs) from to pt Nothing
-        GenCapture from to pt capPt ->
-            isLegalGeneric b gs (turn gs) from to pt (Just capPt)
-        GenEnPassant from to ->
-            isLegalGeneric b gs (turn gs) from to Pawn (Just Pawn) -- Treat EP as Pawn capture
-        GenPromotion from to promoPt ->
-            isLegalGeneric b gs (turn gs) from to promoPt Nothing
-        GenPromotionCapture from to promoPt capPt ->
-            isLegalGeneric b gs (turn gs) from to promoPt (Just capPt)
-        GenCastling _ _ ->
-             -- Castling is rare and involves multiple pieces, fallback to full check
-             let b' = applyMoveBoardFast b gs gm
-                 c = turn gs
-             in case kingSquare b' c of
-                    Nothing -> True
-                    Just k -> not (isAttackedBy b' (oppositeColor c) k) && castlingSafe b gs gm
-        GenDrop _ _ -> True -- Crazyhouse drop
-        GenCastling960 _ _ -> isLegalFull b gs gm -- Fallback
-
-  where
-    castlingSafe :: Board -> GameState -> GenMove -> Bool
-    castlingSafe _ _ (GenCastling f t) =
-           let c1 = turn gs
-               step = (unSquare t - unSquare f) `div` 2
-               mid = Square (unSquare f + step)
-               startAttacked = isAttackedBy b (oppositeColor c1) f
-               midAttacked = isAttackedBy b (oppositeColor c1) mid
-           in not startAttacked && not midAttacked
-    castlingSafe _ _ _ = True
-
--- | Fallback for complex moves
-isLegalFull :: Board -> GameState -> GenMove -> Bool
-isLegalFull b gs gm =
     let b' = applyMoveBoardFast b gs gm
         c = turn gs
-    in case kingSquare b' c of
-         Nothing -> True
-         Just k -> not (isAttackedBy b' (oppositeColor c) k)
+        kingSq' = kingSquare b' c
+        isCastling = case gm of GenCastling _ _ -> True; _ -> False
+    in case kingSq' of
+        Nothing -> True
+        Just k -> not (isAttackedBy b' (oppositeColor c) k) && (if isCastling then castlingSafe b gs gm else True)
 
-{-# INLINE isLegalGeneric #-}
-isLegalGeneric :: Board -> GameState -> Color -> Square -> Square -> PieceType -> Maybe PieceType -> Bool
-isLegalGeneric b gs c from to pt capturedPt =
-    let
-        oppC = oppositeColor c
-        -- Determine King Square (if King moves, it is 'to')
-        kingSq = if pt == King
-                 then to
-                 else case kingSquare b c of Just k -> k; Nothing -> Square 0 -- Should exist
-
-        -- Calculate Updated Occupancy
-        occ = occupiedTotal b
-        fromI = unSquare from
-        toI = unSquare to
-
-        -- Remove 'from', Add 'to' (setBit handles overwrite if capture)
-        -- EXCEPT En Passant: 'to' is empty, 'capSq' is removed.
-        occ' = case capturedPt of
-            Just _ ->
-                 case gs of
-                     GameState { epSquare = ep } | ep /= NoSquare && pt == Pawn && to == ep ->
-                         -- En Passant: Remove from, Set to, Remove Captured Pawn
-                         let capSqI = if c == White then toI - 8 else toI + 8
-                         in ((occ `clearBit` fromI) `setBit` toI) `clearBit` capSqI
-                     _ ->
-                         -- Normal Capture: 'to' was occupied, now occupied by us.
-                         -- Effectively: clear 'from', 'to' stays 1 (was 1, is 1).
-                         -- But we must ensure 'from' is cleared.
-                         (occ `clearBit` fromI) `setBit` toI
-            Nothing ->
-                 -- Quiet: 'to' was 0, becomes 1. 'from' was 1, becomes 0.
-                 (occ `clearBit` fromI) `setBit` toI
-
-        -- Captured Square (to exclude from attackers scan)
-        -- Normal capture: 'to'
-        -- EP capture: 'capSq'
-        ignoreAttackerSq = case capturedPt of
-            Just _ ->
-                 case gs of
-                     GameState { epSquare = ep } | ep /= NoSquare && pt == Pawn && to == ep ->
-                         if c == White then Square (toI - 8) else Square (toI + 8)
-                     _ -> to
-            Nothing -> Square 64 -- No capture, no square to ignore
-
-        ignoreMask = if unSquare ignoreAttackerSq == 64 then complement 0 else complement (bbFromSquare ignoreAttackerSq)
-
-        -- Check Attacks
-        -- We check if 'kingSq' is attacked by 'oppC' in the new configuration.
-
-        -- 1. Sliding Attacks (Rook/Bishop/Queen)
-        -- We use occ' to block.
-        -- We check if any enemy slider is attacking kingSq.
-        -- Attackers are (enemies .&. ignoreMask).
-        -- We don't need to update 'enemies' bitboard fully, just mask out the captured piece.
-        -- Note: If we captured a slider, it's gone.
-        enemies = occupiedBy b oppC .&. ignoreMask
-
-        bAtt = bishopAttacks kingSq occ'
-        rAtt = rookAttacks kingSq occ'
-
-        diagAttackers = (whiteDiagonal b .|. blackDiagonal b) .&. enemies
-        orthAttackers = (whiteOrthogonal b .|. blackOrthogonal b) .&. enemies
-
-        sliding = (bAtt .&. diagAttackers /= 0) || (rAtt .&. orthAttackers /= 0)
-
-        -- 2. Non-Sliding Attacks (Pawn, Knight, King)
-        -- These don't depend on occupancy (except checking if attacker is present).
-        -- Attackers must be in 'enemies'.
-
-        -- Knight Attacks
-        knight = (knightAttacks kingSq .&. enemies .&. (whiteKnights b .|. blackKnights b)) /= 0
-
-        -- Pawn Attacks
-        -- We want to know if an enemy pawn attacks 'kingSq'.
-        -- pawnAttacks (oppC) kingSq gives squares where an enemy pawn would stand to attack kingSq.
-        pawn = (pawnAttacks c kingSq .&. enemies .&. (whitePawns b .|. blackPawns b)) /= 0
-
-        -- King Attacks
-        king = (kingAttacks kingSq .&. enemies .&. (whiteKings b .|. blackKings b)) /= 0
-
-    in not (sliding || knight || pawn || king)
+    where
+         castlingSafe :: Board -> GameState -> GenMove -> Bool
+         castlingSafe _ _ (GenCastling f t) =
+                let c1 = turn gs
+                    step = (unSquare t - unSquare f) `div` 2
+                    mid = Square (unSquare f + step)
+                    startAttacked = isAttackedBy b (oppositeColor c1) f
+                    midAttacked = isAttackedBy b (oppositeColor c1) mid
+                in not startAttacked && not midAttacked
+         castlingSafe _ _ _ = True
 
 -- | Attempt to convert a Move to GenMove and check legality.
 isLegalMove :: Board -> GameState -> Move -> Bool
