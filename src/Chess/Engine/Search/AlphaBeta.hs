@@ -144,6 +144,32 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
 
     firstResult <- processFirstMove sortedMoves
 
+    let go [] bestM bestScore _ _ = return (bestM, bestScore)
+        go (lm:lms) bestM bestScore alpha beta = do
+            stop <- readIORef stopFlag
+            if stop then return (bestM, bestScore)
+            else do
+                let gm = getGenMove lm
+                let m = fromGenMove gm
+                let givesCheck = MoveGen.givesCheck (pieces board) (state board) gm
+
+                do
+                    score <- case applyLegalMoveValidated vBoard lm givesCheck of
+                        InCheckBoard newVBoard -> do
+                            let nextCtx = ctx { scNodeKind = NonPV, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+                            let newAlpha = max alpha bestScore
+                            s <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-beta) (-newAlpha) nodes stopFlag limits
+                            return (stepScore s)
+                        NotInCheckBoard newVBoard -> do
+                            let nextCtx = ctx { scNodeKind = NonPV, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+                            let newAlpha = max alpha bestScore
+                            s <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-beta) (-newAlpha) nodes stopFlag limits
+                            return (stepScore s)
+
+                    if score > bestScore
+                    then go lms m score alpha beta
+                    else go lms bestM bestScore alpha beta
+
     case firstResult of
         Nothing -> do
              -- No moves found (stalemate/mate checked elsewhere usually, but here return null)
@@ -213,32 +239,6 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
   where
     merge (bm, bs) Nothing = (bm, bs)
     merge (bm, bs) (Just (m, s)) = if s > bs then (m, s) else (bm, bs)
-
-    go [] bestM bestScore _ _ = return (bestM, bestScore)
-    go (lm:lms) bestM bestScore alpha beta = do
-        stop <- readIORef stopFlag
-        if stop then return (bestM, bestScore)
-        else do
-            let gm = getGenMove lm
-            let m = fromGenMove gm
-            let givesCheck = MoveGen.givesCheck (pieces board) (state board) gm
-
-            do
-                score <- case applyLegalMoveValidated vBoard lm givesCheck of
-                    InCheckBoard newVBoard -> do
-                        let nextCtx = ctx { scNodeKind = NonPV, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                        let newAlpha = max alpha bestScore
-                        s <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-beta) (-newAlpha) nodes stopFlag limits
-                        return (stepScore s)
-                    NotInCheckBoard newVBoard -> do
-                        let nextCtx = ctx { scNodeKind = NonPV, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                        let newAlpha = max alpha bestScore
-                        s <- alphaBeta nextCtx newVBoard tt (Just m) (decDepth depth) (-beta) (-newAlpha) nodes stopFlag limits
-                        return (stepScore s)
-
-                if score > bestScore
-                then go lms m score alpha beta
-                else go lms bestM bestScore alpha beta
 
 mapConcurrently :: (a -> IO b) -> [a] -> IO [b]
 mapConcurrently f xs = do
