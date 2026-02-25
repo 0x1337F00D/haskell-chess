@@ -45,24 +45,27 @@ computeScores :: Board -> Board
 computeScores b =
     let
         -- Helper
-        eval :: Bitboard -> PackedScore -> U.Vector PackedScore -> PackedScore
-        eval bb mat table = (popCount bb * mat) + evalPacked bb table
+        eval :: Bitboard -> Color -> PieceType -> PackedScore
+        eval bb c pt =
+            let offset = (if c == White then 0 else 384) + (fromEnum pt * 64)
+                table = U.slice offset 64 globalPstTable
+            in evalPacked bb table
 
         -- White Scores
-        sw = eval (whitePawns b)   (packedMaterialValue Pawn)   packedPawnTable
-           + eval (whiteKnights b) (packedMaterialValue Knight) packedKnightTable
-           + eval (whiteBishops b) (packedMaterialValue Bishop) packedBishopTable
-           + eval (whiteRooks b)   (packedMaterialValue Rook)   packedRookTable
-           + eval (whiteQueens b)  (packedMaterialValue Queen)  packedQueenTable
-           + eval (whiteKings b)   (packedMaterialValue King)   packedKingTable
+        sw = eval (whitePawns b)   White Pawn
+           + eval (whiteKnights b) White Knight
+           + eval (whiteBishops b) White Bishop
+           + eval (whiteRooks b)   White Rook
+           + eval (whiteQueens b)  White Queen
+           + eval (whiteKings b)   White King
 
         -- Black Scores
-        sb = eval (blackPawns b)   (packedMaterialValue Pawn)   packedPawnTableFlip
-           + eval (blackKnights b) (packedMaterialValue Knight) packedKnightTableFlip
-           + eval (blackBishops b) (packedMaterialValue Bishop) packedBishopTableFlip
-           + eval (blackRooks b)   (packedMaterialValue Rook)   packedRookTableFlip
-           + eval (blackQueens b)  (packedMaterialValue Queen)  packedQueenTableFlip
-           + eval (blackKings b)   (packedMaterialValue King)   packedKingTableFlip
+        sb = eval (blackPawns b)   Black Pawn
+           + eval (blackKnights b) Black Knight
+           + eval (blackBishops b) Black Bishop
+           + eval (blackRooks b)   Black Rook
+           + eval (blackQueens b)  Black Queen
+           + eval (blackKings b)   Black King
 
         -- Game Phase
         phase = (popCount (whiteKnights b) + popCount (blackKnights b)) * phaseValue Knight
@@ -189,11 +192,10 @@ unsafePutPiece b sq (Piece c pt) =
 
         -- Incremental Scores
         val = pstValue c pt sq
-        mat = packedMaterialValue pt
         ph  = phaseValue pt
 
-        newScoreWhite = if c == White then scoreWhite b + val + mat else scoreWhite b
-        newScoreBlack = if c == Black then scoreBlack b + val + mat else scoreBlack b
+        newScoreWhite = if c == White then scoreWhite b + val else scoreWhite b
+        newScoreBlack = if c == Black then scoreBlack b + val else scoreBlack b
         newPhase = gamePhase b + ph
 
     in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total
@@ -235,11 +237,10 @@ unsafeRemovePiece b sq c pt =
 
         -- Incremental Scores
         val = pstValue c pt sq
-        mat = packedMaterialValue pt
         ph  = phaseValue pt
 
-        newScoreWhite = if c == White then scoreWhite b - (val + mat) else scoreWhite b
-        newScoreBlack = if c == Black then scoreBlack b - (val + mat) else scoreBlack b
+        newScoreWhite = if c == White then scoreWhite b - val else scoreWhite b
+        newScoreBlack = if c == Black then scoreBlack b - val else scoreBlack b
         newPhase = gamePhase b - ph
 
     in b' { occupiedWhite = white, occupiedBlack = black, occupiedTotal = total
