@@ -12,7 +12,7 @@ module Chess.Board.MoveGen where
 import Data.Bits
 import Data.Word (Word64)
 import Foreign.Storable (Storable)
-import Control.Monad (liftM)
+import Control.Monad (liftM, unless, when)
 import Data.Maybe (fromMaybe)
 import Control.Monad.ST (ST)
 import Data.Coerce (coerce)
@@ -108,7 +108,7 @@ pattern GenDrop p t <- (unpackGenDrop -> Just (p, t))
 pattern GenCastling960 :: Square -> Square -> GenMove
 pattern GenCastling960 f t <- (unpackGenCastling960 -> Just (f, t))
   where GenCastling960 f t = mkGenCastling960 f t
-{-# COMPLETE GenQuiet, GenCapture, GenEnPassant, GenCastling, GenPromotion, GenPromotionCapture #-}
+{-# COMPLETE GenQuiet, GenCapture, GenEnPassant, GenCastling, GenPromotion, GenPromotionCapture, GenDrop, GenCastling960 #-}
 
 -- Helpers for packing/unpacking
 
@@ -200,6 +200,7 @@ genMoveToMove (GenEnPassant f t) = Move f t Nothing
 genMoveToMove (GenCastling f t) = Move f t Nothing
 genMoveToMove (GenPromotion f t p) = Move f t (Just p)
 genMoveToMove (GenPromotionCapture f t p _) = Move f t (Just p)
+genMoveToMove _ = NullMove -- Should not happen in standard chess
 
 -- | Pinned bitboard calculation
 {-# INLINE pinnedBits #-}
@@ -223,8 +224,8 @@ pinnedBits b c =
                        else
                            -- Check compatibility (Rook/Queen for Orth, Bishop/Queen for Diag)
                            let isOrth = squareFile kingSq == squareFile pinner || squareRank kingSq == squareRank pinner
-                               compatible = if isOrth then testBit rooks (unSquare pinner) else testBit bishops (unSquare pinner)
-                           in if not compatible then acc
+                               isCompatible = if isOrth then testBit rooks (unSquare pinner) else testBit bishops (unSquare pinner)
+                           in if not isCompatible then acc
                               else
                                   let blockers = between kingSq pinner .&. occ
                                   in if popCount blockers == 1 && (blockers .&. friends /= 0)
@@ -270,18 +271,23 @@ isLegalSafe b gs pinned gm = case gm of
         then True
         else areCollinear kingSq from to
 
+-- | Iterate over a bitboard in a Builder Monad
+{-# INLINE forBitboard #-}
+forBitboard :: Monad m => Bitboard -> (Square -> m ()) -> m ()
+forBitboard bb f = foldBitboardM (\_ sq -> f sq) () bb
+
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> GameState -> U.Vector GenMove
-pseudoLegalMoves b gs = runBuilder256 $
-       emitFill (fillPawnQuiets     b gs)
-    <> emitFill (fillPawnCaptures   b gs)
-    <> emitFill (fillPawnPromotions b gs)
-    <> emitFill (fillPieceMoves     b gs Knight)
-    <> emitFill (fillPieceMoves     b gs Bishop)
-    <> emitFill (fillPieceMoves     b gs Rook)
-    <> emitFill (fillPieceMoves     b gs Queen)
-    <> emitFill (fillPieceMoves     b gs King)
-    <> emitFill (fillCastlingMoves  b gs)
+pseudoLegalMoves b gs = runBuilder256 $ do
+       fillPawnQuiets     b gs
+       fillPawnCaptures   b gs
+       fillPawnPromotions b gs
+       fillPieceMoves     b gs Knight
+       fillPieceMoves     b gs Bishop
+       fillPieceMoves     b gs Rook
+       fillPieceMoves     b gs Queen
+       fillPieceMoves     b gs King
+       fillCastlingMoves  b gs
 
 -- | Generate all legal moves.
 legalMoves :: Board -> GameState -> [Move]
@@ -318,13 +324,13 @@ legalGenMoves b gs =
 
 -- | Generate all pseudo-legal capture moves.
 pseudoLegalCaptures :: Board -> GameState -> U.Vector GenMove
-pseudoLegalCaptures b gs = runBuilder256 $
-       emitFill (fillPawnCaptures   b gs)
-    <> emitFill (fillPieceCaptures  b gs Knight)
-    <> emitFill (fillPieceCaptures  b gs Bishop)
-    <> emitFill (fillPieceCaptures  b gs Rook)
-    <> emitFill (fillPieceCaptures  b gs Queen)
-    <> emitFill (fillPieceCaptures  b gs King)
+pseudoLegalCaptures b gs = runBuilder256 $ do
+       fillPawnCaptures   b gs
+       fillPieceCaptures  b gs Knight
+       fillPieceCaptures  b gs Bishop
+       fillPieceCaptures  b gs Rook
+       fillPieceCaptures  b gs Queen
+       fillPieceCaptures  b gs King
 
 -- | Generate all legal capture moves.
 legalCaptures :: Board -> GameState -> [Move]
@@ -361,14 +367,14 @@ legalGenCaptures b gs =
 
 -- | Generate all pseudo-legal quiet moves.
 pseudoLegalQuiets :: Board -> GameState -> U.Vector GenMove
-pseudoLegalQuiets b gs = runBuilder256 $
-       emitFill (fillPawnQuiets     b gs)
-    <> emitFill (fillPieceQuiets    b gs Knight)
-    <> emitFill (fillPieceQuiets    b gs Bishop)
-    <> emitFill (fillPieceQuiets    b gs Rook)
-    <> emitFill (fillPieceQuiets    b gs Queen)
-    <> emitFill (fillPieceQuiets    b gs King)
-    <> emitFill (fillCastlingMoves  b gs)
+pseudoLegalQuiets b gs = runBuilder256 $ do
+       fillPawnQuiets     b gs
+       fillPieceQuiets    b gs Knight
+       fillPieceQuiets    b gs Bishop
+       fillPieceQuiets    b gs Rook
+       fillPieceQuiets    b gs Queen
+       fillPieceQuiets    b gs King
+       fillCastlingMoves  b gs
 
 -- | Generate all legal quiet moves returning GenMove.
 legalGenQuiets :: Board -> GameState -> U.Vector GenMove
@@ -408,7 +414,7 @@ legalGenPromotions b gs =
 
 -- | Generate only legal moves when the king is in check.
 generateEvasions :: Board -> GameState -> U.Vector GenMove
-generateEvasions b gs = runBuilder256 $
+generateEvasions b gs = runBuilder256 $ do
     let c = turn gs
         kingSq = case kingSquare b c of
                         Just k -> k
@@ -419,12 +425,10 @@ generateEvasions b gs = runBuilder256 $
 
         attackers = attackersTo b kingSq occ .&. enemies
         numAttackers = popCount attackers
-    in
-    if numAttackers == 0 then mempty
-    else
-        emitFill (fillKingEvasions b gs (complement 0)) <>
-        if numAttackers > 1 then mempty
-        else
+
+    unless (numAttackers == 0) $ do
+        fillKingEvasions b gs (complement 0)
+        unless (numAttackers > 1) $ do
              let attackerSq = Square (fromMaybe 0 (lsb attackers))
                  r = ray kingSq attackerSq
                  -- Target mask: capture attacker or block ray
@@ -438,27 +442,25 @@ generateEvasions b gs = runBuilder256 $
                              in if captureSq == attackerSq
                                 then targetMask `setBit` e
                                 else targetMask
-             in
-                emitFill (fillPawnEvasions b gs realTargetMask) <>
-                emitFill (fillPieceEvasions b gs Knight realTargetMask) <>
-                emitFill (fillPieceEvasions b gs Bishop realTargetMask) <>
-                emitFill (fillPieceEvasions b gs Rook realTargetMask) <>
-                emitFill (fillPieceEvasions b gs Queen realTargetMask)
+
+             fillPawnEvasions b gs realTargetMask
+             fillPieceEvasions b gs Knight realTargetMask
+             fillPieceEvasions b gs Bishop realTargetMask
+             fillPieceEvasions b gs Rook realTargetMask
+             fillPieceEvasions b gs Queen realTargetMask
 
 generateEvasionCaptures :: Board -> GameState -> U.Vector GenMove
-generateEvasionCaptures b gs = runBuilder256 $
+generateEvasionCaptures b gs = runBuilder256 $ do
     let c = turn gs
         kingSq = case kingSquare b c of Just k -> k; Nothing -> Square 0
         occ = occupiedTotal b
         enemies = occupiedBy b (oppositeColor c)
         attackers = attackersTo b kingSq occ .&. enemies
         numAttackers = popCount attackers
-    in
-    if numAttackers == 0 then mempty
-    else
-        emitFill (fillKingEvasions b gs enemies) <>
-        if numAttackers > 1 then mempty
-        else
+
+    unless (numAttackers == 0) $ do
+        fillKingEvasions b gs enemies
+        unless (numAttackers > 1) $ do
             let attackerSq = Square (fromMaybe 0 (lsb attackers))
                 targetMask = bbFromSquare attackerSq
                 ep = epSquare gs
@@ -469,93 +471,73 @@ generateEvasionCaptures b gs = runBuilder256 $
                          in if captureSq == attackerSq
                             then targetMask `setBit` e
                             else targetMask
-            in
-               emitFill (fillPawnEvasions b gs realTargetMask) <>
-               emitFill (fillPieceEvasions b gs Knight realTargetMask) <>
-               emitFill (fillPieceEvasions b gs Bishop realTargetMask) <>
-               emitFill (fillPieceEvasions b gs Rook realTargetMask) <>
-               emitFill (fillPieceEvasions b gs Queen realTargetMask)
+
+            fillPawnEvasions b gs realTargetMask
+            fillPieceEvasions b gs Knight realTargetMask
+            fillPieceEvasions b gs Bishop realTargetMask
+            fillPieceEvasions b gs Rook realTargetMask
+            fillPieceEvasions b gs Queen realTargetMask
 
 generateEvasionQuiets :: Board -> GameState -> U.Vector GenMove
-generateEvasionQuiets b gs = runBuilder256 $
+generateEvasionQuiets b gs = runBuilder256 $ do
     let c = turn gs
         kingSq = case kingSquare b c of Just k -> k; Nothing -> Square 0
         occ = occupiedTotal b
         enemies = occupiedBy b (oppositeColor c)
         attackers = attackersTo b kingSq occ .&. enemies
         numAttackers = popCount attackers
-    in
-    if numAttackers == 0 then mempty
-    else
-        emitFill (fillKingEvasions b gs (complement enemies)) <>
-        if numAttackers > 1 then mempty
-        else
+
+    unless (numAttackers == 0) $ do
+        fillKingEvasions b gs (complement enemies)
+        unless (numAttackers > 1) $ do
             let attackerSq = Square (fromMaybe 0 (lsb attackers))
                 r = ray kingSq attackerSq
                 targetMask = r
-            in
-            if targetMask == 0 then mempty
-            else
-               emitFill (fillPawnEvasions b gs targetMask) <>
-               emitFill (fillPieceEvasions b gs Knight targetMask) <>
-               emitFill (fillPieceEvasions b gs Bishop targetMask) <>
-               emitFill (fillPieceEvasions b gs Rook targetMask) <>
-               emitFill (fillPieceEvasions b gs Queen targetMask)
+
+            unless (targetMask == 0) $ do
+               fillPawnEvasions b gs targetMask
+               fillPieceEvasions b gs Knight targetMask
+               fillPieceEvasions b gs Bishop targetMask
+               fillPieceEvasions b gs Rook targetMask
+               fillPieceEvasions b gs Queen targetMask
 
 generateEvasionPromotions :: Board -> GameState -> U.Vector GenMove
-generateEvasionPromotions b gs = runBuilder256 $
+generateEvasionPromotions b gs = runBuilder256 $ do
     let c = turn gs
         kingSq = case kingSquare b c of Just k -> k; Nothing -> Square 0
         occ = occupiedTotal b
         enemies = occupiedBy b (oppositeColor c)
         attackers = attackersTo b kingSq occ .&. enemies
         numAttackers = popCount attackers
-    in
-    if numAttackers > 1 then mempty
-    else
+
+    unless (numAttackers > 1) $ do
          let attackerSq = Square (fromMaybe 0 (lsb attackers))
              r = ray kingSq attackerSq
              targetMask = if r == 0 then bbFromSquare attackerSq else r
-         in emitFill (fillPawnEvasionPromotions b gs targetMask)
+         fillPawnEvasionPromotions b gs targetMask
 
 {-# INLINE fillKingEvasions #-}
-fillKingEvasions :: Board -> GameState -> Bitboard -> U.MVector s GenMove -> Int -> ST s Int
-fillKingEvasions b gs targetMask mv !startIdx =
+fillKingEvasions :: Board -> GameState -> Bitboard -> Builder s GenMove ()
+fillKingEvasions b gs targetMask = do
     let c = turn gs
         bb = pieceBitboard b c King
         friends = occupiedBy b c
-        fillAcc !idx from = do
+    forBitboard bb $ \from -> do
             let att = kingAttacks from
             let valid = att .&. complement friends .&. targetMask
-            let writeMove idx2 to = do
+            forBitboard valid $ \to -> do
                     let toI = unSquare to
-                    -- Must verify safety!
-                    -- We can assume the King moves out of check?
-                    -- No, we must check if 'to' is attacked.
-                    -- Note: 'isLegal' checks this.
-                    -- We can generate pseudo-legal and filter manually or rely on 'isLegal'.
-                    -- Since we want 'generateEvasions' to be strict, we check here.
-                    -- However, 'isAttackedBy' is expensive.
-                    -- We can defer or do it here.
-                    -- Let's do it here to ensure strictness.
-
                     let isCap = testBit (occupiedBy b (oppositeColor c)) toI
                     let gm = if isCap
                              then GenCapture from to King (findPieceType b (oppositeColor c) to)
                              else GenQuiet from to King
 
                     -- Check legality
-                    if isLegal b gs gm
-                    then do
-                        M.unsafeWrite mv idx2 gm
-                        return (idx2 + 1)
-                    else return idx2
-            foldBitboardM writeMove idx valid
-    in foldBitboardM fillAcc startIdx bb
+                    when (isLegal b gs gm) $ emit gm
 
 {-# INLINE fillPieceEvasions #-}
-fillPieceEvasions :: Board -> GameState -> PieceType -> Bitboard -> U.MVector s GenMove -> Int -> ST s Int
-fillPieceEvasions b gs pt targetMask mv !startIdx =
+fillPieceEvasions :: Board -> GameState -> PieceType -> Bitboard -> Builder s GenMove ()
+fillPieceEvasions b gs pt targetMask = do
     let c = turn gs
         bb = pieceBitboard b c pt
         occ = occupiedTotal b
@@ -568,100 +550,76 @@ fillPieceEvasions b gs pt targetMask mv !startIdx =
              Rook   -> rookAttacks from occ
              Queen  -> bishopAttacks from occ .|. rookAttacks from occ
              _      -> 0
-        fillAcc !idx from = do
+    forBitboard bb $ \from -> do
             let att = getAttacks from
             let valid = att .&. complement friends .&. targetMask
-            let writeMove idx2 to = do
-                    -- We know we are blocking or capturing.
-                    -- But we must still ensure we don't expose king to another check (pinned pieces).
-                    -- So we must check isLegal.
+            forBitboard valid $ \to -> do
                     let toI = unSquare to
                     let isCap = testBit enemies toI
                     let gm = if isCap
                              then GenCapture from to pt (findPieceType b oppC to)
                              else GenQuiet from to pt
 
-                    if isLegal b gs gm
-                    then do
-                        M.unsafeWrite mv idx2 gm
-                        return (idx2 + 1)
-                    else return idx2
-            foldBitboardM writeMove idx valid
-    in foldBitboardM fillAcc startIdx bb
+                    when (isLegal b gs gm) $ emit gm
 
 {-# INLINE fillPawnEvasionPromotions #-}
-fillPawnEvasionPromotions :: Board -> GameState -> Bitboard -> U.MVector s GenMove -> Int -> ST s Int
-fillPawnEvasionPromotions b gs targetMask mv !startIdx =
+fillPawnEvasionPromotions :: Board -> GameState -> Bitboard -> Builder s GenMove ()
+fillPawnEvasionPromotions b gs targetMask = do
     let c = turn gs
         pawns = pieceBitboard b c Pawn
         occ = occupiedTotal b
         enemy = occupiedBy b (oppositeColor c)
         oppC = oppositeColor c
 
-        fillMoves !idx from = do
+    forBitboard pawns $ \from -> do
             let i = unSquare from
             -- Quiets (Push)
-            idx1 <- if c == White
+            if c == White
                then do
                    let to8 = i + 8
-                   if to8 >= 56 && not (testBit occ to8) && testBit targetMask to8
-                   then do
+                   when (to8 >= 56 && not (testBit occ to8) && testBit targetMask to8) $ do
                        let dest = Square to8
-                       if isLegal b gs (GenPromotion from dest Queen) then do
-                           M.unsafeWrite mv idx     (GenPromotion from dest Queen)
-                           M.unsafeWrite mv (idx+1) (GenPromotion from dest Rook)
-                           M.unsafeWrite mv (idx+2) (GenPromotion from dest Bishop)
-                           M.unsafeWrite mv (idx+3) (GenPromotion from dest Knight)
-                           return (idx + 4)
-                       else return idx
-                   else return idx
+                       when (isLegal b gs (GenPromotion from dest Queen)) $ do
+                           emit (GenPromotion from dest Queen)
+                           emit (GenPromotion from dest Rook)
+                           emit (GenPromotion from dest Bishop)
+                           emit (GenPromotion from dest Knight)
                else do
                    let to8 = i - 8
-                   if to8 <= 7 && not (testBit occ to8) && testBit targetMask to8
-                   then do
+                   when (to8 <= 7 && not (testBit occ to8) && testBit targetMask to8) $ do
                        let dest = Square to8
-                       if isLegal b gs (GenPromotion from dest Queen) then do
-                           M.unsafeWrite mv idx     (GenPromotion from dest Queen)
-                           M.unsafeWrite mv (idx+1) (GenPromotion from dest Rook)
-                           M.unsafeWrite mv (idx+2) (GenPromotion from dest Bishop)
-                           M.unsafeWrite mv (idx+3) (GenPromotion from dest Knight)
-                           return (idx + 4)
-                       else return idx
-                   else return idx
+                       when (isLegal b gs (GenPromotion from dest Queen)) $ do
+                           emit (GenPromotion from dest Queen)
+                           emit (GenPromotion from dest Rook)
+                           emit (GenPromotion from dest Bishop)
+                           emit (GenPromotion from dest Knight)
 
             -- Captures
-            let checkCapture !ix toSq = do
-                    if testBit enemy (unSquare toSq) && testBit targetMask (unSquare toSq)
-                    then do
+            let checkCapture toSq = do
+                    when (testBit enemy (unSquare toSq) && testBit targetMask (unSquare toSq)) $ do
                         let dest = toSq
                         if unSquare dest >= 56 || unSquare dest <= 7
                         then do -- Promotion Capture
                             let capPt = findPieceType b oppC dest
-                            if isLegal b gs (GenPromotionCapture from dest Queen capPt) then do
-                                M.unsafeWrite mv ix     (GenPromotionCapture from dest Queen capPt)
-                                M.unsafeWrite mv (ix+1) (GenPromotionCapture from dest Rook capPt)
-                                M.unsafeWrite mv (ix+2) (GenPromotionCapture from dest Bishop capPt)
-                                M.unsafeWrite mv (ix+3) (GenPromotionCapture from dest Knight capPt)
-                                return (ix + 4)
-                            else return ix
-                        else return ix
-                    else return ix
+                            when (isLegal b gs (GenPromotionCapture from dest Queen capPt)) $ do
+                                emit (GenPromotionCapture from dest Queen capPt)
+                                emit (GenPromotionCapture from dest Rook capPt)
+                                emit (GenPromotionCapture from dest Bishop capPt)
+                                emit (GenPromotionCapture from dest Knight capPt)
+                        else return ()
 
-            idx2 <- if c == White
-                    then do
-                        i2 <- if (i `mod` 8) /= 7 then checkCapture idx1 (Square (i+9)) else return idx1
-                        if (i `mod` 8) /= 0 then checkCapture i2 (Square (i+7)) else return i2
-                    else do
-                        i2 <- if (i `mod` 8) /= 7 then checkCapture idx1 (Square (i-7)) else return idx1
-                        if (i `mod` 8) /= 0 then checkCapture i2 (Square (i-9)) else return i2
+            if c == White
+            then do
+                when ((i `mod` 8) /= 7) $ checkCapture (Square (i+9))
+                when ((i `mod` 8) /= 0) $ checkCapture (Square (i+7))
+            else do
+                when ((i `mod` 8) /= 7) $ checkCapture (Square (i-7))
+                when ((i `mod` 8) /= 0) $ checkCapture (Square (i-9))
 
-            return idx2
-
-    in foldBitboardM fillMoves startIdx pawns
 
 {-# INLINE fillPawnEvasions #-}
-fillPawnEvasions :: Board -> GameState -> Bitboard -> U.MVector s GenMove -> Int -> ST s Int
-fillPawnEvasions b gs targetMask mv !startIdx =
+fillPawnEvasions :: Board -> GameState -> Bitboard -> Builder s GenMove ()
+fillPawnEvasions b gs targetMask = do
     let c = turn gs
         pawns = pieceBitboard b c Pawn
         occ = occupiedTotal b
@@ -669,112 +627,84 @@ fillPawnEvasions b gs targetMask mv !startIdx =
         oppC = oppositeColor c
         ep = epSquare gs
 
-        fillMoves !idx from = do
+    forBitboard pawns $ \from -> do
             let i = unSquare from
             -- Quiets
-            idx1 <- if c == White
+            if c == White
                then do
                    let to8 = i + 8
-                   if to8 < 64 && not (testBit occ to8) && testBit targetMask to8
-                   then do
+                   when (to8 < 64 && not (testBit occ to8) && testBit targetMask to8) $ do
                        -- Promotion?
                        if to8 >= 56
                        then do
                            let dest = Square to8
-                           if isLegal b gs (GenPromotion from dest Queen) then do
-                               M.unsafeWrite mv idx     (GenPromotion from dest Queen)
-                               M.unsafeWrite mv (idx+1) (GenPromotion from dest Rook)
-                               M.unsafeWrite mv (idx+2) (GenPromotion from dest Bishop)
-                               M.unsafeWrite mv (idx+3) (GenPromotion from dest Knight)
-                               return (idx + 4)
-                           else return idx
+                           when (isLegal b gs (GenPromotion from dest Queen)) $ do
+                               emit (GenPromotion from dest Queen)
+                               emit (GenPromotion from dest Rook)
+                               emit (GenPromotion from dest Bishop)
+                               emit (GenPromotion from dest Knight)
                        else do
                            let gm = GenQuiet from (Square to8) Pawn
-                           if isLegal b gs gm then do M.unsafeWrite mv idx gm; return (idx+1) else return idx
-                   else return idx
+                           when (isLegal b gs gm) $ emit gm
                else do
                    let to8 = i - 8
-                   if to8 >= 0 && not (testBit occ to8) && testBit targetMask to8
-                   then do
+                   when (to8 >= 0 && not (testBit occ to8) && testBit targetMask to8) $ do
                        if to8 <= 7
                        then do
                            let dest = Square to8
-                           if isLegal b gs (GenPromotion from dest Queen) then do
-                               M.unsafeWrite mv idx     (GenPromotion from dest Queen)
-                               M.unsafeWrite mv (idx+1) (GenPromotion from dest Rook)
-                               M.unsafeWrite mv (idx+2) (GenPromotion from dest Bishop)
-                               M.unsafeWrite mv (idx+3) (GenPromotion from dest Knight)
-                               return (idx + 4)
-                           else return idx
+                           when (isLegal b gs (GenPromotion from dest Queen)) $ do
+                               emit (GenPromotion from dest Queen)
+                               emit (GenPromotion from dest Rook)
+                               emit (GenPromotion from dest Bishop)
+                               emit (GenPromotion from dest Knight)
                        else do
                            let gm = GenQuiet from (Square to8) Pawn
-                           if isLegal b gs gm then do M.unsafeWrite mv idx gm; return (idx+1) else return idx
-                   else return idx
+                           when (isLegal b gs gm) $ emit gm
 
             -- Double Push
-            idx2 <- if c == White
+            if c == White
                then do
                    let to8 = i + 8
                        to16 = i + 16
-                   if i >= 8 && i <= 15 && not (testBit occ to8) && not (testBit occ to16) && testBit targetMask to16
-                   then do
+                   when (i >= 8 && i <= 15 && not (testBit occ to8) && not (testBit occ to16) && testBit targetMask to16) $ do
                        let gm = GenQuiet from (Square to16) Pawn
-                       if isLegal b gs gm then do M.unsafeWrite mv idx1 gm; return (idx1+1) else return idx1
-                   else return idx1
+                       when (isLegal b gs gm) $ emit gm
                else do
                    let to8 = i - 8
-                       to16 = i - 16
-                   if i >= 48 && i <= 55 && not (testBit occ to8) && not (testBit occ to16) && testBit targetMask to16
-                   then do
+                   let to16 = i - 16
+                   when (i >= 48 && i <= 55 && not (testBit occ to8) && not (testBit occ to16) && testBit targetMask to16) $ do
                        let gm = GenQuiet from (Square to16) Pawn
-                       if isLegal b gs gm then do M.unsafeWrite mv idx1 gm; return (idx1+1) else return idx1
-                   else return idx1
+                       when (isLegal b gs gm) $ emit gm
 
             -- Captures
-            let checkCapture !ix toSq = do
+            let checkCapture toSq = do
                     if testBit enemies (unSquare toSq) && testBit targetMask (unSquare toSq)
                     then do
                         let dest = toSq
                             capPt = findPieceType b oppC dest
                         if unSquare dest >= 56 || unSquare dest <= 7
                         then do -- Promotion Capture
-                            if isLegal b gs (GenPromotionCapture from dest Queen capPt) then do
-                                M.unsafeWrite mv ix     (GenPromotionCapture from dest Queen capPt)
-                                M.unsafeWrite mv (ix+1) (GenPromotionCapture from dest Rook capPt)
-                                M.unsafeWrite mv (ix+2) (GenPromotionCapture from dest Bishop capPt)
-                                M.unsafeWrite mv (ix+3) (GenPromotionCapture from dest Knight capPt)
-                                return (ix + 4)
-                            else return ix
+                            when (isLegal b gs (GenPromotionCapture from dest Queen capPt)) $ do
+                                emit (GenPromotionCapture from dest Queen capPt)
+                                emit (GenPromotionCapture from dest Rook capPt)
+                                emit (GenPromotionCapture from dest Bishop capPt)
+                                emit (GenPromotionCapture from dest Knight capPt)
                         else do
                             let gm = GenCapture from dest Pawn capPt
-                            if isLegal b gs gm then do M.unsafeWrite mv ix gm; return (ix+1) else return ix
-                    else if ep /= NoSquare && toSq == ep && testBit targetMask (unSquare toSq)
-                         then do
+                            when (isLegal b gs gm) $ emit gm
+                    else when (ep /= NoSquare && toSq == ep && testBit targetMask (unSquare toSq)) $ do
                              let gm = GenEnPassant from ep
-                             if isLegal b gs gm then do M.unsafeWrite mv ix gm; return (ix+1) else return ix
-                         else return ix
+                             when (isLegal b gs gm) $ emit gm
 
-            idx3 <- if c == White
-                    then do
-                        i3 <- if (i `mod` 8) /= 7 then checkCapture idx2 (Square (i+9)) else return idx2
-                        if (i `mod` 8) /= 0 then checkCapture i3 (Square (i+7)) else return i3
-                    else do
-                        i3 <- if (i `mod` 8) /= 7 then checkCapture idx2 (Square (i-7)) else return idx2
-                        if (i `mod` 8) /= 0 then checkCapture i3 (Square (i-9)) else return i3
-
-            return idx3
-
-    in foldBitboardM fillMoves startIdx pawns
+            if c == White
+            then do
+                when ((i `mod` 8) /= 7) $ checkCapture (Square (i+9))
+                when ((i `mod` 8) /= 0) $ checkCapture (Square (i+7))
+            else do
+                when ((i `mod` 8) /= 7) $ checkCapture (Square (i-7))
+                when ((i `mod` 8) /= 0) $ checkCapture (Square (i-9))
 
 -- | Check if there is any legal move.
--- Checks moves in order of likely legality/cost:
--- 1. King moves
--- 2. Knight moves
--- 3. Bishop moves
--- 4. Rook moves
--- 5. Queen moves
--- 6. Pawn moves (Quiets, Captures, Promotions)
--- 7. Castling
 hasLegalMove :: Board -> GameState -> Bool
 hasLegalMove b gs =
     U.any (isLegal b gs) (pieceMoves b gs King) ||
@@ -879,6 +809,8 @@ applyMoveBoardFast b gs gm =
                 b2 = unsafeRemovePiece b1 to (oppositeColor c) capPt
             in unsafePutPiece b2 to (Piece c promoPt)
 
+        _ -> b -- Unsupported move type (e.g. GenDrop)
+
 movePieceFast :: Board -> Square -> Square -> Color -> PieceType -> Board
 movePieceFast = unsafeMovePiece
 
@@ -898,11 +830,11 @@ kingSquare b c = fmap Square (lsb (pieceBitboard b c King))
 -- Move Generators using Vector construction
 
 pieceMoves :: Board -> GameState -> PieceType -> U.Vector GenMove
-pieceMoves b gs pt = runBuilder256 $ emitFill (fillPieceMoves b gs pt)
+pieceMoves b gs pt = runBuilder256 $ fillPieceMoves b gs pt
 
 {-# INLINE fillPieceMoves #-}
-fillPieceMoves :: Board -> GameState -> PieceType -> U.MVector s GenMove -> Int -> ST s Int
-fillPieceMoves b gs pt mv !startIdx =
+fillPieceMoves :: Board -> GameState -> PieceType -> Builder s GenMove ()
+fillPieceMoves b gs pt = do
     let c = turn gs
         bb = pieceBitboard b c pt
         occ = occupiedTotal b
@@ -916,26 +848,23 @@ fillPieceMoves b gs pt mv !startIdx =
              Queen  -> bishopAttacks from occ .|. rookAttacks from occ
              King   -> kingAttacks from
              _      -> 0
-        fillAcc !idx from = do
+    forBitboard bb $ \from -> do
             let att = getAttacks from
             let valid = att .&. complement friends
-            let writeMove idx2 to = do
+            forBitboard valid $ \to -> do
                     let toI = unSquare to
                     let isCap = testBit enemies toI
                     let gm = if isCap
                              then GenCapture from to pt (findPieceType b oppC to)
                              else GenQuiet from to pt
-                    M.unsafeWrite mv idx2 gm
-                    return (idx2 + 1)
-            foldBitboardM writeMove idx valid
-    in foldBitboardM fillAcc startIdx bb
+                    emit gm
 
 pieceCaptures :: Board -> GameState -> PieceType -> U.Vector GenMove
-pieceCaptures b gs pt = runBuilder256 $ emitFill (fillPieceCaptures b gs pt)
+pieceCaptures b gs pt = runBuilder256 $ fillPieceCaptures b gs pt
 
 {-# INLINE fillPieceCaptures #-}
-fillPieceCaptures :: Board -> GameState -> PieceType -> U.MVector s GenMove -> Int -> ST s Int
-fillPieceCaptures b gs pt mv !startIdx =
+fillPieceCaptures :: Board -> GameState -> PieceType -> Builder s GenMove ()
+fillPieceCaptures b gs pt = do
     let c = turn gs
         bb = pieceBitboard b c pt
         occ = occupiedTotal b
@@ -948,22 +877,19 @@ fillPieceCaptures b gs pt mv !startIdx =
              Queen  -> bishopAttacks from occ .|. rookAttacks from occ
              King   -> kingAttacks from
              _      -> 0
-        fillAcc !idx from = do
+    forBitboard bb $ \from -> do
             let att = getAttacks from
             let valid = att .&. enemies
-            let writeMove idx2 to = do
+            forBitboard valid $ \to -> do
                     let gm = GenCapture from to pt (findPieceType b oppC to)
-                    M.unsafeWrite mv idx2 gm
-                    return (idx2 + 1)
-            foldBitboardM writeMove idx valid
-    in foldBitboardM fillAcc startIdx bb
+                    emit gm
 
 pieceQuiets :: Board -> GameState -> PieceType -> U.Vector GenMove
-pieceQuiets b gs pt = runBuilder256 $ emitFill (fillPieceQuiets b gs pt)
+pieceQuiets b gs pt = runBuilder256 $ fillPieceQuiets b gs pt
 
 {-# INLINE fillPieceQuiets #-}
-fillPieceQuiets :: Board -> GameState -> PieceType -> U.MVector s GenMove -> Int -> ST s Int
-fillPieceQuiets b gs pt mv !startIdx =
+fillPieceQuiets :: Board -> GameState -> PieceType -> Builder s GenMove ()
+fillPieceQuiets b gs pt = do
     let c = turn gs
         bb = pieceBitboard b c pt
         occ = occupiedTotal b
@@ -974,212 +900,175 @@ fillPieceQuiets b gs pt mv !startIdx =
              Queen  -> bishopAttacks from occ .|. rookAttacks from occ
              King   -> kingAttacks from
              _      -> 0
-        fillAcc !idx from = do
+    forBitboard bb $ \from -> do
             let att = getAttacks from
             let valid = att .&. complement occ
-            let writeMove idx2 to = do
-                    let gm = GenQuiet from to pt
-                    M.unsafeWrite mv idx2 gm
-                    return (idx2 + 1)
-            foldBitboardM writeMove idx valid
-    in foldBitboardM fillAcc startIdx bb
+            forBitboard valid $ \to -> do
+                    emit (GenQuiet from to pt)
 
 pawnMoves :: Board -> GameState -> U.Vector GenMove
-pawnMoves b gs = runBuilder256 $
-       emitFill (fillPawnQuiets     b gs)
-    <> emitFill (fillPawnCaptures   b gs)
-    <> emitFill (fillPawnPromotions b gs)
+pawnMoves b gs = runBuilder256 $ do
+       fillPawnQuiets     b gs
+       fillPawnCaptures   b gs
+       fillPawnPromotions b gs
 
 pawnQuiets :: Board -> GameState -> U.Vector GenMove
-pawnQuiets b gs = runBuilder256 $ emitFill (fillPawnQuiets b gs)
+pawnQuiets b gs = runBuilder256 $ fillPawnQuiets b gs
 
 {-# INLINE fillPawnQuiets #-}
-fillPawnQuiets :: Board -> GameState -> U.MVector s GenMove -> Int -> ST s Int
-fillPawnQuiets b gs mv !startIdx =
+fillPawnQuiets :: Board -> GameState -> Builder s GenMove ()
+fillPawnQuiets b gs = do
     let c = turn gs
         pawns = pieceBitboard b c Pawn
         occ = occupiedTotal b
-        fillMoves !idx from =
+    forBitboard pawns $ \from -> do
             let i = unSquare from
-            in if c == White
-               then
+            if c == White
+               then do
                    let to8 = i + 8
-                   in if testBit occ to8 then return idx
-                      else do
-                          idx1 <- if to8 >= 56 then return idx
-                                  else do
-                                      M.unsafeWrite mv idx (GenQuiet from (Square to8) Pawn)
-                                      return (idx + 1)
+                   unless (testBit occ to8) $ do
+                          unless (to8 >= 56) $ do
+                                      emit (GenQuiet from (Square to8) Pawn)
+
                           let to16 = i + 16
-                          if i >= 8 && i <= 15 && not (testBit occ to16)
-                          then do
-                              M.unsafeWrite mv idx1 (GenQuiet from (Square to16) Pawn)
-                              return (idx1 + 1)
-                          else return idx1
-               else
+                          when (i >= 8 && i <= 15 && not (testBit occ to16)) $ do
+                              emit (GenQuiet from (Square to16) Pawn)
+               else do
                    let to8 = i - 8
-                   in if testBit occ to8 then return idx
-                      else do
-                          idx1 <- if to8 <= 7 then return idx
-                                  else do
-                                      M.unsafeWrite mv idx (GenQuiet from (Square to8) Pawn)
-                                      return (idx + 1)
+                   unless (testBit occ to8) $ do
+                          unless (to8 <= 7) $ do
+                                      emit (GenQuiet from (Square to8) Pawn)
+
                           let to16 = i - 16
-                          if i >= 48 && i <= 55 && not (testBit occ to16)
-                          then do
-                              M.unsafeWrite mv idx1 (GenQuiet from (Square to16) Pawn)
-                              return (idx1 + 1)
-                          else return idx1
-    in foldBitboardM fillMoves startIdx pawns
+                          when (i >= 48 && i <= 55 && not (testBit occ to16)) $ do
+                              emit (GenQuiet from (Square to16) Pawn)
 
 pawnPromotions :: Board -> GameState -> U.Vector GenMove
-pawnPromotions b gs = runBuilder256 $ emitFill (fillPawnPromotions b gs)
+pawnPromotions b gs = runBuilder256 $ fillPawnPromotions b gs
 
 {-# INLINE fillPawnPromotions #-}
-fillPawnPromotions :: Board -> GameState -> U.MVector s GenMove -> Int -> ST s Int
-fillPawnPromotions b gs mv !startIdx =
+fillPawnPromotions :: Board -> GameState -> Builder s GenMove ()
+fillPawnPromotions b gs = do
     let c = turn gs
         pawns = pieceBitboard b c Pawn
         occ = occupiedTotal b
-        fillMoves !idx from =
+    forBitboard pawns $ \from -> do
             let i = unSquare from
-            in if c == White
-               then
+            if c == White
+               then do
                    let to8 = i + 8
                        dest = Square to8
-                   in if not (testBit occ to8) && to8 >= 56
-                      then do
-                          M.unsafeWrite mv idx     (GenPromotion from dest Queen)
-                          M.unsafeWrite mv (idx+1) (GenPromotion from dest Rook)
-                          M.unsafeWrite mv (idx+2) (GenPromotion from dest Bishop)
-                          M.unsafeWrite mv (idx+3) (GenPromotion from dest Knight)
-                          return (idx + 4)
-                      else return idx
-               else
+                   when (not (testBit occ to8) && to8 >= 56) $ do
+                          emit (GenPromotion from dest Queen)
+                          emit (GenPromotion from dest Rook)
+                          emit (GenPromotion from dest Bishop)
+                          emit (GenPromotion from dest Knight)
+               else do
                    let to8 = i - 8
                        dest = Square to8
-                   in if not (testBit occ to8) && to8 <= 7
-                      then do
-                          M.unsafeWrite mv idx     (GenPromotion from dest Queen)
-                          M.unsafeWrite mv (idx+1) (GenPromotion from dest Rook)
-                          M.unsafeWrite mv (idx+2) (GenPromotion from dest Bishop)
-                          M.unsafeWrite mv (idx+3) (GenPromotion from dest Knight)
-                          return (idx + 4)
-                      else return idx
-    in foldBitboardM fillMoves startIdx pawns
+                   when (not (testBit occ to8) && to8 <= 7) $ do
+                          emit (GenPromotion from dest Queen)
+                          emit (GenPromotion from dest Rook)
+                          emit (GenPromotion from dest Bishop)
+                          emit (GenPromotion from dest Knight)
 
 pawnCaptures :: Board -> GameState -> U.Vector GenMove
-pawnCaptures b gs = runBuilder256 $ emitFill (fillPawnCaptures b gs)
+pawnCaptures b gs = runBuilder256 $ fillPawnCaptures b gs
 
 {-# INLINE fillPawnCaptures #-}
-fillPawnCaptures :: Board -> GameState -> U.MVector s GenMove -> Int -> ST s Int
-fillPawnCaptures b gs mv !startIdx =
+fillPawnCaptures :: Board -> GameState -> Builder s GenMove ()
+fillPawnCaptures b gs = do
     let c = turn gs
         pawns = pieceBitboard b c Pawn
         enemy = occupiedBy b (oppositeColor c)
         oppC = oppositeColor c
         ep = epSquare gs
         epIdx = unSquare ep
-        fillMoves !idx from =
+
+    forBitboard pawns $ \from -> do
             let i = unSquare from
-            in if c == White then do
+            if c == White then do
                 -- EP
-                idx1 <- if ep /= NoSquare
-                        then if (i + 7) == epIdx && (i `mod` 8) /= 0
-                             then do M.unsafeWrite mv idx (GenEnPassant from ep); return (idx + 1)
-                             else if (i + 9) == epIdx && (i `mod` 8) /= 7
-                             then do M.unsafeWrite mv idx (GenEnPassant from ep); return (idx + 1)
-                             else return idx
-                        else return idx
+                when (ep /= NoSquare) $ do
+                     if (i + 7) == epIdx && (i `mod` 8) /= 0
+                     then emit (GenEnPassant from ep)
+                     else when ((i + 9) == epIdx && (i `mod` 8) /= 7) $ do
+                          emit (GenEnPassant from ep)
+
                 -- Right Capture (i+9)
-                idx2 <- if (i `mod` 8) /= 7
-                        then let to9 = i + 9
-                             in if testBit enemy to9
-                                then let dest = Square to9
-                                         capPt = findPieceType b oppC dest
-                                     in if to9 >= 56
-                                        then do
-                                            M.unsafeWrite mv idx1 (GenPromotionCapture from dest Queen capPt)
-                                            M.unsafeWrite mv (idx1+1) (GenPromotionCapture from dest Rook capPt)
-                                            M.unsafeWrite mv (idx1+2) (GenPromotionCapture from dest Bishop capPt)
-                                            M.unsafeWrite mv (idx1+3) (GenPromotionCapture from dest Knight capPt)
-                                            return (idx1 + 4)
-                                        else do
-                                            M.unsafeWrite mv idx1 (GenCapture from dest Pawn capPt)
-                                            return (idx1 + 1)
-                                else return idx1
-                        else return idx1
-                -- Left Capture (i+7)
-                if (i `mod` 8) /= 0
-                then let to7 = i + 7
-                     in if testBit enemy to7
-                        then let dest = Square to7
-                                 capPt = findPieceType b oppC dest
-                             in if to7 >= 56
+                when ((i `mod` 8) /= 7) $ do
+                        let to9 = i + 9
+                        when (testBit enemy to9) $ do
+                                let dest = Square to9
+                                    capPt = findPieceType b oppC dest
+                                if to9 >= 56
                                 then do
-                                    M.unsafeWrite mv idx2 (GenPromotionCapture from dest Queen capPt)
-                                    M.unsafeWrite mv (idx2+1) (GenPromotionCapture from dest Rook capPt)
-                                    M.unsafeWrite mv (idx2+2) (GenPromotionCapture from dest Bishop capPt)
-                                    M.unsafeWrite mv (idx2+3) (GenPromotionCapture from dest Knight capPt)
-                                    return (idx2 + 4)
+                                    emit (GenPromotionCapture from dest Queen capPt)
+                                    emit (GenPromotionCapture from dest Rook capPt)
+                                    emit (GenPromotionCapture from dest Bishop capPt)
+                                    emit (GenPromotionCapture from dest Knight capPt)
                                 else do
-                                    M.unsafeWrite mv idx2 (GenCapture from dest Pawn capPt)
-                                    return (idx2 + 1)
-                        else return idx2
-                else return idx2
+                                    emit (GenCapture from dest Pawn capPt)
+
+                -- Left Capture (i+7)
+                when ((i `mod` 8) /= 0) $ do
+                        let to7 = i + 7
+                        when (testBit enemy to7) $ do
+                                let dest = Square to7
+                                    capPt = findPieceType b oppC dest
+                                if to7 >= 56
+                                then do
+                                    emit (GenPromotionCapture from dest Queen capPt)
+                                    emit (GenPromotionCapture from dest Rook capPt)
+                                    emit (GenPromotionCapture from dest Bishop capPt)
+                                    emit (GenPromotionCapture from dest Knight capPt)
+                                else do
+                                    emit (GenCapture from dest Pawn capPt)
+
             else do -- Black
                 -- EP
-                idx1 <- if ep /= NoSquare
-                        then if (i - 9) == epIdx && (i `mod` 8) /= 0
-                             then do M.unsafeWrite mv idx (GenEnPassant from ep); return (idx + 1)
-                             else if (i - 7) == epIdx && (i `mod` 8) /= 7
-                             then do M.unsafeWrite mv idx (GenEnPassant from ep); return (idx + 1)
-                             else return idx
-                        else return idx
+                when (ep /= NoSquare) $ do
+                     if (i - 9) == epIdx && (i `mod` 8) /= 0
+                     then emit (GenEnPassant from ep)
+                     else when ((i - 7) == epIdx && (i `mod` 8) /= 7) $ do
+                          emit (GenEnPassant from ep)
+
                 -- Right Capture (i-7)
-                idx2 <- if (i `mod` 8) /= 7
-                        then let to7 = i - 7
-                             in if testBit enemy to7
-                                then let dest = Square to7
-                                         capPt = findPieceType b oppC dest
-                                     in if to7 <= 7
-                                        then do
-                                            M.unsafeWrite mv idx1 (GenPromotionCapture from dest Queen capPt)
-                                            M.unsafeWrite mv (idx1+1) (GenPromotionCapture from dest Rook capPt)
-                                            M.unsafeWrite mv (idx1+2) (GenPromotionCapture from dest Bishop capPt)
-                                            M.unsafeWrite mv (idx1+3) (GenPromotionCapture from dest Knight capPt)
-                                            return (idx1 + 4)
-                                        else do
-                                            M.unsafeWrite mv idx1 (GenCapture from dest Pawn capPt)
-                                            return (idx1 + 1)
-                                else return idx1
-                        else return idx1
-                -- Left Capture (i-9)
-                if (i `mod` 8) /= 0
-                then let to9 = i - 9
-                     in if testBit enemy to9
-                        then let dest = Square to9
-                                 capPt = findPieceType b oppC dest
-                             in if to9 <= 7
+                when ((i `mod` 8) /= 7) $ do
+                        let to7 = i - 7
+                        when (testBit enemy to7) $ do
+                                let dest = Square to7
+                                    capPt = findPieceType b oppC dest
+                                if to7 <= 7
                                 then do
-                                    M.unsafeWrite mv idx2 (GenPromotionCapture from dest Queen capPt)
-                                    M.unsafeWrite mv (idx2+1) (GenPromotionCapture from dest Rook capPt)
-                                    M.unsafeWrite mv (idx2+2) (GenPromotionCapture from dest Bishop capPt)
-                                    M.unsafeWrite mv (idx2+3) (GenPromotionCapture from dest Knight capPt)
-                                    return (idx2 + 4)
+                                    emit (GenPromotionCapture from dest Queen capPt)
+                                    emit (GenPromotionCapture from dest Rook capPt)
+                                    emit (GenPromotionCapture from dest Bishop capPt)
+                                    emit (GenPromotionCapture from dest Knight capPt)
                                 else do
-                                    M.unsafeWrite mv idx2 (GenCapture from dest Pawn capPt)
-                                    return (idx2 + 1)
-                        else return idx2
-                else return idx2
-    in foldBitboardM fillMoves startIdx pawns
+                                    emit (GenCapture from dest Pawn capPt)
+
+                -- Left Capture (i-9)
+                when ((i `mod` 8) /= 0) $ do
+                        let to9 = i - 9
+                        when (testBit enemy to9) $ do
+                                let dest = Square to9
+                                    capPt = findPieceType b oppC dest
+                                if to9 <= 7
+                                then do
+                                    emit (GenPromotionCapture from dest Queen capPt)
+                                    emit (GenPromotionCapture from dest Rook capPt)
+                                    emit (GenPromotionCapture from dest Bishop capPt)
+                                    emit (GenPromotionCapture from dest Knight capPt)
+                                else do
+                                    emit (GenCapture from dest Pawn capPt)
 
 castlingMoves :: Board -> GameState -> U.Vector GenMove
-castlingMoves b gs = runBuilder256 $ emitFill (fillCastlingMoves b gs)
+castlingMoves b gs = runBuilder256 $ fillCastlingMoves b gs
 
 {-# INLINE fillCastlingMoves #-}
-fillCastlingMoves :: Board -> GameState -> U.MVector s GenMove -> Int -> ST s Int
-fillCastlingMoves b gs mv !startIdx = do
+fillCastlingMoves :: Board -> GameState -> Builder s GenMove ()
+fillCastlingMoves b gs = do
     let c = turn gs
         rank = if c == White then 0 else 7
         occ = occupiedTotal b
@@ -1203,18 +1092,8 @@ fillCastlingMoves b gs mv !startIdx = do
         hasKS = canCastleStandardKingside gs c && kingsideClear
         hasQS = canCastleStandardQueenside gs c && queensideClear
 
-    idx1 <- if hasKS
-            then do
-                M.unsafeWrite mv startIdx (mkCastlingMove True)
-                return (startIdx + 1)
-            else return startIdx
-
-    idx2 <- if hasQS
-            then do
-                M.unsafeWrite mv idx1 (mkCastlingMove False)
-                return (idx1 + 1)
-            else return idx1
-    return idx2
+    when hasKS $ emit (mkCastlingMove True)
+    when hasQS $ emit (mkCastlingMove False)
 
 -- | Apply a move to the board (without updating game state like counters).
 applyMoveBoard :: Board -> GameState -> Move -> Board
@@ -1276,6 +1155,8 @@ givesCheck b gs gm =
         GenCastling _ _ ->
              let b' = applyMoveBoardFast b gs gm
              in isAttackedBy b' c kingSq
+
+        _ -> False -- Unsupported move type
 
 {-# INLINE givesCheckGeneric #-}
 givesCheckGeneric :: Board -> GameState -> Color -> Square -> Square -> Square -> PieceType -> Bool

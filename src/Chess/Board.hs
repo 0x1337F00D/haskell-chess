@@ -159,6 +159,7 @@ applyMoveHelper (Board b gs hist) gm =
             MoveGen.GenCastling f t -> (f, t, King, Nothing, Nothing, False, True, False)
             MoveGen.GenPromotion f t p -> (f, t, Pawn, Nothing, Just p, False, False, False)
             MoveGen.GenPromotionCapture f t p cap -> (f, t, Pawn, Just cap, Just p, True, False, False)
+            _ -> error "Unsupported GenMove type in applyMoveHelper"
 
         isPawn = pt == Pawn
 
@@ -266,7 +267,7 @@ applyMoveHelperFast (Board b gs _) gm =
             MoveGen.GenCastling f t -> (f, t, King, Nothing, False, False)
             MoveGen.GenPromotion f t _ -> (f, t, Pawn, Nothing, False, True)
             MoveGen.GenPromotionCapture f t _ cap -> (f, t, Pawn, Just cap, True, True)
-            -- GenDrop and GenCastling960 are not used in standard perft and covered by COMPLETE pragma
+            _ -> error "Unsupported GenMove type in applyMoveHelperFast"
 
         -- Halfmove clock: Reset on pawn move or capture
         halfmove' = if isPawn || isCap then 0 else GS.halfmoveClock gs + 1
@@ -474,6 +475,7 @@ moveFrom (LegalMove (MoveGen.GenEnPassant f _)) = f
 moveFrom (LegalMove (MoveGen.GenCastling f _)) = f
 moveFrom (LegalMove (MoveGen.GenPromotion f _ _)) = f
 moveFrom (LegalMove (MoveGen.GenPromotionCapture f _ _ _)) = f
+moveFrom _ = error "Unsupported GenMove in moveFrom"
 
 moveTo :: LegalMove -> Square
 moveTo (LegalMove (MoveGen.GenQuiet _ t _)) = t
@@ -482,6 +484,7 @@ moveTo (LegalMove (MoveGen.GenEnPassant _ t)) = t
 moveTo (LegalMove (MoveGen.GenCastling _ t)) = t
 moveTo (LegalMove (MoveGen.GenPromotion _ t _)) = t
 moveTo (LegalMove (MoveGen.GenPromotionCapture _ t _ _)) = t
+moveTo _ = error "Unsupported GenMove in moveTo"
 
 movePromotion :: LegalMove -> Maybe PieceType
 movePromotion (LegalMove (MoveGen.GenPromotion _ _ p)) = Just p
