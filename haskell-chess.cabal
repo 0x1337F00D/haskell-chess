@@ -67,6 +67,12 @@ library
                     , Chess.Board.GameState
                     , Chess.Board.Fen
                     , Chess.Board.MoveGen
+                    , Chess.Board.MoveGen.Common
+                    , Chess.Board.MoveGen.KingSafety
+                    , Chess.Board.MoveGen.Pawn
+                    , Chess.Board.MoveGen.Piece
+                    , Chess.Board.MoveGen.Castling
+                    , Chess.Board.MoveGen.Core
                     , Chess.Board.Validation
                     , Chess.Board.Uci
                     , Chess.Board.San
