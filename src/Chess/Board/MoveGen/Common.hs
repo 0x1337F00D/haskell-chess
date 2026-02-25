@@ -128,14 +128,12 @@ unpackGenCastling960 m =
 
 -- | Convert a GenMove back to a standard Move.
 -- Uses optimized tag dispatch and MoveTag accessors.
+{-# INLINE genMoveToMove #-}
 genMoveToMove :: GenMove -> Move
-genMoveToMove m = case getTag m of
-    tag | tag == tagQuiet            -> Move (getFrom m) (getTo m) Nothing
-        | tag == tagCapture          -> Move (getFrom m) (getTo m) Nothing
-        | tag == tagEnPassant        -> Move (getFrom m) (getTo m) Nothing
-        | tag == tagCastling         -> Move (getFrom m) (getTo m) Nothing
-        | tag == tagPromotion        -> Move (getFrom m) (getTo m) (Just (getPiece m))
-        | tag == tagPromotionCapture -> Move (getFrom m) (getTo m) (Just (getPiece m))
-        | tag == tagDrop             -> DropMove (getPiece m) (getTo m)
-        | tag == tagCastling960      -> Move (getFrom m) (getTo m) Nothing
-        | otherwise                  -> NullMove -- Should not happen for valid GenMove
+genMoveToMove m
+    | tag == tagPromotion || tag == tagPromotionCapture = Move (getFrom m) (getTo m) (Just (getPiece m))
+    | tag == tagDrop = DropMove (getPiece m) (getTo m)
+    | tag == tagQuiet || tag == tagCapture || tag == tagEnPassant || tag == tagCastling || tag == tagCastling960 = Move (getFrom m) (getTo m) Nothing
+    | otherwise = NullMove
+  where
+    tag = getTag m

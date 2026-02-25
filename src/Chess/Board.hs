@@ -143,6 +143,42 @@ applyGenMove board gm = applyMoveHelper board gm
 applyGenMoveFast :: Board -> MoveGen.GenMove -> Board
 applyGenMoveFast board gm = applyMoveHelperFast board gm
 
+-- | Update GameState helper (Shared Logic)
+{-# INLINE updateGameState #-}
+updateGameState :: GS.GameState -> PieceType -> Maybe PieceType -> Square -> Square -> Bool -> Bool -> GS.GameState
+updateGameState gs pt captured from to isPawn isCap =
+    let
+        c = GS.turn gs
+
+        -- Halfmove clock
+        halfmove' = if isPawn || isCap then 0 else GS.halfmoveClock gs + 1
+
+        -- Fullmove number
+        fullmove' = if c == Black then GS.fullmoveNumber gs + 1 else GS.fullmoveNumber gs
+
+        -- Castling rights
+        gs1 = case pt of
+                King -> GS.removeColorCastlingRights gs c
+                Rook -> GS.removeCastlingRight gs from
+                _ -> gs
+
+        gs2 = case captured of
+                Just Rook -> GS.removeCastlingRight gs1 to
+                _ -> gs1
+
+        -- En Passant square
+        ep' = if isPawn && abs (squareRank from - squareRank to) == 2
+              then midSquare from to
+              else NoSquare
+
+        nextTurn = Base.oppositeColor c
+
+    in gs2 { GS.turn = nextTurn
+           , GS.epSquare = ep'
+           , GS.halfmoveClock = halfmove'
+           , GS.fullmoveNumber = fullmove'
+           }
+
 -- | Helper to apply move logic given resolved pieces.
 {-# INLINE applyMoveHelper #-}
 applyMoveHelper :: Board -> MoveGen.GenMove -> Board
@@ -166,21 +202,21 @@ applyMoveHelper (Board b gs hist) gm =
 
         isPawn = pt == Pawn
 
+        -- Update Game State (Rules)
+        gsNew = updateGameState gs pt captured from to isPawn isCap
+
         -- Zobrist Updates ----------------------------------------------------
         h0 = GS.zobristHash gs
-             `xor` Zobrist.zobristEp (GS.epSquare gs)           -- Remove old EP
-             `xor` Zobrist.zobristCastling (GS.castlingRights gs) -- Remove old CR
-             `xor` Zobrist.zobristBlackMove                     -- Toggle turn
+             `xor` Zobrist.zobristEp (GS.epSquare gs)
+             `xor` Zobrist.zobristCastling (GS.castlingRights gs)
+             `xor` Zobrist.zobristBlackMove
 
-        -- Remove moving piece from 'from'
         h1 = h0 `xor` Zobrist.zobristPiece c pt from
 
-        -- Add moving piece to 'to' (or promoted piece)
         h2 = case promo of
                Nothing -> h1 `xor` Zobrist.zobristPiece c pt to
                Just p  -> h1 `xor` Zobrist.zobristPiece c p to
 
-        -- Handle Captures
         h3 = case captured of
                Just cp ->
                    if isEP
@@ -192,7 +228,6 @@ applyMoveHelper (Board b gs hist) gm =
                    else h2 `xor` Zobrist.zobristPiece oppC cp to
                Nothing -> h2
 
-        -- Handle Castling (Rook moves)
         h4 = if isCastling
              then
                    let (rookFrom, rookTo) = if to == Square (unSquare from + 2) -- Kingside
@@ -202,54 +237,15 @@ applyMoveHelper (Board b gs hist) gm =
                          `xor` Zobrist.zobristPiece c Rook rookTo
              else h3
 
-        -- --------------------------------------------------------------------
-
-        -- Halfmove clock: Reset on pawn move or capture
-        halfmove' = if isPawn || isCap then 0 else GS.halfmoveClock gs + 1
-
-        -- Fullmove number: Increment after Black's move
-        fullmove' = if c == Black then GS.fullmoveNumber gs + 1 else GS.fullmoveNumber gs
-
-        -- Castling rights updates
-        -- If moving King, lose castling rights for that color
-        gs1 = case pt of
-                King -> GS.removeColorCastlingRights gs c
-                Rook -> GS.removeCastlingRight gs from
-                _ -> gs
-
-        -- If capturing Rook, lose castling rights for that rook's square
-        gs2 = case captured of
-                Just Rook ->
-                    -- For EP, capture is Pawn, so this won't trigger.
-                    -- Normal capture of Rook triggers.
-                    GS.removeCastlingRight gs1 to
-                _ -> gs1
-
-        -- En Passant square
-        -- Set if pawn double push
-        ep' = if isPawn && abs (squareRank from - squareRank to) == 2
-              then midSquare from to
-              else NoSquare
-
         -- Finalize Hash
-        hFinal = h4 `xor` Zobrist.zobristCastling (GS.castlingRights gs2)
-                    `xor` Zobrist.zobristEp ep'
+        hFinal = h4 `xor` Zobrist.zobristCastling (GS.castlingRights gsNew)
+                    `xor` Zobrist.zobristEp (GS.epSquare gsNew)
 
-        nextTurn = oppC
-
-        -- 0. Update history
-        -- Store the Zobrist hash of the previous position (gs)
+        -- Update History
         hist' = GS.zobristHash gs : hist
+        histFinal = if GS.halfmoveClock gsNew == 0 then [] else hist'
 
-        -- Optimization: Clear history if halfmove clock resets (pawn move or capture)
-        histFinal = if halfmove' == 0 then [] else hist'
-
-    in Board b' (gs2 { GS.turn = nextTurn
-                     , GS.epSquare = ep'
-                     , GS.halfmoveClock = halfmove'
-                     , GS.fullmoveNumber = fullmove'
-                     , GS.zobristHash = hFinal
-                     }) histFinal
+    in Board b' (gsNew { GS.zobristHash = hFinal }) histFinal
 
 -- | Helper to apply move logic given resolved pieces (no Zobrist).
 {-# INLINE applyMoveHelperFast #-}
@@ -258,9 +254,6 @@ applyMoveHelperFast (Board b gs _) gm =
     let
         -- 1. Update pieces (using fast path)
         b' = MoveGen.applyMoveBoardFast b gs gm
-
-        c = GS.turn gs
-        oppC = Base.oppositeColor c
 
         -- Extract info from GenMove
         (from, to, pt, captured, isCap, isPawn) = case gm of
@@ -272,41 +265,12 @@ applyMoveHelperFast (Board b gs _) gm =
             MoveGen.GenPromotionCapture f t _ cap -> (f, t, Pawn, Just cap, True, True)
             _ -> error "Unsupported GenMove type in applyMoveHelperFast"
 
-        -- Halfmove clock: Reset on pawn move or capture
-        halfmove' = if isPawn || isCap then 0 else GS.halfmoveClock gs + 1
+        -- Update Game State
+        gsNew = updateGameState gs pt captured from to isPawn isCap
 
-        -- Fullmove number: Increment after Black's move
-        fullmove' = if c == Black then GS.fullmoveNumber gs + 1 else GS.fullmoveNumber gs
-
-        -- Castling rights updates
-        -- If moving King, lose castling rights for that color
-        gs1 = case pt of
-                King -> GS.removeColorCastlingRights gs c
-                Rook -> GS.removeCastlingRight gs from
-                _ -> gs
-
-        -- If capturing Rook, lose castling rights for that rook's square
-        gs2 = case captured of
-                Just Rook -> GS.removeCastlingRight gs1 to
-                _ -> gs1
-
-        -- En Passant square
-        -- Set if pawn double push
-        ep' = if isPawn && abs (squareRank from - squareRank to) == 2
-              then midSquare from to
-              else NoSquare
-
-        nextTurn = oppC
-
-        -- No history tracking for fast perft
         histFinal = []
 
-    in Board b' (gs2 { GS.turn = nextTurn
-                     , GS.epSquare = ep'
-                     , GS.halfmoveClock = halfmove'
-                     , GS.fullmoveNumber = fullmove'
-                     -- Zobrist hash is not updated
-                     }) histFinal
+    in Board b' gsNew histFinal
 
 -- | Generate all legal moves for the current position.
 legalMoves :: Board -> [Move]
