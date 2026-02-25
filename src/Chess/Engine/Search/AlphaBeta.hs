@@ -477,10 +477,10 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                                      s <- alphaBeta nextCtx newVBoard tt (Just m) nextDepth (-b) (-a) nodes stopFlag limits
                                      return (stepScore s)
                      else do
-                         let board = getBoard vBoard
+                         let currentBoard = getBoard vBoard
                          -- givesCheck is already computed.
                          let lmr = if d >= mkDepth 3 && not isCap && not isProm && index >= 2 && not inCheck && not givesCheck
-                                      && popCount (Base.occupiedTotal (pieces (getBoard vBoard))) > 5
+                                      && popCount (Base.occupiedTotal (pieces currentBoard)) > 5
                                    then
                                        let dIdx = min 63 (unDepth d)
                                            mIdx = min 63 index

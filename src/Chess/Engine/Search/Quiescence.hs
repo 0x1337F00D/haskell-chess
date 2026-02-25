@@ -8,7 +8,6 @@ import Data.IORef (IORef, modifyIORef')
 import Chess.Types (Depth(..), unDepth, decDepth, depthZero, CheckStatus(..))
 import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, pieces, applyLegalMove, applyLegalMoveValidated, isCheck, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated, getGenMove, MoveGenerator(..))
 import qualified Chess.Board
-import Chess.Board.MoveGen (givesCheck)
 import qualified Chess.Board.MoveGen as MoveGen
 import qualified Chess.Board.GameState as GS
 import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
@@ -63,7 +62,7 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
         else do
             let givesCheckLocal lm =
                     let b = getBoard vBoard
-                    in Chess.Board.MoveGen.givesCheck (Chess.Board.pieces b) (Chess.Board.state b) (Chess.Board.getGenMove lm)
+                    in MoveGen.givesCheck (Chess.Board.pieces b) (Chess.Board.state b) (Chess.Board.getGenMove lm)
 
             let a = max alpha standPat
             let caps = captureMovesValidated vBoard
