@@ -61,3 +61,8 @@
 **Learning:** `MoveGen.isLegal` was allocating a full `Board` structure (~22 words + heap overhead) via `applyMoveBoardFast` for every pseudo-legal move validation. This happens millions of times per second in search and perft.
 **Action:** Implemented `isLegalOptimized` which validates moves by calculating updated occupancy and checking attacks directly on bitboards, masking out captured pieces. This avoids the `Board` allocation entirely for standard moves (Quiet, Capture, EP, Promotion).
 **Impact:** `bench-core` speedup: Start (Depth 5) 2.96 -> 3.76 MNPS (+27%), KiwiPete (Depth 4) 5.08 -> 8.10 MNPS (+59%).
+
+## 2026-02-23 – [Flattened PST Tables & Material Merger]
+**Learning:** `pstValue` and `packedMaterialValue` introduced significant branching (12 branches) and arithmetic overhead (`score + val + mat`) in the hot `applyMove` loop.
+**Action:** Flattened the 12 PST vectors into a single `globalPstTable` (size 768) and merged material values into the table during initialization. This replaced branching with index arithmetic and removed `mat` addition in incremental updates.
+**Impact:** `bench-core` speedup: KiwiPete (Depth 4) 33.0 MNPS -> 41.7 MNPS (+26%). Atomic Start (Depth 4) 1.58 MNPS -> 2.20 MNPS (+39%).

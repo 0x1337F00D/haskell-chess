@@ -264,22 +264,30 @@ packedKingTableFlip   = U.zipWith packScore rawMgKingTable   rawEgKingTable
 -- `packedPawnTableFlip` (Black) uses raw.
 -- This seems correct.
 
+-- | Global flattened PST table (White then Black, each piece type in Enum order).
+-- Includes material values merged into the scores.
+globalPstTable :: U.Vector PackedScore
+globalPstTable = U.concat
+    [ U.map (+ packedMaterialValue Pawn)   packedPawnTable
+    , U.map (+ packedMaterialValue Knight) packedKnightTable
+    , U.map (+ packedMaterialValue Bishop) packedBishopTable
+    , U.map (+ packedMaterialValue Rook)   packedRookTable
+    , U.map (+ packedMaterialValue Queen)  packedQueenTable
+    , U.map (+ packedMaterialValue King)   packedKingTable
+    , U.map (+ packedMaterialValue Pawn)   packedPawnTableFlip
+    , U.map (+ packedMaterialValue Knight) packedKnightTableFlip
+    , U.map (+ packedMaterialValue Bishop) packedBishopTableFlip
+    , U.map (+ packedMaterialValue Rook)   packedRookTableFlip
+    , U.map (+ packedMaterialValue Queen)  packedQueenTableFlip
+    , U.map (+ packedMaterialValue King)   packedKingTableFlip
+    ]
+
 {-# INLINE pstValue #-}
 pstValue :: Color -> PieceType -> Square -> PackedScore
-pstValue White pt (Square i) = case pt of
-    Pawn   -> packedPawnTable   `U.unsafeIndex` i
-    Knight -> packedKnightTable `U.unsafeIndex` i
-    Bishop -> packedBishopTable `U.unsafeIndex` i
-    Rook   -> packedRookTable   `U.unsafeIndex` i
-    Queen  -> packedQueenTable  `U.unsafeIndex` i
-    King   -> packedKingTable   `U.unsafeIndex` i
-pstValue Black pt (Square i) = case pt of
-    Pawn   -> packedPawnTableFlip   `U.unsafeIndex` i
-    Knight -> packedKnightTableFlip `U.unsafeIndex` i
-    Bishop -> packedBishopTableFlip `U.unsafeIndex` i
-    Rook   -> packedRookTableFlip   `U.unsafeIndex` i
-    Queen  -> packedQueenTableFlip  `U.unsafeIndex` i
-    King   -> packedKingTableFlip   `U.unsafeIndex` i
+pstValue c pt (Square i) =
+    let cOffset = if c == White then 0 else 384
+        pOffset = fromEnum pt * 64
+    in globalPstTable `U.unsafeIndex` (cOffset + pOffset + i)
 
 -- | King Safety Table (Quadratic)
 -- Indexed by attack units.
