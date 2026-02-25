@@ -6,7 +6,7 @@ module Chess.Engine.Search.Quiescence where
 
 import Data.IORef (IORef, modifyIORef')
 import Chess.Types (Depth(..), unDepth, decDepth, depthZero, CheckStatus(..))
-import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, pieces, applyLegalMove, isCheck, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated, getGenMove, MoveGenerator(..))
+import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, pieces, applyLegalMove, applyLegalMoveValidated, isCheck, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated, getGenMove, MoveGenerator(..))
 import qualified Chess.Board
 import Chess.Board.MoveGen (givesCheck)
 import qualified Chess.Board.MoveGen as MoveGen
@@ -42,7 +42,7 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
         else do
             let sortedMoves = orderGenMoves vBoard evasions Nothing
             -- Search evasions. No stand-pat logic.
-            go sortedMoves alpha
+            go (map (\m -> (m, Nothing)) sortedMoves) alpha
     else do
         -- Not in check: Standard QSearch
         -- Use cached eval if available
@@ -87,9 +87,15 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
             go sortedMoves a
   where
     go [] a = return a
-    go (lm:lms) a = do
+    go ((lm, mbCheck):lms) a = do
+        let givesCheck = case mbCheck of
+                Just c -> c
+                Nothing ->
+                    let b = getBoard vBoard
+                    in MoveGen.givesCheck (pieces b) (state b) (getGenMove lm)
+
         do
-            score <- case applyLegalMove vBoard lm of
+            score <- case applyLegalMoveValidated vBoard lm givesCheck of
                 InCheckBoard newVBoard -> do
                     let newCtx = ctx { scCheckState = InCheck, scPly = scPly ctx + 1 } :: SearchContext p
                     s <- quiescence newCtx newVBoard tt (-beta) (-a) nodes (decDepth depth)

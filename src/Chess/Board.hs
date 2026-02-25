@@ -40,6 +40,7 @@ module Chess.Board
   , getGenMove
   , MoveGenerator(..)
   , applyLegalMove
+  , applyLegalMoveValidated
   , moveFrom
   , moveTo
   , movePromotion
@@ -454,6 +455,13 @@ applyLegalMove :: ValidatedBoard s -> LegalMove -> SomeValidatedBoard
 applyLegalMove (ValidatedBoard b) (LegalMove gm) =
     let b' = applyGenMove b gm
     in if MoveGen.givesCheck (pieces b) (state b) gm
+       then InCheckBoard (ValidatedBoard b')
+       else NotInCheckBoard (ValidatedBoard b')
+
+applyLegalMoveValidated :: ValidatedBoard s -> LegalMove -> Bool -> SomeValidatedBoard
+applyLegalMoveValidated (ValidatedBoard b) (LegalMove gm) givesCheck =
+    let b' = applyGenMove b gm
+    in if givesCheck
        then InCheckBoard (ValidatedBoard b')
        else NotInCheckBoard (ValidatedBoard b')
 
