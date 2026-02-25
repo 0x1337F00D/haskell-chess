@@ -16,8 +16,7 @@ import qualified Data.Vector.Unboxed.Mutable as UM
 import qualified Data.Vector.Unboxed as U
 
 import Chess.Types
-import Chess.Board (Board(..), applyMove, isCheck, uci, GenMove(..)
-                   , pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture
+import Chess.Board (Board(..), applyMove, isCheck, uci, GenMove, genMoveToMove
                    , ValidatedBoard, SomeValidatedBoard(..), trustBoard, getBoard, getGenMove, MoveGenerator(..)
                    , applyLegalMove, applyLegalMoveValidated, isCapture, isPromotion, toGenMove, isLegalMove, mkLegalMove)
 import qualified Chess.Board
@@ -34,15 +33,6 @@ import Chess.Engine.Search.Ordering hiding (orderGenMoves)
 import qualified Chess.Engine.Search.Ordering as Ordering
 import Chess.Engine.Search.Quiescence (quiescence)
 
--- | Convert GenMove to Move
-fromGenMove :: GenMove -> Move
-fromGenMove (GenQuiet f t _) = Move f t Nothing
-fromGenMove (GenCapture f t _ _) = Move f t Nothing
-fromGenMove (GenEnPassant f t) = Move f t Nothing
-fromGenMove (GenCastling f t) = Move f t Nothing
-fromGenMove (GenPromotion f t p) = Move f t (Just p)
-fromGenMove (GenPromotionCapture f t p _) = Move f t (Just p)
-
 -- | Search for the best move.
 searchPhase :: forall p s. (Evaluate p, MoveGenerator s) => Position p s -> TT -> SearchLimits -> IORef Bool -> IO Move
 searchPhase (Position vBoard) tt limits stopFlag = do
@@ -56,7 +46,7 @@ searchPhase (Position vBoard) tt limits stopFlag = do
     let moves = legalMovesValidated vBoard
     let initialBestMove = case moves of
             [] -> nullMove
-            (lm:_) -> fromGenMove (getGenMove lm)
+            (lm:_) -> genMoveToMove (getGenMove lm)
 
     -- Initialize Search Resources
     killers <- UM.replicate 256 nullMove
@@ -127,7 +117,7 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
     let processFirstMove [] = return Nothing
         processFirstMove (lm:lms) = do
             let gm = getGenMove lm
-            let m = fromGenMove gm
+            let m = genMoveToMove gm
             let givesCheck = MoveGen.givesCheck (pieces board) (state board) gm
 
             do
@@ -150,7 +140,7 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
             if stop then return (bestM, bestScore)
             else do
                 let gm = getGenMove lm
-                let m = fromGenMove gm
+                let m = genMoveToMove gm
                 let givesCheck = MoveGen.givesCheck (pieces board) (state board) gm
 
                 do
@@ -177,7 +167,7 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
              return (nullMove, score)
 
         Just (lm, bestScore, lms) -> do
-            let bestMove = fromGenMove (getGenMove lm)
+            let bestMove = genMoveToMove (getGenMove lm)
 
             if null lms then return (bestMove, bestScore)
             else do
@@ -207,7 +197,7 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
                                                 return (bestRes, n)
                                             else do
                                                 let gmWorker = getGenMove lmWorker
-                                                let mWorker = fromGenMove gmWorker
+                                                let mWorker = genMoveToMove gmWorker
                                                 let givesCheckWorker = MoveGen.givesCheck (pieces board) (state board) gmWorker
 
                                                 do
@@ -385,7 +375,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                         if score0 >= beta
                         then storeAndReturn score0 bestM0 TTLower
                         else do
-                            let filterTT ms = if searchedTT then filter (\lm -> fromGenMove (getGenMove lm) /= ttM) ms else ms
+                            let filterTT ms = if searchedTT then filter (\lm -> genMoveToMove (getGenMove lm) /= ttM) ms else ms
                             let sortingTT = if searchedTT then Nothing else Just ttM
 
                             let captures = captureMovesValidated vBoard
@@ -444,7 +434,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
         let dVal = unDepth d
 
         let gm = getGenMove lm
-        let m = fromGenMove gm
+        let m = genMoveToMove gm
 
         let board = getBoard vBoard
         let givesCheck = MoveGen.givesCheck (pieces board) (state board) gm

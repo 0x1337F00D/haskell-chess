@@ -58,13 +58,16 @@ module Chess.Board
   , fromUci
     -- * Re-exports
   , module Chess.Types
-  , MoveGen.GenMove(..)
+  , MoveGen.GenMove
+  , MoveGen.genMoveToMove
   , pattern MoveGen.GenQuiet
   , pattern MoveGen.GenCapture
   , pattern MoveGen.GenEnPassant
   , pattern MoveGen.GenCastling
   , pattern MoveGen.GenPromotion
   , pattern MoveGen.GenPromotionCapture
+  , pattern MoveGen.GenDrop
+  , pattern MoveGen.GenCastling960
   ) where
 
 import Data.Bits (testBit, xor)
