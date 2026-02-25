@@ -28,6 +28,7 @@ module Chess.Board.MoveGen.Common
   , mkGenCastling960
   ) where
 
+import Data.Maybe (fromMaybe)
 import Chess.Types
 import Chess.Board.MoveGen.Internal
 
@@ -67,19 +68,19 @@ pattern GenCastling960 f t <- (unpackGenCastling960 -> Just (f, t))
 {-# COMPLETE GenQuiet, GenCapture, GenEnPassant, GenCastling, GenPromotion, GenPromotionCapture, GenDrop, GenCastling960 #-}
 
 
--- View helpers using fast accessors
+-- View helpers using MoveTag interface
 {-# INLINE unpackQuiet #-}
 unpackQuiet :: GenMove -> Maybe (Square, Square, PieceType)
 unpackQuiet m =
     if getTag m == tagQuiet
-    then Just (getFrom m, getTo m, getP1 m)
+    then Just (getFrom m, getTo m, getPiece m)
     else Nothing
 
 {-# INLINE unpackCapture #-}
 unpackCapture :: GenMove -> Maybe (Square, Square, PieceType, PieceType)
 unpackCapture m =
     if getTag m == tagCapture
-    then Just (getFrom m, getTo m, getP1 m, getP2 m)
+    then Just (getFrom m, getTo m, getPiece m, fromMaybe Pawn (getCapturedPiece m))
     else Nothing
 
 {-# INLINE unpackEnPassant #-}
@@ -100,21 +101,21 @@ unpackCastling m =
 unpackPromotion :: GenMove -> Maybe (Square, Square, PieceType)
 unpackPromotion m =
     if getTag m == tagPromotion
-    then Just (getFrom m, getTo m, getP1 m)
+    then Just (getFrom m, getTo m, getPiece m)
     else Nothing
 
 {-# INLINE unpackPromotionCapture #-}
 unpackPromotionCapture :: GenMove -> Maybe (Square, Square, PieceType, PieceType)
 unpackPromotionCapture m =
     if getTag m == tagPromotionCapture
-    then Just (getFrom m, getTo m, getP1 m, getP2 m)
+    then Just (getFrom m, getTo m, getPiece m, fromMaybe Pawn (getCapturedPiece m))
     else Nothing
 
 {-# INLINE unpackGenDrop #-}
 unpackGenDrop :: GenMove -> Maybe (PieceType, Square)
 unpackGenDrop m =
     if getTag m == tagDrop
-    then Just (getP1 m, getTo m)
+    then Just (getPiece m, getTo m)
     else Nothing
 
 {-# INLINE unpackGenCastling960 #-}
@@ -126,12 +127,15 @@ unpackGenCastling960 m =
 
 
 -- | Convert a GenMove back to a standard Move.
+-- Uses optimized tag dispatch and MoveTag accessors.
 genMoveToMove :: GenMove -> Move
-genMoveToMove (GenQuiet f t _) = Move f t Nothing
-genMoveToMove (GenCapture f t _ _) = Move f t Nothing
-genMoveToMove (GenEnPassant f t) = Move f t Nothing
-genMoveToMove (GenCastling f t) = Move f t Nothing
-genMoveToMove (GenPromotion f t p) = Move f t (Just p)
-genMoveToMove (GenPromotionCapture f t p _) = Move f t (Just p)
-genMoveToMove (GenDrop p t) = DropMove p t
-genMoveToMove (GenCastling960 f t) = Move f t Nothing
+genMoveToMove m = case getTag m of
+    tag | tag == tagQuiet            -> Move (getFrom m) (getTo m) Nothing
+        | tag == tagCapture          -> Move (getFrom m) (getTo m) Nothing
+        | tag == tagEnPassant        -> Move (getFrom m) (getTo m) Nothing
+        | tag == tagCastling         -> Move (getFrom m) (getTo m) Nothing
+        | tag == tagPromotion        -> Move (getFrom m) (getTo m) (Just (getPiece m))
+        | tag == tagPromotionCapture -> Move (getFrom m) (getTo m) (Just (getPiece m))
+        | tag == tagDrop             -> DropMove (getPiece m) (getTo m)
+        | tag == tagCastling960      -> Move (getFrom m) (getTo m) Nothing
+        | otherwise                  -> NullMove -- Should not happen for valid GenMove

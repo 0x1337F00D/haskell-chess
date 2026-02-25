@@ -79,22 +79,38 @@ tagPromotionCapture = 5
 tagDrop = 6
 tagCastling960 = 7
 
+-- Move Tag Class
+class MoveTag m where
+  getFrom :: m -> Square
+  getTo :: m -> Square
+  getPiece :: m -> PieceType
+  getCapturedPiece :: m -> Maybe PieceType
+
+instance MoveTag GenMove where
+  {-# INLINE getFrom #-}
+  getFrom (MkGenMove w) = Square (fromIntegral (w .&. 0x3F))
+
+  {-# INLINE getTo #-}
+  getTo (MkGenMove w) = Square (fromIntegral ((w `shiftR` 6) .&. 0x3F))
+
+  {-# INLINE getPiece #-}
+  getPiece (MkGenMove w) = toEnum (fromIntegral ((w `shiftR` 15) .&. 0x7))
+
+  {-# INLINE getCapturedPiece #-}
+  getCapturedPiece (MkGenMove w) =
+    let tag = (w `shiftR` 12) .&. 0x7
+    in if tag == tagCapture || tag == tagPromotionCapture
+       then Just (toEnum (fromIntegral ((w `shiftR` 18) .&. 0x7)))
+       else Nothing
+
 -- Extractors
 {-# INLINE getTag #-}
 getTag :: GenMove -> Word64
 getTag (MkGenMove w) = (w `shiftR` 12) .&. 0x7
 
-{-# INLINE getFrom #-}
-getFrom :: GenMove -> Square
-getFrom (MkGenMove w) = Square (fromIntegral (w .&. 0x3F))
-
-{-# INLINE getTo #-}
-getTo :: GenMove -> Square
-getTo (MkGenMove w) = Square (fromIntegral ((w `shiftR` 6) .&. 0x3F))
-
 {-# INLINE getP1 #-}
 getP1 :: GenMove -> PieceType
-getP1 (MkGenMove w) = toEnum (fromIntegral ((w `shiftR` 15) .&. 0x7))
+getP1 = getPiece
 
 {-# INLINE getP2 #-}
 getP2 :: GenMove -> PieceType
