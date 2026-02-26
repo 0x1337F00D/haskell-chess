@@ -1,7 +1,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 module Chess.Board.Base where
 
-import Data.Bits ((.|.), (.&.), testBit, setBit, clearBit, xor, shiftL, countTrailingZeros, countLeadingZeros, popCount)
+import Data.Bits ((.|.), (.&.), testBit, setBit, clearBit, xor, shiftL, countTrailingZeros, countLeadingZeros, popCount, complement)
 
 import qualified Data.Vector.Unboxed as U
 import Chess.Types
@@ -351,6 +351,24 @@ attacks b sq = case pieceAt b sq of
     Bishop -> bishopAttacks sq (occupied b)
     Rook -> rookAttacks sq (occupied b)
     Queen -> bishopAttacks sq (occupied b) .|. rookAttacks sq (occupied b)
+
+-- | Check if a square is attacked, with custom occupancy and ignored attackers.
+{-# INLINE isAttackedByOptimized #-}
+isAttackedByOptimized :: Board -> Color -> Square -> Bitboard -> Bitboard -> Bool
+isAttackedByOptimized b White sq occ ignored =
+  let mask = complement ignored
+  in (pawnAttacks Black sq .&. whitePawns b .&. mask /= 0) ||
+     (knightAttacks sq .&. whiteKnights b .&. mask /= 0) ||
+     (kingAttacks sq .&. whiteKings b .&. mask /= 0) ||
+     (bishopAttacks sq occ .&. whiteDiagonal b .&. mask /= 0) ||
+     (rookAttacks sq occ .&. whiteOrthogonal b .&. mask /= 0)
+isAttackedByOptimized b Black sq occ ignored =
+  let mask = complement ignored
+  in (pawnAttacks White sq .&. blackPawns b .&. mask /= 0) ||
+     (knightAttacks sq .&. blackKnights b .&. mask /= 0) ||
+     (kingAttacks sq .&. blackKings b .&. mask /= 0) ||
+     (bishopAttacks sq occ .&. blackDiagonal b .&. mask /= 0) ||
+     (rookAttacks sq occ .&. blackOrthogonal b .&. mask /= 0)
 
 -- | Check if a square is attacked by any piece of the given color.
 -- Optimized using aggregated bitboards and direct field access.
