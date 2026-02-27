@@ -43,6 +43,41 @@ pinnedBits b c =
                                      else acc
             in foldBitboard checkPinner 0 sliders
 
+-- | Discovery Candidates Calculation
+-- Returns a bitboard of friendly pieces that, if moved, *could* reveal a check.
+-- These are friendly pieces blocking a ray from a FRIENDLY slider to the ENEMY king.
+{-# INLINE discoveryCandidates #-}
+discoveryCandidates :: Board -> Color -> Bitboard
+discoveryCandidates b c =
+    let oppC = oppositeColor c
+    in case kingSquare b oppC of
+        Nothing -> 0
+        Just enemyKingSq ->
+            let occ = occupiedTotal b
+                friends = occupiedBy b c
+
+                -- Friendly sliders (R, B, Q)
+                myRooks = pieceBitboard b c Rook .|. pieceBitboard b c Queen
+                myBishops = pieceBitboard b c Bishop .|. pieceBitboard b c Queen
+                mySliders = myRooks .|. myBishops
+
+                checkSlider acc slider =
+                    let r = ray enemyKingSq slider
+                    in if r == 0
+                       then acc
+                       else
+                           -- Check alignment compatibility
+                           let isOrth = squareFile enemyKingSq == squareFile slider || squareRank enemyKingSq == squareRank slider
+                               isCompatible = if isOrth then testBit myRooks (unSquare slider) else testBit myBishops (unSquare slider)
+                           in if not isCompatible then acc
+                              else
+                                  let blockers = between enemyKingSq slider .&. occ
+                                  -- If exactly one blocker and it is ours, it's a discovery candidate
+                                  in if popCount blockers == 1 && (blockers .&. friends /= 0)
+                                     then acc .|. blockers
+                                     else acc
+            in foldBitboard checkSlider 0 mySliders
+
 -- | Check if three squares are collinear.
 {-# INLINE areCollinear #-}
 areCollinear :: Square -> Square -> Square -> Bool
@@ -301,3 +336,115 @@ givesCheckGeneric b _ c kingSq from to pt =
         discovered = (bAtt .&. fDiag' /= 0) || (rAtt .&. fOrth' /= 0)
 
     in direct || discovered
+
+-- | Optimized givesCheck that leverages precalculated discovery candidates.
+-- dcBitboard: Bitboard of friendly pieces that are strictly blocking a friendly slider from attacking enemy king.
+{-# INLINE givesCheckOptimized #-}
+givesCheckOptimized :: Board -> GameState -> Bitboard -> GenMove -> Bool
+givesCheckOptimized b gs dcBitboard gm =
+    let c = turn gs
+        oppC = oppositeColor c
+        kingSq = case kingSquare b oppC of
+                   Just k -> k
+                   Nothing -> Square 0
+    in case gm of
+        GenQuiet from to pt ->
+            -- If 'from' is in discovery candidates, fall back to slow check.
+            -- Otherwise, perform Direct Check only.
+            if testBit dcBitboard (unSquare from)
+            then givesCheckGeneric b gs c kingSq from to pt
+            else givesCheckDirect b gs c kingSq from to pt
+
+        GenCapture from to pt _ ->
+            if testBit dcBitboard (unSquare from)
+            then givesCheckGeneric b gs c kingSq from to pt
+            else givesCheckDirect b gs c kingSq from to pt
+
+        GenPromotion from to promoPt ->
+            if testBit dcBitboard (unSquare from)
+            then givesCheckGeneric b gs c kingSq from to promoPt
+            else givesCheckDirect b gs c kingSq from to promoPt
+
+        GenPromotionCapture from to promoPt _ ->
+            if testBit dcBitboard (unSquare from)
+            then givesCheckGeneric b gs c kingSq from to promoPt
+            else givesCheckDirect b gs c kingSq from to promoPt
+
+        -- Fallback for complicated moves
+        GenEnPassant {} -> givesCheck b gs gm
+        GenCastling {} -> givesCheck b gs gm
+        _ -> False
+
+{-# INLINE givesCheckDirect #-}
+givesCheckDirect :: Board -> GameState -> Color -> Square -> Square -> Square -> PieceType -> Bool
+givesCheckDirect b _ c kingSq from to pt =
+    case pt of
+        Pawn -> testBit (pawnAttacks c to) (unSquare kingSq)
+        Knight -> testBit (knightAttacks to) (unSquare kingSq)
+        King -> False -- King moving (direct check by King is impossible in Chess)
+        -- Sliders: Need to check blockers
+        Bishop -> givesCheckSlider b kingSq from to True
+        Rook -> givesCheckSlider b kingSq from to False
+        Queen -> givesCheckSlider b kingSq from to True || givesCheckSlider b kingSq from to False
+
+{-# INLINE givesCheckSlider #-}
+givesCheckSlider :: Board -> Square -> Square -> Square -> Bool -> Bool
+givesCheckSlider b kingSq from to isDiag =
+    let occ = occupiedTotal b
+        -- Occupancy update: Remove 'from', Add 'to' (we assume 'to' is empty or capture doesn't matter for blockage of THIS ray)
+        -- Wait, if 'to' is on the ray, it matters.
+        -- Standard slider logic:
+        -- Get attack ray from 'to' on the empty board.
+        -- Intersect with occupied.
+        -- Find first blocker.
+        -- If blocker is King, check!
+
+        -- Optimized:
+        -- 1. Check alignment.
+        r = ray kingSq to
+    in if r == 0
+       then False
+       else
+           -- 2. Check if compatible (Diag/Orth)
+           let isOrth = squareFile kingSq == squareFile to || squareRank kingSq == squareRank to
+               -- If we want Diag (isDiag=True), but it is Orth, fail.
+               -- If we want Orth (isDiag=False), but it is Diag, fail.
+               compatible = if isDiag
+                            then not isOrth -- If isDiag is True (Bishop), we want Diagonal (not Orth)
+                            else isOrth     -- If isDiag is False (Rook), we want Orth
+           in if not compatible then False
+              else
+                   -- 3. Check Blockers
+                   -- We need updated occupancy.
+                   -- Remove 'from'. Add 'to'.
+                   -- But 'from' is usually not on the ray between 'to' and 'King' (unless moving along ray away?)
+                   -- If moving away on same ray, it would be a discovery, handled by dcBitboard!
+                   -- So 'from' is NOT on the ray between 'to' and 'King'.
+                   -- So we just need to check if existing occupancy (minus 'to' if capture? No, 'to' IS the piece now)
+                   -- blocks the ray.
+                   -- The ray 'between' does NOT include endpoints.
+                   -- So 'to' is not in 'between'. 'King' is not in 'between'.
+                   -- So we just check 'between kingSq to' against 'occ'.
+                   -- Wait, we must REMOVE 'from' from occ?
+                   -- If 'from' was blocking the ray from 'to' to 'King'?
+                   -- Impossible, 'to' is the new position. 'from' is the old.
+                   -- If 'from' was between 'to' and 'King', then we are moving TOWARDS the king or AWAY?
+                   -- If we move from 'from' to 'to', and 'from' was between 'to' and 'King'.
+                   -- That means 'to' is behind 'from' relative to King.
+                   -- Then 'from' is no longer there.
+                   -- But wait, this is covered by discovery logic?
+                   -- No, discovery logic covers friendly sliders BEHIND 'from'.
+                   -- Here 'to' IS the slider.
+                   -- So we assume 'from' is NOT on the segment (to, kingSq).
+                   -- Unless we move e.g. Rook A1 to A2. King at A8.
+                   -- from=A1, to=A2. King=A8.
+                   -- Ray A2->A8. A1 is not on it.
+                   -- Rook A2 to A1. King A8.
+                   -- Ray A1->A8. A2 is on it.
+                   -- But 'from' is A2. 'to' is A1.
+                   -- So 'from' is on the ray. But 'from' is EMPTY after move.
+                   -- So we must ensure 'from' is NOT treated as a blocker.
+                   -- So: (between kingSq to) .&. (occ `clearBit` from) == 0
+                   let blockers = between kingSq to .&. occ
+                       realBlockers = blockers `clearBit` (unSquare from)
+                   in realBlockers == 0
