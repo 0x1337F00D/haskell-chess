@@ -9,6 +9,7 @@ import Chess.Types (Depth(..), unDepth, decDepth, depthZero, CheckStatus(..))
 import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, pieces, applyLegalMove, applyLegalMoveValidated, isCheck, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated, getGenMove, MoveGenerator(..))
 import qualified Chess.Board
 import qualified Chess.Board.MoveGen as MoveGen
+import qualified Chess.Board.MoveGen.KingSafety as KingSafety
 import qualified Chess.Board.GameState as GS
 import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
 import Chess.Board.Phase (Position(..))
@@ -40,8 +41,13 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
         then return (-mateValue)
         else do
             let sortedMoves = orderGenMoves vBoard evasions Nothing
-            -- Search evasions. No stand-pat logic.
-            go (map (\m -> (m, Nothing)) sortedMoves) alpha
+
+            -- Precalculate DC for Evasions? No, Evasions are few.
+            -- But standard loop does calls to givesCheck for next recursion.
+            -- So yes, calculate it.
+            let dcBitboard = KingSafety.discoveryCandidates (pieces board) (GS.turn (state board))
+
+            go dcBitboard (map (\m -> (m, Nothing)) sortedMoves) alpha
     else do
         -- Not in check: Standard QSearch
         -- Use cached eval if available
@@ -60,9 +66,12 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
         if standPat >= beta
         then return beta
         else do
+            -- Precalculate Discovery Candidates
+            let dcBitboard = KingSafety.discoveryCandidates (pieces board) (GS.turn (state board))
+
             let givesCheckLocal lm =
                     let b = getBoard vBoard
-                    in MoveGen.givesCheck (Chess.Board.pieces b) (Chess.Board.state b) (Chess.Board.getGenMove lm)
+                    in KingSafety.givesCheckOptimized (Chess.Board.pieces b) (Chess.Board.state b) dcBitboard (Chess.Board.getGenMove lm)
 
             let a = max alpha standPat
             let caps = captureMovesValidated vBoard
@@ -83,15 +92,15 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
 
             let sortedMoves = orderQSMoves vBoard qsMoves proms quietChecks
 
-            go sortedMoves a
+            go dcBitboard sortedMoves a
   where
-    go [] a = return a
-    go ((lm, mbCheck):lms) a = do
+    go _ [] a = return a
+    go dcBitboard ((lm, mbCheck):lms) a = do
         let givesCheck = case mbCheck of
                 Just c -> c
                 Nothing ->
                     let b = getBoard vBoard
-                    in MoveGen.givesCheck (pieces b) (state b) (getGenMove lm)
+                    in KingSafety.givesCheckOptimized (pieces b) (state b) dcBitboard (getGenMove lm)
 
         do
             score <- case applyLegalMoveValidated vBoard lm givesCheck of
@@ -106,4 +115,4 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
 
             if score >= beta
             then return beta
-            else go lms (max a score)
+            else go dcBitboard lms (max a score)
