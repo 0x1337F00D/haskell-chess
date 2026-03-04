@@ -11,7 +11,7 @@ import Data.Maybe (fromMaybe, isJust)
 import Data.List (foldl')
 import Data.Bits (popCount, (.&.))
 import Data.IORef (IORef, newIORef, readIORef, modifyIORef', writeIORef)
-import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar, getNumCapabilities)
+import Control.Concurrent (forkIO, newMVar, modifyMVar, newEmptyMVar, putMVar, takeMVar, getNumCapabilities)
 import qualified Data.Vector.Unboxed.Mutable as UM
 import qualified Data.Vector.Unboxed as U
 
@@ -177,11 +177,9 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
                 else do
                     -- Parallel Search: Chunk remaining moves and distribute to workers
                     -- lms is already sorted by ordering
-                    let len = length lms
-                    let chunkSize = (len + caps - 1) `div` caps
-                    let chunks = splitChunks chunkSize lms
+                    queue <- newMVar lms
 
-                    let worker chunk = do
+                    let worker _ = do
                             localNodes <- newIORef 0
 
                             -- Precalculate Discovery Candidates for optimization
@@ -211,7 +209,7 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
                                                 return (bestRes, n)
                                             else do
                                                 let gmWorker = getGenMove lmWorker
-                                                let mWorker = fromGenMove gmWorker
+                                                let mWorker = genMoveToMove gmWorker
                                                 let givesCheckWorker = MoveGen.givesCheck (pieces board) (state board) gmWorker
 
                                                 do
@@ -244,10 +242,6 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
     merge (bm, bs) Nothing = (bm, bs)
     merge (bm, bs) (Just (m, s)) = if s > bs then (m, s) else (bm, bs)
 
-    splitChunks _ [] = []
-    splitChunks n xs =
-        let (h, t) = splitAt n xs
-        in h : splitChunks n t
 
 formatScore :: Int -> String
 formatScore score
@@ -367,7 +361,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
 
                         (score0, flag0, bestM0, found0, alpha0, searchedTT) <- if hasTT
                             then do
-                                if Chess.Board.isLegalMove board ttM
+                                if MoveGen.isLegalMove (pieces board) currentState ttM
                                 then do
                                     case Chess.Board.toGenMove board ttM of
                                         Just gm -> do
