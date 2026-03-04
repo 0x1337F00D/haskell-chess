@@ -67,6 +67,7 @@ library
                     , Chess.Board.GameState
                     , Chess.Board.Fen
                     , Chess.Board.MoveGen
+                    , Chess.Board.MoveGen.Internal
                     , Chess.Board.MoveGen.Common
                     , Chess.Board.MoveGen.KingSafety
                     , Chess.Board.MoveGen.Pawn

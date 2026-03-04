@@ -13,7 +13,7 @@ import Data.Ord (Down(..))
 import qualified Data.Vector.Unboxed.Mutable as UM
 
 import Chess.Types
-import Chess.Board (Board(..), ValidatedBoard, LegalMove, GenMove(..), pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture, getBoard, pieces, getGenMove)
+import Chess.Board (Board(..), ValidatedBoard, LegalMove, GenMove, genMoveToMove, pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture, pattern GenCastling960, pattern GenDrop, getBoard, pieces, getGenMove)
 import qualified Chess.Board.GameState as GS
 import Chess.Engine.SEE (see, seeGen)
 import Chess.Engine.Search.Types (SearchContext(..), SearchResources(..))
@@ -34,7 +34,7 @@ orderGenMoves vBoard moves ttM = sortOn (Down . orderScore) moves
 
     isTTMove gm = case ttM of
         Nothing -> False
-        Just tm -> getMove gm == tm
+        Just tm -> genMoveToMove gm == tm
 
     scoreGenMove gm = case gm of
         GenPromotionCapture {} -> 100000 + scoreMove gm
@@ -45,13 +45,6 @@ orderGenMoves vBoard moves ttM = sortOn (Down . orderScore) moves
         GenEnPassant {} -> 50000 + scoreMove gm
         GenPromotion {} -> 30000 + scoreMove gm
         _ -> 0
-
-    getMove (GenQuiet f t _) = Move f t Nothing
-    getMove (GenCapture f t _ _) = Move f t Nothing
-    getMove (GenEnPassant f t) = Move f t Nothing
-    getMove (GenCastling f t) = Move f t Nothing
-    getMove (GenPromotion f t p) = Move f t (Just p)
-    getMove (GenPromotionCapture f t p _) = Move f t (Just p)
 
 -- | Specialized move ordering for Quiescence Search.
 -- Avoids concatenating lists and re-partitioning.
@@ -117,6 +110,8 @@ partitionMoves moves = foldr part ([], [], [], []) moves
         GenPromotion {} -> (cp, c, lm:p, q)
         GenQuiet {} -> (cp, c, p, lm:q)
         GenCastling {} -> (cp, c, p, lm:q)
+        GenCastling960 {} -> (cp, c, p, lm:q)
+        GenDrop {} -> (cp, c, p, lm:q)
 
 updateKillers :: forall p. SearchContext p -> Depth -> Move -> IO ()
 updateKillers ctx depth m = do
@@ -193,28 +188,18 @@ orderQuiets ctx quiets killers counterMove ttM = do
 
     let filtered = case ttM of
             Nothing -> combined
-            Just tm -> filter (\lm -> getMove (getGenMove lm) /= tm) combined
+            Just tm -> filter (\lm -> genMoveToMove (getGenMove lm) /= tm) combined
     return filtered
-  where
-    getMove (GenQuiet f t _) = Move f t Nothing
-    getMove (GenCastling f t) = Move f t Nothing
-    getMove _ = nullMove -- Should not happen for quiets
 
 partitionCounterMove :: [LegalMove] -> Move -> ([LegalMove], [LegalMove])
 partitionCounterMove lms cm = foldr part ([], []) lms
   where
-    part lm (c, o) = if getMove (getGenMove lm) == cm then (lm:c, o) else (c, lm:o)
-    getMove (GenQuiet f t _) = Move f t Nothing
-    getMove (GenCastling f t) = Move f t Nothing
-    getMove _ = nullMove
+    part lm (c, o) = if genMoveToMove (getGenMove lm) == cm then (lm:c, o) else (c, lm:o)
 
 partitionKillers :: [LegalMove] -> [Move] -> ([LegalMove], [LegalMove])
 partitionKillers lms ks = foldr part ([], []) lms
   where
-    part lm (k, o) = if getMove (getGenMove lm) `elem` ks then (lm:k, o) else (k, lm:o)
-    getMove (GenQuiet f t _) = Move f t Nothing
-    getMove (GenCastling f t) = Move f t Nothing
-    getMove _ = nullMove
+    part lm (k, o) = if genMoveToMove (getGenMove lm) `elem` ks then (lm:k, o) else (k, lm:o)
 
 scoreHistory :: forall p. SearchContext p -> LegalMove -> IO Int
 scoreHistory ctx lm = do
@@ -233,14 +218,7 @@ scoreHistory ctx lm = do
 pickAndSort :: [LegalMove] -> Maybe Move -> [LegalMove]
 pickAndSort moves Nothing = sortOn (negate . scoreMove . getGenMove) moves
 pickAndSort moves (Just ttM) =
-    let (pre, post) = break (\lm -> getMove (getGenMove lm) == ttM) moves
+    let (pre, post) = break (\lm -> genMoveToMove (getGenMove lm) == ttM) moves
     in case post of
         [] -> sortOn (negate . scoreMove . getGenMove) pre
         (tt:rest) -> tt : sortOn (negate . scoreMove . getGenMove) (pre ++ rest)
-  where
-    getMove (GenQuiet f t _) = Move f t Nothing
-    getMove (GenCapture f t _ _) = Move f t Nothing
-    getMove (GenEnPassant f t) = Move f t Nothing
-    getMove (GenCastling f t) = Move f t Nothing
-    getMove (GenPromotion f t p) = Move f t (Just p)
-    getMove (GenPromotionCapture f t p _) = Move f t (Just p)
