@@ -123,7 +123,81 @@ forBitboard bb f = foldBitboardM (\_ sq -> f sq) () bb
 
 -- | Check if a move is legal.
 isLegal :: Board -> GameState -> GenMove -> Bool
-isLegal b gs gm =
+isLegal b gs gm = case gm of
+    GenQuiet {} -> isLegalFast b gs gm
+    GenCapture {} -> isLegalFast b gs gm
+    GenPromotion {} -> isLegalFast b gs gm
+    GenPromotionCapture {} -> isLegalFast b gs gm
+    GenEnPassant {} -> isLegalFast b gs gm
+    _ -> isLegalSlow b gs gm
+
+{-# INLINE isLegalFast #-}
+isLegalFast :: Board -> GameState -> GenMove -> Bool
+isLegalFast b gs gm = case gm of
+    GenQuiet from to pt ->
+        let fromI = unSquare from
+            toI = unSquare to
+            -- Remove from, set to.
+            occ = (occupiedTotal b `clearBit` fromI) `setBit` toI
+            c = turn gs
+            opp = oppositeColor c
+        in if pt == King
+           then not (isAttackedByOptimized b opp to occ 0)
+           else case kingSquare b c of
+                  Nothing -> True
+                  Just k -> not (isAttackedByOptimized b opp k occ 0)
+
+    GenCapture from to pt _ ->
+        let fromI = unSquare from
+            -- 'to' is occupied by enemy. Captured piece is at 'to'.
+            -- We move to 'to'. Occupancy at 'to' stays 1.
+            -- 'from' becomes 0.
+            occ = occupiedTotal b `clearBit` fromI
+            c = turn gs
+            opp = oppositeColor c
+            ignored = bit (unSquare to)
+        in if pt == King
+           then not (isAttackedByOptimized b opp to occ ignored)
+           else case kingSquare b c of
+                  Nothing -> True
+                  Just k -> not (isAttackedByOptimized b opp k occ ignored)
+
+    GenPromotion from to _ ->
+        let fromI = unSquare from
+            toI = unSquare to
+            occ = (occupiedTotal b `clearBit` fromI) `setBit` toI
+            c = turn gs
+            opp = oppositeColor c
+        in case kingSquare b c of
+             Nothing -> True
+             Just k -> not (isAttackedByOptimized b opp k occ 0)
+
+    GenPromotionCapture from to _ _ ->
+        let fromI = unSquare from
+            occ = occupiedTotal b `clearBit` fromI
+            c = turn gs
+            opp = oppositeColor c
+            ignored = bit (unSquare to)
+        in case kingSquare b c of
+             Nothing -> True
+             Just k -> not (isAttackedByOptimized b opp k occ ignored)
+
+    GenEnPassant from to ->
+        let fromI = unSquare from
+            toI = unSquare to
+            c = turn gs
+            opp = oppositeColor c
+            capSqI = if c == White then toI - 8 else toI + 8
+            occ = ((occupiedTotal b `clearBit` fromI) `setBit` toI) `clearBit` capSqI
+            ignored = bit capSqI
+        in case kingSquare b c of
+             Nothing -> True
+             Just k -> not (isAttackedByOptimized b opp k occ ignored)
+
+    _ -> True -- Should be handled by isLegalSlow
+
+isLegalSlow :: Board -> GameState -> GenMove -> Bool
+isLegalSlow b gs gm =
     let b' = applyMoveBoardFast b gs gm
         c = turn gs
         kingSq' = kingSquare b' c
