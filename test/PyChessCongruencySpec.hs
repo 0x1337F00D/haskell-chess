@@ -99,9 +99,9 @@ spec = do
     mapM_ runCase PD.cases
 
 runCase :: PD.PyChessCase -> Spec
-runCase (PD.PyChessCase variantStr fenStr depth expectedNodes expectedMoves) = do
-  describe (variantStr ++ " FEN: " ++ fenStr) $ do
-    let mGame = loadGame variantStr fenStr
+runCase (PD.PyChessCase fenStr depth expectedNodes expectedMoves) = do
+  describe ("Standard FEN: " ++ fenStr) $ do
+    let mGame = loadGame "Standard" fenStr
 
     it "parses FEN correctly" $ do
         mGame `shouldSatisfy` \x -> case x of Just _ -> True; Nothing -> False
