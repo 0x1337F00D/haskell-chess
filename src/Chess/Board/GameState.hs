@@ -59,6 +59,23 @@ pattern GameState { turn, castlingRights, epSquare, halfmoveClock, fullmoveNumbe
 
 {-# COMPLETE GameState #-}
 
+-- HOTPATH: Zero-cost Getter ohne Pattern-Synonyms
+{-# INLINE gsPacked #-}
+gsPacked :: GameState -> Word64
+gsPacked (GameStatePacked p _) = p
+
+{-# INLINE gsTurn #-}
+gsTurn :: GameState -> Color
+gsTurn gs = if testBit (gsPacked gs) 0 then Black else White
+
+{-# INLINE gsEPSquareRaw #-}
+gsEPSquareRaw :: GameState -> Word64
+gsEPSquareRaw gs = (gsPacked gs `unsafeShiftR` 17) .&. 0x7F
+
+{-# INLINE gsEPSquare #-}
+gsEPSquare :: GameState -> Square
+gsEPSquare gs = Square (fromIntegral (gsEPSquareRaw gs))
+
 {-# INLINE unpackGameState #-}
 unpackGameState :: GameState -> (Color, CastlingRights, Square, HalfmoveClock, FullmoveNumber, Word64)
 unpackGameState (GameStatePacked p z) =

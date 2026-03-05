@@ -29,6 +29,7 @@ module Chess.Board.MoveGen.Common
   ) where
 
 import Data.Maybe (fromMaybe)
+import Data.Word (Word64)
 import Chess.Types
 import Chess.Board.MoveGen.Internal
 
@@ -67,6 +68,27 @@ pattern GenCastling960 f t <- (unpackGenCastling960 -> Just (f, t))
   where GenCastling960 f t = mkGenCastling960 f t
 {-# COMPLETE GenQuiet, GenCapture, GenEnPassant, GenCastling, GenPromotion, GenPromotionCapture, GenDrop, GenCastling960 #-}
 
+
+-- ========================================
+-- HOTPATH: Direkte Tag-Dispatch ohne Maybe
+-- ========================================
+{-# INLINE isQuiet #-}
+isQuiet :: GenMove -> Bool
+isQuiet m = getTag m == tagQuiet
+
+{-# INLINE isCapture #-}
+isCapture :: GenMove -> Bool
+isCapture m = getTag m == tagCapture
+
+-- Keine Listen/List-Traversal im Hotpath!
+{-# INLINE tagIsQuietOrCapture #-}
+tagIsQuietOrCapture :: Word64 -> Bool
+tagIsQuietOrCapture t = t == tagQuiet || t == tagCapture
+
+-- Unsafe für Capture-Case (kein fromMaybe)
+{-# INLINE getCapturedPieceUnsafe #-}
+getCapturedPieceUnsafe :: GenMove -> PieceType
+getCapturedPieceUnsafe m = fromMaybe Pawn (getCapturedPiece m)
 
 -- View helpers using MoveTag interface
 {-# INLINE unpackQuiet #-}
