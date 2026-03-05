@@ -8,6 +8,8 @@
 
 module Chess.Engine.Search.Ordering where
 
+import Control.Monad (forM_)
+
 import Data.List (sortOn, partition)
 import Data.Ord (Down(..))
 import qualified Data.Vector.Unboxed.Mutable as UM
@@ -144,10 +146,22 @@ updateHistory ctx depth (Move f t _) = do
     let res = scResources ctx
     let idx = (unSquare f) * 64 + (unSquare t)
     let d = unDepth depth
-    let bonus = d * d
+    let bonus = min 400 (d * d)
     v <- UM.unsafeRead (resHistory res) idx
-    UM.unsafeWrite (resHistory res) idx (v + bonus)
+    let scaledV = v - v * bonus `div` 16384
+    UM.unsafeWrite (resHistory res) idx (scaledV + bonus)
 updateHistory _ _ _ = return ()
+
+penaltyHistory :: forall p. SearchContext p -> Depth -> Move -> IO ()
+penaltyHistory ctx depth (Move f t _) = do
+    let res = scResources ctx
+    let idx = (unSquare f) * 64 + (unSquare t)
+    let d = unDepth depth
+    let penalty = min 400 (d * d)
+    v <- UM.unsafeRead (resHistory res) idx
+    let scaledV = v - v * penalty `div` 16384
+    UM.unsafeWrite (resHistory res) idx (scaledV - penalty)
+penaltyHistory _ _ _ = return ()
 
 updateCounterMove :: forall p. SearchContext p -> Maybe Move -> Move -> IO ()
 updateCounterMove _ Nothing _ = return ()

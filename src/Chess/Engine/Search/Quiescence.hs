@@ -60,7 +60,7 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
             Nothing -> do
                 let s = evaluatePos (Position vBoard :: Position p s)
                 -- Store static eval in TT
-                storeTT tt hash depthZero s TTEval nullMove
+                storeTT tt (scAge ctx) hash depthZero s TTEval nullMove
                 return s
 
         if standPat >= beta

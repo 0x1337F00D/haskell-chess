@@ -36,6 +36,7 @@ import Chess.Engine.Search.Quiescence (quiescence)
 searchPhase :: forall p s. (Evaluate p, MoveGenerator s) => Position p s -> TT -> SearchLimits -> IORef Bool -> IO Move
 searchPhase (Position vBoard) tt limits stopFlag = do
     let board = getBoard vBoard
+    let age = fromIntegral $ unFullmoveNumber $ GS.fullmoveNumber (state board)
     let maxDepth = case limitDepth limits of
             Just d -> mkDepth d
             Nothing -> mkDepth 100
@@ -64,6 +65,7 @@ searchPhase (Position vBoard) tt limits stopFlag = do
           , scPhase = MainSearch
           , scPly = 0
           , scNullMoveState = NullMoveAllowed
+          , scAge = age
           } :: SearchContext p
 
     let searchLoop !depth !bestM = do
@@ -315,127 +317,160 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                  let qsCtx = ctx { scPhase = Quiescence } :: SearchContext p
                  quiescence qsCtx vBoard tt alpha beta nodes depth
             else do
-                let r = if depth > mkDepth 6 then mkDepth 3 else mkDepth 2
-                let canNull = scNullMoveState ctx == NullMoveAllowed
-                let doNmp = canNull && not inCheck && depth >= r && beta < mateValue
-                            && staticEval >= beta
-                            && popCount (Base.occupiedTotal (pieces board)) > 5
+                let depthVal = unDepth depth
 
-                nmpResult <- if doNmp
-                             then do
-                                 let nullB = Chess.Board.applyMove board NullMove
-                                 -- trustBoard calculates check status for null move position
-                                 -- Null move switches turn. If we were not in check, opponent might be in check?
-                                 -- No, if we make null move, we pass. Opponent to move.
-                                 -- isCheck checks if side to move is in check.
-                                 -- We verified 'not inCheck' before NMP.
-                                 -- So opponent is not capturing our king.
-                                 -- After null move, it is opponent's turn.
-                                 -- Is opponent in check? Unlikely unless we were giving check (which we are not, it's our turn).
-                                 -- Wait, if it is our turn and we are not in check.
-                                 -- Null move -> Opponent's turn.
-                                 -- Opponent is effectively in same position but it's their turn.
-                                 -- If we were not attacking their king, they are not in check.
-                                 -- So we can assume NotInCheck?
-                                 -- Safest is to use trustBoard.
-                                 let nullVB = trustBoard nullB
-                                 let d' = depth `minusDepth` depthOne `minusDepth` r
+                -- Razoring
+                let doRazoring = depthVal <= 2 && not inCheck && nodeKind == NonPV
+                razoringResult <- if doRazoring
+                                  then do
+                                      let razoringMargin = 300 * depthVal
+                                      if staticEval + razoringMargin <= alpha
+                                      then do
+                                          let qsCtx = ctx { scPhase = Quiescence } :: SearchContext p
+                                          qsScore <- quiescence qsCtx vBoard tt alpha beta nodes depthZero
+                                          return $ if qsScore <= alpha then Just qsScore else Nothing
+                                      else return Nothing
+                                  else return Nothing
 
-                                 let nmpCtx = ctx { scNullMoveState = NullMoveSkipped, scPly = scPly ctx + 1, scNodeKind = NonPV, scCheckState = NotInCheck } :: SearchContext p
+                case razoringResult of
+                  Just score -> return score
+                  Nothing -> do
 
-                                 score <- case nullVB of
-                                     InCheckBoard vb -> alphaBeta nmpCtx vb tt Nothing d' (-beta) (-beta + 1) nodes stopFlag limits
-                                     NotInCheckBoard vb -> alphaBeta nmpCtx vb tt Nothing d' (-beta) (-beta + 1) nodes stopFlag limits
-                                 return (if stepScore score >= beta then Just beta else Nothing)
-                             else return Nothing
+                    -- Reverse Futility Pruning (Static NMP)
+                    let doRFP = depthVal <= 6 && not inCheck && nodeKind == NonPV && abs beta < mateValue
+                    let rfpResult = if doRFP
+                                    then do
+                                        let futilityMargin = 120 * depthVal
+                                        if staticEval - futilityMargin >= beta
+                                        then Just staticEval
+                                        else Nothing
+                                    else Nothing
 
-                case nmpResult of
-                    Just cutoff -> return cutoff
-                    Nothing -> do
-                        let hasTT = isJust ttMove
-                        let ttM = fromMaybe nullMove ttMove
+                    case rfpResult of
+                      Just score -> return score
+                      Nothing -> do
 
-                        -- Precalculate Discovery Candidates for optimized givesCheck
-                        -- We only do this if we are likely to search moves.
-                        let dcBitboard = KingSafety.discoveryCandidates (pieces board) (GS.turn (state board))
+                        let r = if depth > mkDepth 6 then mkDepth 3 else mkDepth 2
+                        let canNull = scNullMoveState ctx == NullMoveAllowed
+                        let doNmp = canNull && not inCheck && depth >= r && beta < mateValue
+                                    && staticEval >= beta
+                                    && popCount (Base.occupiedTotal (pieces board)) > 5
 
-                        (score0, flag0, bestM0, found0, alpha0, searchedTT) <- if hasTT
-                            then do
-                                if MoveGen.isLegalMove (pieces board) currentState ttM
-                                then do
-                                    case Chess.Board.toGenMove board ttM of
-                                        Just gm -> do
-                                            let lm = Chess.Board.mkLegalMove gm
-                                            let givesCheck = KingSafety.givesCheckOptimized (pieces board) (state board) dcBitboard gm
+                        nmpResult <- if doNmp
+                                     then do
+                                         let nullB = Chess.Board.applyMove board NullMove
+                                         -- trustBoard calculates check status for null move position
+                                         -- Null move switches turn. If we were not in check, opponent might be in check?
+                                         -- No, if we make null move, we pass. Opponent to move.
+                                         -- isCheck checks if side to move is in check.
+                                         -- We verified 'not inCheck' before NMP.
+                                         -- So opponent is not capturing our king.
+                                         -- After null move, it is opponent's turn.
+                                         -- Is opponent in check? Unlikely unless we were giving check (which we are not, it's our turn).
+                                         -- Wait, if it is our turn and we are not in check.
+                                         -- Null move -> Opponent's turn.
+                                         -- Opponent is effectively in same position but it's their turn.
+                                         -- If we were not attacking their king, they are not in check.
+                                         -- So we can assume NotInCheck?
+                                         -- Safest is to use trustBoard.
+                                         let nullVB = trustBoard nullB
+                                         let d' = depth `minusDepth` depthOne `minusDepth` r
 
-                                            score <- case applyLegalMoveValidated vBoard lm givesCheck of
-                                                InCheckBoard newVBoard -> do
-                                                    let extension = if inCheck then depthOne else depthZero
-                                                    let nextDepth = (decDepth depth) `plusDepth` extension
-                                                    let nextCtx = ctx { scNodeKind = nodeKind, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                                                    s <- alphaBeta nextCtx newVBoard tt (Just ttM) nextDepth (-beta) (-alpha) nodes stopFlag limits
-                                                    return (stepScore s)
-                                                NotInCheckBoard newVBoard -> do
-                                                    let extension = if inCheck then depthOne else depthZero
-                                                    let nextDepth = (decDepth depth) `plusDepth` extension
-                                                    let nextCtx = ctx { scNodeKind = nodeKind, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                                                    s <- alphaBeta nextCtx newVBoard tt (Just ttM) nextDepth (-beta) (-alpha) nodes stopFlag limits
-                                                    return (stepScore s)
+                                         let nmpCtx = ctx { scNullMoveState = NullMoveSkipped, scPly = scPly ctx + 1, scNodeKind = NonPV, scCheckState = NotInCheck } :: SearchContext p
 
-                                            if score >= beta
-                                            then return (score, TTLower, ttM, True, alpha, True)
-                                            else do
-                                                let newBestScore = max (-infinity) score
-                                                let newAlpha = max alpha score
-                                                let newFlag = if score > alpha then TTExact else TTUpper
-                                                let newBestM = if score > -infinity then ttM else nullMove
-                                                return (newBestScore, newFlag, newBestM, True, newAlpha, True)
-                                        Nothing -> return (-infinity, TTUpper, nullMove, False, alpha, False)
-                                else return (-infinity, TTUpper, nullMove, False, alpha, False)
-                            else return (-infinity, TTUpper, nullMove, False, alpha, False)
+                                         score <- case nullVB of
+                                             InCheckBoard vb -> alphaBeta nmpCtx vb tt Nothing d' (-beta) (-beta + 1) nodes stopFlag limits
+                                             NotInCheckBoard vb -> alphaBeta nmpCtx vb tt Nothing d' (-beta) (-beta + 1) nodes stopFlag limits
+                                         return (if stepScore score >= beta then Just beta else Nothing)
+                                     else return Nothing
 
-                        if score0 >= beta
-                        then storeAndReturn score0 bestM0 TTLower
-                        else do
-                            let filterTT ms = if searchedTT then filter (\lm -> genMoveToMove (getGenMove lm) /= ttM) ms else ms
-                            let sortingTT = if searchedTT then Nothing else Just ttM
+                        case nmpResult of
+                            Just cutoff -> return cutoff
+                            Nothing -> do
+                                let hasTT = isJust ttMove
+                                let ttM = fromMaybe nullMove ttMove
 
-                            let captures = captureMovesValidated vBoard
-                            let (goodCaps, badCaps) = partitionSEE vBoard captures
-                            let sortedGood = Ordering.pickAndSort (filterTT goodCaps) sortingTT
-                            let countGood = length sortedGood
+                                -- Precalculate Discovery Candidates for optimized givesCheck
+                                -- We only do this if we are likely to search moves.
+                                let dcBitboard = KingSafety.discoveryCandidates (pieces board) (GS.turn (state board))
 
-                            (score1, flag1, bestM1, found1, alpha1) <- searchStage dcBitboard sortedGood (0 :: Int) inCheck staticEval alpha0 beta depth flag0 score0 bestM0 found0
+                                (score0, flag0, bestM0, found0, alpha0, searchedTT) <- if hasTT
+                                    then do
+                                        if MoveGen.isLegalMove (pieces board) currentState ttM
+                                        then do
+                                            case Chess.Board.toGenMove board ttM of
+                                                Just gm -> do
+                                                    let lm = Chess.Board.mkLegalMove gm
+                                                    let givesCheck = KingSafety.givesCheckOptimized (pieces board) (state board) dcBitboard gm
 
-                            if score1 >= beta
-                            then storeAndReturn score1 bestM1 TTLower
-                            else do
-                                let promotions = filter (not . isCapture) (legalPromotionsValidated vBoard)
-                                let sortedPromotions = Ordering.pickAndSort (filterTT promotions) sortingTT
-                                let countProms = length sortedPromotions
+                                                    score <- case applyLegalMoveValidated vBoard lm givesCheck of
+                                                        InCheckBoard newVBoard -> do
+                                                            let extension = if inCheck then depthOne else depthZero
+                                                            let nextDepth = (decDepth depth) `plusDepth` extension
+                                                            let nextCtx = ctx { scNodeKind = nodeKind, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+                                                            s <- alphaBeta nextCtx newVBoard tt (Just ttM) nextDepth (-beta) (-alpha) nodes stopFlag limits
+                                                            return (stepScore s)
+                                                        NotInCheckBoard newVBoard -> do
+                                                            let extension = if inCheck then depthOne else depthZero
+                                                            let nextDepth = (decDepth depth) `plusDepth` extension
+                                                            let nextCtx = ctx { scNodeKind = nodeKind, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+                                                            s <- alphaBeta nextCtx newVBoard tt (Just ttM) nextDepth (-beta) (-alpha) nodes stopFlag limits
+                                                            return (stepScore s)
 
-                                (score2, flag2, bestM2, found2, alpha2) <- searchStage dcBitboard sortedPromotions countGood inCheck staticEval alpha1 beta depth flag1 score1 bestM1 found1
+                                                    if score >= beta
+                                                    then return (score, TTLower, ttM, True, alpha, True)
+                                                    else do
+                                                        let newBestScore = max (-infinity) score
+                                                        let newAlpha = max alpha score
+                                                        let newFlag = if score > alpha then TTExact else TTUpper
+                                                        let newBestM = if score > -infinity then ttM else nullMove
+                                                        return (newBestScore, newFlag, newBestM, True, newAlpha, True)
+                                                Nothing -> return (-infinity, TTUpper, nullMove, False, alpha, False)
+                                        else return (-infinity, TTUpper, nullMove, False, alpha, False)
+                                    else return (-infinity, TTUpper, nullMove, False, alpha, False)
 
-                                if score2 >= beta
-                                then storeAndReturn score2 bestM2 TTLower
+                                if score0 >= beta
+                                then storeAndReturn score0 bestM0 TTLower
                                 else do
-                                    let quiets = legalQuietsValidated vBoard
-                                    killers <- getKillers ctx depth
-                                    counterMove <- getCounterMove ctx lastMove
-                                    sortedQuiets <- orderQuiets ctx (filterTT quiets) killers counterMove sortingTT
-                                    let countQuiets = length sortedQuiets
+                                    let filterTT ms = if searchedTT then filter (\lm -> genMoveToMove (getGenMove lm) /= ttM) ms else ms
+                                    let sortingTT = if searchedTT then Nothing else Just ttM
 
-                                    (score3, flag3, bestM3, found3, alpha3) <- searchStage dcBitboard sortedQuiets (countGood + countProms) inCheck staticEval alpha2 beta depth flag2 score2 bestM2 found2
+                                    let captures = captureMovesValidated vBoard
+                                    let (goodCaps, badCaps) = partitionSEE vBoard captures
+                                    let sortedGood = Ordering.pickAndSort (filterTT goodCaps) sortingTT
+                                    let countGood = length sortedGood
 
-                                    if score3 >= beta
-                                    then storeAndReturn score3 bestM3 flag3
+                                    (score1, flag1, bestM1, found1, alpha1, playedQuiets1) <- searchStage dcBitboard sortedGood (0 :: Int) inCheck staticEval alpha0 beta depth flag0 score0 bestM0 found0 []
+
+                                    if score1 >= beta
+                                    then storeAndReturn score1 bestM1 TTLower
                                     else do
-                                        let sortedBad = Ordering.pickAndSort (filterTT badCaps) sortingTT
-                                        (score4, flag4, bestM4, found4, _) <- searchStage dcBitboard sortedBad (countGood + countProms + countQuiets) inCheck staticEval alpha3 beta depth flag3 score3 bestM3 found3
+                                        let promotions = filter (not . isCapture) (legalPromotionsValidated vBoard)
+                                        let sortedPromotions = Ordering.pickAndSort (filterTT promotions) sortingTT
+                                        let countProms = length sortedPromotions
 
-                                        if not found4
-                                        then return $ if inCheck then -mateValue else 0
-                                        else storeAndReturn score4 bestM4 flag4
+                                        (score2, flag2, bestM2, found2, alpha2, playedQuiets2) <- searchStage dcBitboard sortedPromotions countGood inCheck staticEval alpha1 beta depth flag1 score1 bestM1 found1 playedQuiets1
+
+                                        if score2 >= beta
+                                        then storeAndReturn score2 bestM2 TTLower
+                                        else do
+                                            let quiets = legalQuietsValidated vBoard
+                                            killers <- getKillers ctx depth
+                                            counterMove <- getCounterMove ctx lastMove
+                                            sortedQuiets <- orderQuiets ctx (filterTT quiets) killers counterMove sortingTT
+                                            let countQuiets = length sortedQuiets
+
+                                            (score3, flag3, bestM3, found3, alpha3, playedQuiets3) <- searchStage dcBitboard sortedQuiets (countGood + countProms) inCheck staticEval alpha2 beta depth flag2 score2 bestM2 found2 playedQuiets2
+
+                                            if score3 >= beta
+                                            then storeAndReturn score3 bestM3 flag3
+                                            else do
+                                                let sortedBad = Ordering.pickAndSort (filterTT badCaps) sortingTT
+                                                (score4, flag4, bestM4, found4, _, _) <- searchStage dcBitboard sortedBad (countGood + countProms + countQuiets) inCheck staticEval alpha3 beta depth flag3 score3 bestM3 found3 playedQuiets3
+
+                                                if not found4
+                                                then return $ if inCheck then -mateValue else 0
+                                                else storeAndReturn score4 bestM4 flag4
 
   where
     -- Hoist fields for searchStage
@@ -449,11 +484,11 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
         then return s
         else do
             let hash = GS.zobristHash currentState
-            storeTT tt hash depth s f m
+            storeTT tt (scAge ctx) hash depth s f m
             return s
 
-    searchStage _ [] _ _ _ a _ _ flag bestScore bestM found = return (bestScore, flag, bestM, found, a)
-    searchStage dcBitboard (lm:lms) !index inCheck staticEval !a !b !d !flag !bestScore !bestM !found = do
+    searchStage _ [] _ _ _ a _ _ flag bestScore bestM found playedQuiets = return (bestScore, flag, bestM, found, a, playedQuiets)
+    searchStage dcBitboard (lm:lms) !index inCheck staticEval !a !b !d !flag !bestScore !bestM !found !playedQuiets = do
         let isCap = isCapture lm
         let isProm = isPromotion lm
         let isQuiet = not isCap && not isProm
@@ -471,15 +506,16 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                 (NonPV, NotInCheck) | isQuiet && not givesCheck -> -- optimized prune logic knowing NotInCheck
                              let lmpCount = 3 + dVal * dVal
                                  doLMP = dVal < 8 && dVal >= 3 && index > lmpCount
-                                 fpMargin = 100 * dVal
-                                 doFutility = index > 10 && dVal < 7 && dVal >= 2 && abs bestScore < mateValue && abs a < mateValue && staticEval + fpMargin <= a
+                                 fpMargin = 120 * dVal
+                                 doFutility = index > 6 && dVal < 7 && dVal >= 2 && abs bestScore < mateValue && abs a < mateValue && staticEval + fpMargin <= a
                                               && popCount (Base.occupiedTotal currentPieces) > 5
                              in doLMP || doFutility
                 _ -> False
 
         if pruneQuiet
-        then searchStage dcBitboard lms (index + 1) inCheck staticEval a b d flag bestScore bestM True
+        then searchStage dcBitboard lms (index + 1) inCheck staticEval a b d flag bestScore bestM True playedQuiets
         else do
+                let nextPlayedQuiets = if isQuiet then m : playedQuiets else playedQuiets
                 let extension = if inCheck then depthOne else depthZero
                 let nextDepth = (decDepth d) `plusDepth` extension
 
@@ -503,7 +539,11 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                                    then
                                        let dIdx = min 63 (unDepth d)
                                            mIdx = min 63 index
-                                       in mkDepth (lmrTable U.! (dIdx * 64 + mIdx))
+                                           baseLmr = lmrTable U.! (dIdx * 64 + mIdx)
+                                           -- Less reduction for PV nodes
+                                           pvAdj = if scNodeKind ctx == PV then 1 else 0
+                                           finalLmr = max 0 (baseLmr - pvAdj)
+                                       in mkDepth finalLmr
                                    else depthZero
 
                          let dLMR = nextDepth `minusDepth` lmr
@@ -543,6 +583,8 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                          updateKillers ctx d m
                          updateHistory ctx d m
                          updateCounterMove ctx lastMove m
+                         -- Penalize previously played quiets that didn't cause a cutoff
+                         mapM_ (penaltyHistory ctx d) playedQuiets
                      else return ()
-                     return (score, TTLower, m, True, newAlpha)
-                else searchStage dcBitboard lms (index + 1) inCheck staticEval newAlpha b d newFlag newBestScore newBestM True
+                     return (score, TTLower, m, True, newAlpha, nextPlayedQuiets)
+                else searchStage dcBitboard lms (index + 1) inCheck staticEval newAlpha b d newFlag newBestScore newBestM True nextPlayedQuiets
