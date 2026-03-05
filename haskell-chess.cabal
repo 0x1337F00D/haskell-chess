@@ -62,6 +62,8 @@ library
     exposed-modules:  Chess.Types
                     , Chess.Internal.Builder
                     , Chess.Bitboard
+                    , Chess.Bitboard.Magic
+                    , Chess.Bitboard.MagicTables
                     , Chess.SquareSet
                     , Chess.Board.Base
                     , Chess.Board.GameState

@@ -22,29 +22,30 @@ pieceMoves b gs pt = runBuilder256 $ fillPieceMoves b gs pt
 {-# INLINE fillPieceMoves #-}
 fillPieceMoves :: Board -> GameState -> PieceType -> Builder s GenMove ()
 fillPieceMoves b gs pt = do
-    let c = turn gs
-        bb = pieceBitboard b c pt
-        occ = occupiedTotal b
+    let c       = turn gs
+        bb      = pieceBitboard b c pt
+        occ     = occupiedTotal b
         friends = occupiedBy b c
-        enemies = occupiedBy b (oppositeColor c)
-        oppC = oppositeColor c
-        getAttacks from = case pt of
-             Knight -> knightAttacks from
-             Bishop -> bishopAttacks from occ
-             Rook   -> rookAttacks from occ
-             Queen  -> bishopAttacks from occ .|. rookAttacks from occ
-             King   -> kingAttacks from
-             _      -> 0
-    forBitboard bb $ \from -> do
-            let att = getAttacks from
-            let valid = att .&. complement friends
+        oppC    = oppositeColor c
+        enemies = occupiedBy b oppC
+
+    let {-# INLINE go #-}
+        go attacks = forBitboard bb $ \from -> do
+            let att   = attacks from
+                valid = att .&. complement friends
             forBitboard valid $ \to -> do
-                    let toI = unSquare to
-                    let isCap = testBit enemies toI
-                    let gm = if isCap
-                             then GenCapture from to pt (findPieceType b oppC to)
-                             else GenQuiet from to pt
-                    emit gm
+                let toI = unSquare to
+                if testBit enemies toI
+                  then emit (GenCapture from to pt (findPieceType b oppC to))
+                  else emit (GenQuiet   from to pt)
+
+    case pt of
+        Knight -> go knightAttacks
+        Bishop -> go (`bishopAttacks` occ)
+        Rook   -> go (`rookAttacks` occ)
+        Queen  -> go (\from -> bishopAttacks from occ .|. rookAttacks from occ)
+        King   -> go kingAttacks
+        _      -> pure ()
 
 pieceCaptures :: Board -> GameState -> PieceType -> U.Vector GenMove
 pieceCaptures b gs pt = runBuilder256 $ fillPieceCaptures b gs pt
@@ -52,24 +53,26 @@ pieceCaptures b gs pt = runBuilder256 $ fillPieceCaptures b gs pt
 {-# INLINE fillPieceCaptures #-}
 fillPieceCaptures :: Board -> GameState -> PieceType -> Builder s GenMove ()
 fillPieceCaptures b gs pt = do
-    let c = turn gs
-        bb = pieceBitboard b c pt
-        occ = occupiedTotal b
-        enemies = occupiedBy b (oppositeColor c)
-        oppC = oppositeColor c
-        getAttacks from = case pt of
-             Knight -> knightAttacks from
-             Bishop -> bishopAttacks from occ
-             Rook   -> rookAttacks from occ
-             Queen  -> bishopAttacks from occ .|. rookAttacks from occ
-             King   -> kingAttacks from
-             _      -> 0
-    forBitboard bb $ \from -> do
-            let att = getAttacks from
-            let valid = att .&. enemies
+    let c       = turn gs
+        bb      = pieceBitboard b c pt
+        occ     = occupiedTotal b
+        oppC    = oppositeColor c
+        enemies = occupiedBy b oppC
+
+    let {-# INLINE go #-}
+        go attacks = forBitboard bb $ \from -> do
+            let att   = attacks from
+                valid = att .&. enemies
             forBitboard valid $ \to -> do
-                    let gm = GenCapture from to pt (findPieceType b oppC to)
-                    emit gm
+                emit (GenCapture from to pt (findPieceType b oppC to))
+
+    case pt of
+        Knight -> go knightAttacks
+        Bishop -> go (`bishopAttacks` occ)
+        Rook   -> go (`rookAttacks` occ)
+        Queen  -> go (\from -> bishopAttacks from occ .|. rookAttacks from occ)
+        King   -> go kingAttacks
+        _      -> pure ()
 
 pieceQuiets :: Board -> GameState -> PieceType -> U.Vector GenMove
 pieceQuiets b gs pt = runBuilder256 $ fillPieceQuiets b gs pt
@@ -77,36 +80,42 @@ pieceQuiets b gs pt = runBuilder256 $ fillPieceQuiets b gs pt
 {-# INLINE fillPieceQuiets #-}
 fillPieceQuiets :: Board -> GameState -> PieceType -> Builder s GenMove ()
 fillPieceQuiets b gs pt = do
-    let c = turn gs
-        bb = pieceBitboard b c pt
-        occ = occupiedTotal b
-        getAttacks from = case pt of
-             Knight -> knightAttacks from
-             Bishop -> bishopAttacks from occ
-             Rook   -> rookAttacks from occ
-             Queen  -> bishopAttacks from occ .|. rookAttacks from occ
-             King   -> kingAttacks from
-             _      -> 0
-    forBitboard bb $ \from -> do
-            let att = getAttacks from
-            let valid = att .&. complement occ
+    let c       = turn gs
+        bb      = pieceBitboard b c pt
+        occ     = occupiedTotal b
+
+    let {-# INLINE go #-}
+        go attacks = forBitboard bb $ \from -> do
+            let att   = attacks from
+                valid = att .&. complement occ
             forBitboard valid $ \to -> do
-                    emit (GenQuiet from to pt)
+                emit (GenQuiet from to pt)
+
+    case pt of
+        Knight -> go knightAttacks
+        Bishop -> go (`bishopAttacks` occ)
+        Rook   -> go (`rookAttacks` occ)
+        Queen  -> go (\from -> bishopAttacks from occ .|. rookAttacks from occ)
+        King   -> go kingAttacks
+        _      -> pure ()
 
 {-# INLINE fillKingEvasions #-}
 fillKingEvasions :: Board -> GameState -> Bitboard -> Builder s GenMove ()
 fillKingEvasions b gs targetMask = do
-    let c = turn gs
-        bb = pieceBitboard b c King
+    let c       = turn gs
+        bb      = pieceBitboard b c King
         friends = occupiedBy b c
+        oppC    = oppositeColor c
+        enemies = occupiedBy b oppC
+
     forBitboard bb $ \from -> do
             let att = kingAttacks from
             let valid = att .&. complement friends .&. targetMask
             forBitboard valid $ \to -> do
                     let toI = unSquare to
-                    let isCap = testBit (occupiedBy b (oppositeColor c)) toI
+                    let isCap = testBit enemies toI
                     let gm = if isCap
-                             then GenCapture from to King (findPieceType b (oppositeColor c) to)
+                             then GenCapture from to King (findPieceType b oppC to)
                              else GenQuiet from to King
 
                     -- Check legality
@@ -115,20 +124,16 @@ fillKingEvasions b gs targetMask = do
 {-# INLINE fillPieceEvasions #-}
 fillPieceEvasions :: Board -> GameState -> PieceType -> Bitboard -> Builder s GenMove ()
 fillPieceEvasions b gs pt targetMask = do
-    let c = turn gs
-        bb = pieceBitboard b c pt
-        occ = occupiedTotal b
+    let c       = turn gs
+        bb      = pieceBitboard b c pt
+        occ     = occupiedTotal b
         friends = occupiedBy b c
-        enemies = occupiedBy b (oppositeColor c)
-        oppC = oppositeColor c
-        getAttacks from = case pt of
-             Knight -> knightAttacks from
-             Bishop -> bishopAttacks from occ
-             Rook   -> rookAttacks from occ
-             Queen  -> bishopAttacks from occ .|. rookAttacks from occ
-             _      -> 0
-    forBitboard bb $ \from -> do
-            let att = getAttacks from
+        oppC    = oppositeColor c
+        enemies = occupiedBy b oppC
+
+    let {-# INLINE go #-}
+        go attacks = forBitboard bb $ \from -> do
+            let att = attacks from
             let valid = att .&. complement friends .&. targetMask
             forBitboard valid $ \to -> do
                     let toI = unSquare to
@@ -138,3 +143,10 @@ fillPieceEvasions b gs pt targetMask = do
                              else GenQuiet from to pt
 
                     when (isLegal b gs gm) $ emit gm
+
+    case pt of
+        Knight -> go knightAttacks
+        Bishop -> go (`bishopAttacks` occ)
+        Rook   -> go (`rookAttacks` occ)
+        Queen  -> go (\from -> bishopAttacks from occ .|. rookAttacks from occ)
+        _      -> pure ()

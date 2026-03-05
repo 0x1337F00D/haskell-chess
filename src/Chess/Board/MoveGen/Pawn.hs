@@ -56,6 +56,22 @@ fillPawnQuiets b gs = do
 pawnPromotions :: Board -> GameState -> U.Vector GenMove
 pawnPromotions b gs = runBuilder256 $ fillPawnPromotions b gs
 
+{-# INLINE emitPromotions #-}
+emitPromotions :: Square -> Square -> Builder s GenMove ()
+emitPromotions f t = do
+    emit (GenPromotion f t Queen)
+    emit (GenPromotion f t Rook)
+    emit (GenPromotion f t Bishop)
+    emit (GenPromotion f t Knight)
+
+{-# INLINE emitPromoCaps #-}
+emitPromoCaps :: Square -> Square -> PieceType -> Builder s GenMove ()
+emitPromoCaps f t capPt = do
+    emit (GenPromotionCapture f t Queen capPt)
+    emit (GenPromotionCapture f t Rook capPt)
+    emit (GenPromotionCapture f t Bishop capPt)
+    emit (GenPromotionCapture f t Knight capPt)
+
 {-# INLINE fillPawnPromotions #-}
 fillPawnPromotions :: Board -> GameState -> Builder s GenMove ()
 fillPawnPromotions b gs = do
@@ -69,18 +85,12 @@ fillPawnPromotions b gs = do
                    let to8 = i + 8
                        dest = Square to8
                    when (not (testBit occ to8) && to8 >= 56) $ do
-                          emit (GenPromotion from dest Queen)
-                          emit (GenPromotion from dest Rook)
-                          emit (GenPromotion from dest Bishop)
-                          emit (GenPromotion from dest Knight)
+                          emitPromotions from dest
                else do
                    let to8 = i - 8
                        dest = Square to8
                    when (not (testBit occ to8) && to8 <= 7) $ do
-                          emit (GenPromotion from dest Queen)
-                          emit (GenPromotion from dest Rook)
-                          emit (GenPromotion from dest Bishop)
-                          emit (GenPromotion from dest Knight)
+                          emitPromotions from dest
 
 pawnCaptures :: Board -> GameState -> U.Vector GenMove
 pawnCaptures b gs = runBuilder256 $ fillPawnCaptures b gs
@@ -94,84 +104,66 @@ fillPawnCaptures b gs = do
         oppC = oppositeColor c
         ep = epSquare gs
         epIdx = unSquare ep
+        hasEP = ep /= NoSquare
 
     forBitboard pawns $ \from -> do
             let i = unSquare from
+                file = i .&. 7
             if c == White then do
                 -- EP
-                when (ep /= NoSquare) $ do
-                     if (i + 7) == epIdx && (i `mod` 8) /= 0
+                when hasEP $ do
+                     if (i + 7) == epIdx && file /= 0
                      then emit (GenEnPassant from ep)
-                     else when ((i + 9) == epIdx && (i `mod` 8) /= 7) $ do
+                     else when ((i + 9) == epIdx && file /= 7) $ do
                           emit (GenEnPassant from ep)
 
                 -- Right Capture (i+9)
-                when ((i `mod` 8) /= 7) $ do
+                when (file /= 7) $ do
                         let to9 = i + 9
                         when (testBit enemy to9) $ do
                                 let dest = Square to9
                                     capPt = findPieceType b oppC dest
                                 if to9 >= 56
-                                then do
-                                    emit (GenPromotionCapture from dest Queen capPt)
-                                    emit (GenPromotionCapture from dest Rook capPt)
-                                    emit (GenPromotionCapture from dest Bishop capPt)
-                                    emit (GenPromotionCapture from dest Knight capPt)
-                                else do
-                                    emit (GenCapture from dest Pawn capPt)
+                                then emitPromoCaps from dest capPt
+                                else emit (GenCapture from dest Pawn capPt)
 
                 -- Left Capture (i+7)
-                when ((i `mod` 8) /= 0) $ do
+                when (file /= 0) $ do
                         let to7 = i + 7
                         when (testBit enemy to7) $ do
                                 let dest = Square to7
                                     capPt = findPieceType b oppC dest
                                 if to7 >= 56
-                                then do
-                                    emit (GenPromotionCapture from dest Queen capPt)
-                                    emit (GenPromotionCapture from dest Rook capPt)
-                                    emit (GenPromotionCapture from dest Bishop capPt)
-                                    emit (GenPromotionCapture from dest Knight capPt)
-                                else do
-                                    emit (GenCapture from dest Pawn capPt)
+                                then emitPromoCaps from dest capPt
+                                else emit (GenCapture from dest Pawn capPt)
 
             else do -- Black
                 -- EP
-                when (ep /= NoSquare) $ do
-                     if (i - 9) == epIdx && (i `mod` 8) /= 0
+                when hasEP $ do
+                     if (i - 9) == epIdx && file /= 0
                      then emit (GenEnPassant from ep)
-                     else when ((i - 7) == epIdx && (i `mod` 8) /= 7) $ do
+                     else when ((i - 7) == epIdx && file /= 7) $ do
                           emit (GenEnPassant from ep)
 
                 -- Right Capture (i-7)
-                when ((i `mod` 8) /= 7) $ do
+                when (file /= 7) $ do
                         let to7 = i - 7
                         when (testBit enemy to7) $ do
                                 let dest = Square to7
                                     capPt = findPieceType b oppC dest
                                 if to7 <= 7
-                                then do
-                                    emit (GenPromotionCapture from dest Queen capPt)
-                                    emit (GenPromotionCapture from dest Rook capPt)
-                                    emit (GenPromotionCapture from dest Bishop capPt)
-                                    emit (GenPromotionCapture from dest Knight capPt)
-                                else do
-                                    emit (GenCapture from dest Pawn capPt)
+                                then emitPromoCaps from dest capPt
+                                else emit (GenCapture from dest Pawn capPt)
 
                 -- Left Capture (i-9)
-                when ((i `mod` 8) /= 0) $ do
+                when (file /= 0) $ do
                         let to9 = i - 9
                         when (testBit enemy to9) $ do
                                 let dest = Square to9
                                     capPt = findPieceType b oppC dest
                                 if to9 <= 7
-                                then do
-                                    emit (GenPromotionCapture from dest Queen capPt)
-                                    emit (GenPromotionCapture from dest Rook capPt)
-                                    emit (GenPromotionCapture from dest Bishop capPt)
-                                    emit (GenPromotionCapture from dest Knight capPt)
-                                else do
-                                    emit (GenCapture from dest Pawn capPt)
+                                then emitPromoCaps from dest capPt
+                                else emit (GenCapture from dest Pawn capPt)
 
 {-# INLINE fillPawnEvasionPromotions #-}
 fillPawnEvasionPromotions :: Board -> GameState -> Bitboard -> Builder s GenMove ()
@@ -184,6 +176,7 @@ fillPawnEvasionPromotions b gs targetMask = do
 
     forBitboard pawns $ \from -> do
             let i = unSquare from
+                file = i .&. 7
             -- Quiets (Push)
             if c == White
                then do
@@ -191,19 +184,13 @@ fillPawnEvasionPromotions b gs targetMask = do
                    when (to8 >= 56 && not (testBit occ to8) && testBit targetMask to8) $ do
                        let dest = Square to8
                        when (isLegal b gs (GenPromotion from dest Queen)) $ do
-                           emit (GenPromotion from dest Queen)
-                           emit (GenPromotion from dest Rook)
-                           emit (GenPromotion from dest Bishop)
-                           emit (GenPromotion from dest Knight)
+                           emitPromotions from dest
                else do
                    let to8 = i - 8
                    when (to8 <= 7 && not (testBit occ to8) && testBit targetMask to8) $ do
                        let dest = Square to8
                        when (isLegal b gs (GenPromotion from dest Queen)) $ do
-                           emit (GenPromotion from dest Queen)
-                           emit (GenPromotion from dest Rook)
-                           emit (GenPromotion from dest Bishop)
-                           emit (GenPromotion from dest Knight)
+                           emitPromotions from dest
 
             -- Captures
             let checkCapture toSq = do
@@ -213,19 +200,16 @@ fillPawnEvasionPromotions b gs targetMask = do
                         then do -- Promotion Capture
                             let capPt = findPieceType b oppC dest
                             when (isLegal b gs (GenPromotionCapture from dest Queen capPt)) $ do
-                                emit (GenPromotionCapture from dest Queen capPt)
-                                emit (GenPromotionCapture from dest Rook capPt)
-                                emit (GenPromotionCapture from dest Bishop capPt)
-                                emit (GenPromotionCapture from dest Knight capPt)
+                                emitPromoCaps from dest capPt
                         else return ()
 
             if c == White
             then do
-                when ((i `mod` 8) /= 7) $ checkCapture (Square (i+9))
-                when ((i `mod` 8) /= 0) $ checkCapture (Square (i+7))
+                when (file /= 7) $ checkCapture (Square (i+9))
+                when (file /= 0) $ checkCapture (Square (i+7))
             else do
-                when ((i `mod` 8) /= 7) $ checkCapture (Square (i-7))
-                when ((i `mod` 8) /= 0) $ checkCapture (Square (i-9))
+                when (file /= 7) $ checkCapture (Square (i-7))
+                when (file /= 0) $ checkCapture (Square (i-9))
 
 
 {-# INLINE fillPawnEvasions #-}
@@ -237,9 +221,11 @@ fillPawnEvasions b gs targetMask = do
         enemies = occupiedBy b (oppositeColor c)
         oppC = oppositeColor c
         ep = epSquare gs
+        hasEP = ep /= NoSquare
 
     forBitboard pawns $ \from -> do
             let i = unSquare from
+                file = i .&. 7
             -- Quiets
             if c == White
                then do
@@ -250,10 +236,7 @@ fillPawnEvasions b gs targetMask = do
                        then do
                            let dest = Square to8
                            when (isLegal b gs (GenPromotion from dest Queen)) $ do
-                               emit (GenPromotion from dest Queen)
-                               emit (GenPromotion from dest Rook)
-                               emit (GenPromotion from dest Bishop)
-                               emit (GenPromotion from dest Knight)
+                               emitPromotions from dest
                        else do
                            let gm = GenQuiet from (Square to8) Pawn
                            when (isLegal b gs gm) $ emit gm
@@ -264,10 +247,7 @@ fillPawnEvasions b gs targetMask = do
                        then do
                            let dest = Square to8
                            when (isLegal b gs (GenPromotion from dest Queen)) $ do
-                               emit (GenPromotion from dest Queen)
-                               emit (GenPromotion from dest Rook)
-                               emit (GenPromotion from dest Bishop)
-                               emit (GenPromotion from dest Knight)
+                               emitPromotions from dest
                        else do
                            let gm = GenQuiet from (Square to8) Pawn
                            when (isLegal b gs gm) $ emit gm
@@ -296,21 +276,18 @@ fillPawnEvasions b gs targetMask = do
                         if unSquare dest >= 56 || unSquare dest <= 7
                         then do -- Promotion Capture
                             when (isLegal b gs (GenPromotionCapture from dest Queen capPt)) $ do
-                                emit (GenPromotionCapture from dest Queen capPt)
-                                emit (GenPromotionCapture from dest Rook capPt)
-                                emit (GenPromotionCapture from dest Bishop capPt)
-                                emit (GenPromotionCapture from dest Knight capPt)
+                                emitPromoCaps from dest capPt
                         else do
                             let gm = GenCapture from dest Pawn capPt
                             when (isLegal b gs gm) $ emit gm
-                    else when (ep /= NoSquare && toSq == ep && testBit targetMask (unSquare toSq)) $ do
+                    else when (hasEP && toSq == ep && testBit targetMask (unSquare toSq)) $ do
                              let gm = GenEnPassant from ep
                              when (isLegal b gs gm) $ emit gm
 
             if c == White
             then do
-                when ((i `mod` 8) /= 7) $ checkCapture (Square (i+9))
-                when ((i `mod` 8) /= 0) $ checkCapture (Square (i+7))
+                when (file /= 7) $ checkCapture (Square (i+9))
+                when (file /= 0) $ checkCapture (Square (i+7))
             else do
-                when ((i `mod` 8) /= 7) $ checkCapture (Square (i-7))
-                when ((i `mod` 8) /= 0) $ checkCapture (Square (i-9))
+                when (file /= 7) $ checkCapture (Square (i-7))
+                when (file /= 0) $ checkCapture (Square (i-9))
