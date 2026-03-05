@@ -367,20 +367,27 @@ genericApplyMove m ag =
           }
     in Transition nextAg
 
+-- | Optimized generic execute Move for perft. Bypasses the expensive check for legal moves
+-- because perft naturally handles 0 legal moves by returning an empty list at the next depth.
+genericPerftExecuteMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
+genericPerftExecuteMove m ag =
+  case applyMove m ag of
+    Transition nextAg -> Continue (setStatus SUnchecked nextAg)
+
 genericExecuteMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
-genericExecuteMove m ag =
+genericExecuteMove m@(Move gm) ag =
   case applyMove m ag of
     Transition nextAg ->
       let
-         checked = Val.isCheck (internalBoard nextAg) (toGameState nextAg)
+         checked = MG.givesCheck (internalBoard ag) (toGameState ag) gm
 
-         (hasMoves, nextAgChecked) = if checked
-            then
-               let agChecked = setStatus SChecked nextAg
-               in (not (null (generateMoves agChecked)), Right agChecked)
-            else
-               let agSafe = setStatus SSafe nextAg
-               in (not (null (generateMoves agSafe)), Left agSafe)
+         -- Use fast validation to check if there are any legal moves,
+         -- bypassing the list allocation of full generateMoves
+         hasMoves = Val.hasLegalMoves (internalBoard nextAg) (toGameState nextAg)
+
+         nextAgChecked = if checked
+            then Right (setStatus SChecked nextAg)
+            else Left (setStatus SSafe nextAg)
 
       in if checked
          then if hasMoves

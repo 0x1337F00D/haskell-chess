@@ -164,6 +164,18 @@ instance ChessVariant 'Atomic where
 
     in Transition nextAg
 
+  perftExecuteMove (m :: Move c) (ag :: ActiveGame 'Atomic c s) =
+    case applyMove m ag of
+      Transition nextAg ->
+         let
+            oppC = colorVal @(Opposite c)
+            baseBoard = internalBoard nextAg
+            enemyKingSq = MG.kingSquare baseBoard (toColor oppC)
+            enemyKingExploded = enemyKingSq == Nothing
+         in if enemyKingExploded
+            then Checkmate (Winner (colorVal @c))
+            else genericPerftExecuteMove m ag
+
   executeMove (m :: Move c) (ag :: ActiveGame 'Atomic c s) =
     case applyMove m ag of
       Transition nextAg ->
