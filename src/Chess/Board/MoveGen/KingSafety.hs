@@ -11,6 +11,7 @@ import Chess.Bitboard
 import Chess.Board.Base
 import Chess.Board.GameState hiding (unpackCastling)
 import Chess.Board.MoveGen.Common
+import Chess.Board.MoveGen.Internal
 
 -- | Pinned bitboard calculation
 {-# INLINE pinnedBits #-}
@@ -93,20 +94,19 @@ areCollinear (Square s1) (Square s2) (Square s3) =
 -- | Context-Aware Legality Check
 {-# INLINE isLegalSafe #-}
 isLegalSafe :: Board -> GameState -> Bitboard -> GenMove -> Bool
-isLegalSafe b gs pinned gm = case gm of
-    GenQuiet from to pt ->
-        if pt == King then isLegal b gs gm
-        else checkPinned from to
-    GenCapture from to pt _ ->
-        if pt == King then isLegal b gs gm
-        else checkPinned from to
-    GenPromotion from to _ -> checkPinned from to
-    GenPromotionCapture from to _ _ -> checkPinned from to
-    GenEnPassant _ _ -> isLegal b gs gm
-    GenCastling _ _ -> isLegal b gs gm
-    GenDrop _ _ -> True
-    GenCastling960 _ _ -> isLegal b gs gm
-
+isLegalSafe b gs pinned gm =
+    let t = getTag gm
+    in case () of
+        _ | t == tagQuiet || t == tagCapture ->
+            let pt = getPiece gm
+            in if pt == King then isLegal b gs gm
+               else checkPinned (getFrom gm) (getTo gm)
+          | t == tagPromotion || t == tagPromotionCapture ->
+            checkPinned (getFrom gm) (getTo gm)
+          | t == tagEnPassant || t == tagCastling || t == tagCastling960 ->
+            isLegal b gs gm
+          | t == tagDrop -> True
+          | otherwise -> isLegal b gs gm
   where
     c = turn gs
     kingSq = case kingSquare b c of Just k -> k; Nothing -> Square 0
@@ -123,85 +123,70 @@ forBitboard bb f = foldBitboardM (\_ sq -> f sq) () bb
 
 -- | Check if a move is legal.
 isLegal :: Board -> GameState -> GenMove -> Bool
-isLegal b gs gm = case gm of
-    GenQuiet {} -> isLegalFast b gs gm
-    GenCapture {} -> isLegalFast b gs gm
-    GenPromotion {} -> isLegalFast b gs gm
-    GenPromotionCapture {} -> isLegalFast b gs gm
-    GenEnPassant {} -> isLegalFast b gs gm
-    _ -> isLegalSlow b gs gm
+isLegal b gs gm =
+    let t = getTag gm
+    in if t == tagQuiet || t == tagCapture || t == tagPromotion || t == tagPromotionCapture || t == tagEnPassant
+       then isLegalFast b gs gm
+       else isLegalSlow b gs gm
 
 {-# INLINE isLegalFast #-}
 isLegalFast :: Board -> GameState -> GenMove -> Bool
-isLegalFast b gs gm = case gm of
-    GenQuiet from to pt ->
-        let fromI = unSquare from
-            toI = unSquare to
-            -- Remove from, set to.
-            occ = (occupiedTotal b `clearBit` fromI) `setBit` toI
-            c = turn gs
-            opp = oppositeColor c
-        in if pt == King
-           then not (isAttackedByOptimized b opp to occ 0)
-           else case kingSquare b c of
-                  Nothing -> True
-                  Just k -> not (isAttackedByOptimized b opp k occ 0)
+isLegalFast b gs gm =
+    let t = getTag gm
+        from = getFrom gm
+        to = getTo gm
+        fromI = unSquare from
+        toI = unSquare to
+        c = turn gs
+        opp = oppositeColor c
+        pt = getPiece gm
+    in case () of
+        _ | t == tagQuiet ->
+            let occ = (occupiedTotal b `clearBit` fromI) `setBit` toI
+            in if pt == King
+               then not (isAttackedByOptimized b opp to occ 0)
+               else case kingSquare b c of
+                      Nothing -> True
+                      Just k -> not (isAttackedByOptimized b opp k occ 0)
 
-    GenCapture from to pt _ ->
-        let fromI = unSquare from
-            -- 'to' is occupied by enemy. Captured piece is at 'to'.
-            -- We move to 'to'. Occupancy at 'to' stays 1.
-            -- 'from' becomes 0.
-            occ = occupiedTotal b `clearBit` fromI
-            c = turn gs
-            opp = oppositeColor c
-            ignored = bit (unSquare to)
-        in if pt == King
-           then not (isAttackedByOptimized b opp to occ ignored)
-           else case kingSquare b c of
-                  Nothing -> True
-                  Just k -> not (isAttackedByOptimized b opp k occ ignored)
+          | t == tagCapture ->
+            let occ = occupiedTotal b `clearBit` fromI
+                ignored = bit toI
+            in if pt == King
+               then not (isAttackedByOptimized b opp to occ ignored)
+               else case kingSquare b c of
+                      Nothing -> True
+                      Just k -> not (isAttackedByOptimized b opp k occ ignored)
 
-    GenPromotion from to _ ->
-        let fromI = unSquare from
-            toI = unSquare to
-            occ = (occupiedTotal b `clearBit` fromI) `setBit` toI
-            c = turn gs
-            opp = oppositeColor c
-        in case kingSquare b c of
-             Nothing -> True
-             Just k -> not (isAttackedByOptimized b opp k occ 0)
+          | t == tagPromotion ->
+            let occ = (occupiedTotal b `clearBit` fromI) `setBit` toI
+            in case kingSquare b c of
+                 Nothing -> True
+                 Just k -> not (isAttackedByOptimized b opp k occ 0)
 
-    GenPromotionCapture from to _ _ ->
-        let fromI = unSquare from
-            occ = occupiedTotal b `clearBit` fromI
-            c = turn gs
-            opp = oppositeColor c
-            ignored = bit (unSquare to)
-        in case kingSquare b c of
-             Nothing -> True
-             Just k -> not (isAttackedByOptimized b opp k occ ignored)
+          | t == tagPromotionCapture ->
+            let occ = occupiedTotal b `clearBit` fromI
+                ignored = bit toI
+            in case kingSquare b c of
+                 Nothing -> True
+                 Just k -> not (isAttackedByOptimized b opp k occ ignored)
 
-    GenEnPassant from to ->
-        let fromI = unSquare from
-            toI = unSquare to
-            c = turn gs
-            opp = oppositeColor c
-            capSqI = if c == White then toI - 8 else toI + 8
-            occ = ((occupiedTotal b `clearBit` fromI) `setBit` toI) `clearBit` capSqI
-            ignored = bit capSqI
-        in case kingSquare b c of
-             Nothing -> True
-             Just k -> not (isAttackedByOptimized b opp k occ ignored)
+          | t == tagEnPassant ->
+            let capSqI = if c == White then toI - 8 else toI + 8
+                occ = ((occupiedTotal b `clearBit` fromI) `setBit` toI) `clearBit` capSqI
+                ignored = bit capSqI
+            in case kingSquare b c of
+                 Nothing -> True
+                 Just k -> not (isAttackedByOptimized b opp k occ ignored)
 
-    _ -> True -- Should be handled by isLegalSlow
+          | otherwise -> True -- Should be handled by isLegalSlow
 
 isLegalSlow :: Board -> GameState -> GenMove -> Bool
 isLegalSlow b gs gm =
     let b' = applyMoveBoardFast b gs gm
         c = turn gs
         kingSq' = kingSquare b' c
-        isCastling = case gm of GenCastling _ _ -> True; _ -> False
+        isCastling = getTag gm == tagCastling
     in case kingSq' of
         Nothing -> True
         Just k -> not (isAttackedBy b' (oppositeColor c) k) && (if isCastling then castlingSafe b gs gm else True)
@@ -257,39 +242,41 @@ toGenMove _ _ _ = Nothing
 -- | Faster version of applyMoveBoard that avoids pieceAt lookups.
 applyMoveBoardFast :: Board -> GameState -> GenMove -> Board
 applyMoveBoardFast b gs gm =
-    case gm of
-        GenQuiet from to pt ->
-            movePieceFast b from to (turn gs) pt
+    let t = getTag gm
+        from = getFrom gm
+        to = getTo gm
+        pt = getPiece gm
+        c = turn gs
+    in case () of
+        _ | t == tagQuiet ->
+            movePieceFast b from to c pt
 
-        GenCapture from to pt capPt ->
-            let c = turn gs
+          | t == tagCapture ->
+            let capPt = maybe Pawn id (getCapturedPiece gm)
                 b1 = unsafeRemovePiece b to (oppositeColor c) capPt
             in movePieceFast b1 from to c pt
 
-        GenEnPassant from to ->
-            let c = turn gs
-                capSq = Square (unSquare to + (if c == White then -8 else 8))
+          | t == tagEnPassant ->
+            let capSq = Square (unSquare to + (if c == White then -8 else 8))
                 b1 = unsafeRemovePiece b capSq (oppositeColor c) Pawn
             in movePieceFast b1 from to c Pawn
 
-        GenCastling from to ->
-            let c = turn gs
-                (rookFrom, rookTo) = castlingRookMove from to
+          | t == tagCastling ->
+            let (rookFrom, rookTo) = castlingRookMove from to
                 b1 = movePieceFast b from to c King
             in movePieceFast b1 rookFrom rookTo c Rook
 
-        GenPromotion from to promoPt ->
-            let c = turn gs
-                b1 = unsafeRemovePiece b from c Pawn
-            in unsafePutPiece b1 to (Piece c promoPt)
+          | t == tagPromotion ->
+            let b1 = unsafeRemovePiece b from c Pawn
+            in unsafePutPiece b1 to (Piece c pt)
 
-        GenPromotionCapture from to promoPt capPt ->
-            let c = turn gs
+          | t == tagPromotionCapture ->
+            let capPt = maybe Pawn id (getCapturedPiece gm)
                 b1 = unsafeRemovePiece b from c Pawn
                 b2 = unsafeRemovePiece b1 to (oppositeColor c) capPt
-            in unsafePutPiece b2 to (Piece c promoPt)
+            in unsafePutPiece b2 to (Piece c pt)
 
-        _ -> b -- Unsupported move type (e.g. GenDrop)
+          | otherwise -> b -- Unsupported move type (e.g. GenDrop)
 
 movePieceFast :: Board -> Square -> Square -> Color -> PieceType -> Board
 movePieceFast = unsafeMovePiece
@@ -323,20 +310,15 @@ givesCheck b gs gm =
         kingSq = case kingSquare b oppC of
                    Just k -> k
                    Nothing -> Square 0
-    in case gm of
-        GenQuiet from to pt ->
+        t = getTag gm
+        from = getFrom gm
+        to = getTo gm
+        pt = getPiece gm
+    in case () of
+        _ | t == tagQuiet || t == tagCapture || t == tagPromotion || t == tagPromotionCapture ->
             givesCheckGeneric b gs c kingSq from to pt
 
-        GenCapture from to pt _ ->
-            givesCheckGeneric b gs c kingSq from to pt
-
-        GenPromotion from to promoPt ->
-            givesCheckGeneric b gs c kingSq from to promoPt
-
-        GenPromotionCapture from to promoPt _ ->
-            givesCheckGeneric b gs c kingSq from to promoPt
-
-        GenEnPassant from to ->
+          | t == tagEnPassant ->
             let
                 occ = occupiedTotal b
                 fromI = unSquare from
@@ -364,11 +346,11 @@ givesCheck b gs gm =
 
             in direct || discovered
 
-        GenCastling _ _ ->
+          | t == tagCastling ->
              let b' = applyMoveBoardFast b gs gm
              in isAttackedBy b' c kingSq
 
-        _ -> False -- Unsupported move type
+          | otherwise -> False -- Unsupported move type
 
 {-# INLINE givesCheckGeneric #-}
 givesCheckGeneric :: Board -> GameState -> Color -> Square -> Square -> Square -> PieceType -> Bool
@@ -421,33 +403,18 @@ givesCheckOptimized b gs dcBitboard gm =
         kingSq = case kingSquare b oppC of
                    Just k -> k
                    Nothing -> Square 0
-    in case gm of
-        GenQuiet from to pt ->
-            -- If 'from' is in discovery candidates, fall back to slow check.
-            -- Otherwise, perform Direct Check only.
+        t = getTag gm
+        from = getFrom gm
+        to = getTo gm
+        pt = getPiece gm
+    in case () of
+        _ | t == tagQuiet || t == tagCapture || t == tagPromotion || t == tagPromotionCapture ->
             if testBit dcBitboard (unSquare from)
             then givesCheckGeneric b gs c kingSq from to pt
             else givesCheckDirect b gs c kingSq from to pt
 
-        GenCapture from to pt _ ->
-            if testBit dcBitboard (unSquare from)
-            then givesCheckGeneric b gs c kingSq from to pt
-            else givesCheckDirect b gs c kingSq from to pt
-
-        GenPromotion from to promoPt ->
-            if testBit dcBitboard (unSquare from)
-            then givesCheckGeneric b gs c kingSq from to promoPt
-            else givesCheckDirect b gs c kingSq from to promoPt
-
-        GenPromotionCapture from to promoPt _ ->
-            if testBit dcBitboard (unSquare from)
-            then givesCheckGeneric b gs c kingSq from to promoPt
-            else givesCheckDirect b gs c kingSq from to promoPt
-
-        -- Fallback for complicated moves
-        GenEnPassant {} -> givesCheck b gs gm
-        GenCastling {} -> givesCheck b gs gm
-        _ -> False
+          | t == tagEnPassant || t == tagCastling -> givesCheck b gs gm
+          | otherwise -> False
 
 {-# INLINE givesCheckDirect #-}
 givesCheckDirect :: Board -> GameState -> Color -> Square -> Square -> Square -> PieceType -> Bool
