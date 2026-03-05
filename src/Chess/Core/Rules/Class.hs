@@ -37,19 +37,21 @@ class ChessVariant (v :: Variant) where
 perftWhite :: ChessVariant v => Int -> ActiveGame v 'White s -> Int
 perftWhite depth game
   | depth == 0 = 1
+  | depth == 1 = length (generateMoves game)
   | depth >= 3 = sum $ parMap rseq go (generateMoves game)
   | otherwise = sum $ map go (generateMoves game)
   where
-    go m = case executeMove m game of
-             Continue nextGame -> perftBlack (depth - 1) nextGame
-             _ -> if depth == 1 then 1 else 0
+    go m = case applyMove m game of
+             Transition nextGame -> perftBlack (depth - 1) nextGame
+             _ -> 0
 
 perftBlack :: ChessVariant v => Int -> ActiveGame v 'Black s -> Int
 perftBlack depth game
   | depth == 0 = 1
+  | depth == 1 = length (generateMoves game)
   | depth >= 3 = sum $ parMap rseq go (generateMoves game)
   | otherwise = sum $ map go (generateMoves game)
   where
-    go m = case executeMove m game of
-             Continue nextGame -> perftWhite (depth - 1) nextGame
-             _ -> if depth == 1 then 1 else 0
+    go m = case applyMove m game of
+             Transition nextGame -> perftWhite (depth - 1) nextGame
+             _ -> 0
