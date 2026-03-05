@@ -1,5 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleInstances #-}
 
@@ -11,34 +13,43 @@ module Chess.Internal.Builder
   , emitWhen
   ) where
 
-import Control.Monad.ST (ST)
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Unboxed.Mutable as M
 
--- | A builder monad that builds a vector of elements 'e' in 'ST'.
--- It carries the current index in the state.
-newtype Builder s e a = Builder { unBuilder :: M.MVector s e -> Int -> ST s (Int, a) }
+import GHC.Exts (Int(I#))
+import GHC.Prim (Int#, State#, (+#))
+import GHC.ST (ST(..))
+
+newtype Builder s e a =
+  Builder { unBuilder :: M.MVector s e -> Int# -> State# s -> (# State# s, Int#, a #) }
 
 instance Functor (Builder s e) where
   {-# INLINE fmap #-}
-  fmap f (Builder m) = Builder $ \v i -> do
-    (i', x) <- m v i
-    pure (i', f x)
+  fmap f (Builder k) =
+    Builder $ \mv i s0 ->
+      case k mv i s0 of
+        (# s1, i1, a #) -> (# s1, i1, f a #)
 
 instance Applicative (Builder s e) where
   {-# INLINE pure #-}
-  pure x = Builder $ \_ i -> pure (i, x)
+  pure a = Builder $ \_ i s -> (# s, i, a #)
+
   {-# INLINE (<*>) #-}
-  Builder mf <*> Builder mx = Builder $ \v i -> do
-    (i', f) <- mf v i
-    (i'', x) <- mx v i'
-    pure (i'', f x)
+  Builder kf <*> Builder ka =
+    Builder $ \mv i s0 ->
+      case kf mv i s0 of
+        (# s1, i1, f #) ->
+          case ka mv i1 s1 of
+            (# s2, i2, a #) -> (# s2, i2, f a #)
 
 instance Monad (Builder s e) where
   {-# INLINE (>>=) #-}
-  Builder m >>= k = Builder $ \v i -> do
-    (i', x) <- m v i
-    unBuilder (k x) v i'
+  Builder km >>= f =
+    Builder $ \mv i s0 ->
+      case km mv i s0 of
+        (# s1, i1, a #) ->
+          case f a of
+            Builder k2 -> k2 mv i1 s1
 
 instance Semigroup (Builder s e ()) where
   {-# INLINE (<>) #-}
@@ -48,28 +59,29 @@ instance Monoid (Builder s e ()) where
   {-# INLINE mempty #-}
   mempty = pure ()
 
--- | Run a builder with a fixed upper bound (cap).
---   Allocates one vector, fills it, and returns the used slice.
 {-# INLINE runBuilder #-}
 runBuilder :: U.Unbox e => Int -> (forall s. Builder s e ()) -> U.Vector e
 runBuilder cap b = U.create $ do
   mv <- M.unsafeNew cap
-  (n, _) <- unBuilder b mv 0
+  let fillST = ST $ \s0 ->
+        case unBuilder b mv 0# s0 of
+          (# s1, n#, () #) -> (# s1, I# n# #)
+  n <- fillST
   pure (M.slice 0 n mv)
 
--- | Run a builder with the standard 256 size.
 {-# INLINE runBuilder256 #-}
 runBuilder256 :: U.Unbox e => (forall s. Builder s e ()) -> U.Vector e
 runBuilder256 = runBuilder 256
 
--- | Emit one element.
 {-# INLINE emit #-}
 emit :: U.Unbox e => e -> Builder s e ()
-emit !x = Builder $ \mv !i -> do
-  M.unsafeWrite mv i x
-  pure (i + 1, ())
+emit !x =
+  Builder $ \mv i s0 ->
+    case M.unsafeWrite mv (I# i) x of
+      ST writeST ->
+        case writeST s0 of
+          (# s1, () #) -> (# s1, i +# 1#, () #)
 
--- | Emit conditionally.
 {-# INLINE emitWhen #-}
 emitWhen :: Bool -> Builder s e () -> Builder s e ()
 emitWhen False _ = mempty

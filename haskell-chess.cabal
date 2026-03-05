@@ -62,8 +62,6 @@ library
     exposed-modules:  Chess.Types
                     , Chess.Internal.Builder
                     , Chess.Bitboard
-                    , Chess.Bitboard.Magic
-                    , Chess.Bitboard.MagicTables
                     , Chess.SquareSet
                     , Chess.Board.Base
                     , Chess.Board.GameState
@@ -128,6 +126,7 @@ library
     -- Other library packages from which modules are imported.
     build-depends:
         base >= 4.17.2.0,
+        ghc-prim,
         containers >= 0.6,
         vector >= 0.13,
         bytestring >= 0.11,
