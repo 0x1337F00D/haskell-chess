@@ -59,7 +59,7 @@ pattern GameState { turn, castlingRights, epSquare, halfmoveClock, fullmoveNumbe
 
 {-# COMPLETE GameState #-}
 
--- HOTPATH: Zero-cost Getter ohne Pattern-Synonyms
+-- HOTPATH: Zero-cost Getter without Pattern-Synonyms
 {-# INLINE gsPacked #-}
 gsPacked :: GameState -> Word64
 gsPacked (GameStatePacked p _) = p

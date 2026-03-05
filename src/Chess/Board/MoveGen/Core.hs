@@ -1,6 +1,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Chess.Board.MoveGen.Core where
 
@@ -19,6 +20,9 @@ import Chess.Board.MoveGen.KingSafety
 import Chess.Board.MoveGen.Pawn
 import Chess.Board.MoveGen.Piece
 import Chess.Board.MoveGen.Castling
+
+{-# SPECIALIZE runBuilder256 :: (forall s. Builder s GenMove ()) -> U.Vector GenMove #-}
+{-# SPECIALIZE emit :: GenMove -> Builder s GenMove () #-}
 
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> GameState -> U.Vector GenMove

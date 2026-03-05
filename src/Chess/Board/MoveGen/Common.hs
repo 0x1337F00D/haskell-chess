@@ -70,7 +70,7 @@ pattern GenCastling960 f t <- (unpackGenCastling960 -> Just (f, t))
 
 
 -- ========================================
--- HOTPATH: Direkte Tag-Dispatch ohne Maybe
+-- HOTPATH: Direct Tag-Dispatch without Maybe
 -- ========================================
 {-# INLINE isQuiet #-}
 isQuiet :: GenMove -> Bool
@@ -80,12 +80,12 @@ isQuiet m = getTag m == tagQuiet
 isCapture :: GenMove -> Bool
 isCapture m = getTag m == tagCapture
 
--- Keine Listen/List-Traversal im Hotpath!
+-- No List traversal in Hotpath!
 {-# INLINE tagIsQuietOrCapture #-}
 tagIsQuietOrCapture :: Word64 -> Bool
 tagIsQuietOrCapture t = t == tagQuiet || t == tagCapture
 
--- Unsafe für Capture-Case (kein fromMaybe)
+-- Unsafe for Capture-Case (no fromMaybe)
 {-# INLINE getCapturedPieceUnsafe #-}
 getCapturedPieceUnsafe :: GenMove -> PieceType
 getCapturedPieceUnsafe m = fromMaybe Pawn (getCapturedPiece m)
