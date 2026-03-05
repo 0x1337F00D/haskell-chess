@@ -83,14 +83,16 @@ storeTT (TT v mask) age key depth score flag move = do
     -- Replace if:
     -- 1. Empty (oldKey == 0)
     -- 2. Different key (collision) -> Always replace or age preferred
-    -- 3. Different age
+    -- 3. Different age (masked to 8 bits to match unpacked oldAge)
     -- 4. Same age and key -> Replace if depth >= oldDepth or flag is Exact
 
+    let currentAgeMasked = age .&. 0xFF
+
     let replace = oldKey /= key ||
-                  oldAge /= age ||
+                  oldAge /= currentAgeMasked ||
                   depth >= oldDepth ||
                   flag == TTExact
 
     when replace $ do
         UM.unsafeWrite v idx key
-        UM.unsafeWrite v (idx + 1) (packData move score depth flag (age .&. 0xFF))
+        UM.unsafeWrite v (idx + 1) (packData move score depth flag currentAgeMasked)
