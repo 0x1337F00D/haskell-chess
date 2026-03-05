@@ -70,25 +70,29 @@ probeTT (TT v mask) key = do
     else return Nothing
 
 -- | Store in TT.
--- Replacement strategy: Depth-preferred or Always replace?
--- Simple: Always replace (or Depth-preferred).
--- We'll use depth-preferred + age (not implemented yet, assuming same age).
-storeTT :: TT -> Word64 -> Depth -> Int -> TTFlag -> Move -> IO ()
-storeTT (TT v mask) key depth score flag move = do
+-- Replacement strategy: Always replace if age differs.
+-- Otherwise, depth-preferred or always replace for exact matches.
+storeTT :: TT -> Int -> Word64 -> Depth -> Int -> TTFlag -> Move -> IO ()
+storeTT (TT v mask) age key depth score flag move = do
     let idx = (fromIntegral key .&. mask) * 2
     -- Read old entry to decide replacement
     oldKey <- UM.unsafeRead v idx
     oldData <- UM.unsafeRead v (idx + 1)
-    let (_, _, oldDepth, _, _) = unpackData oldData
+    let (_, _, oldDepth, oldFlag, oldAge) = unpackData oldData
 
     -- Replace if:
-    -- 1. Empty (oldKey == 0, assumption)
-    -- 2. Different key (collision) -> Always replace? Or depth?
-    --    Modern engines usually have buckets or replace if depth >= oldDepth.
-    -- 3. Same key -> Replace if depth >= oldDepth.
+    -- 1. Empty (oldKey == 0)
+    -- 2. Different key (collision) -> Always replace or age preferred
+    -- 3. Different age (masked to 8 bits to match unpacked oldAge)
+    -- 4. Same age and key -> Replace if depth >= oldDepth or flag is Exact
 
-    let replace = oldKey /= key || depth >= oldDepth
+    let currentAgeMasked = age .&. 0xFF
+
+    let replace = oldKey /= key ||
+                  oldAge /= currentAgeMasked ||
+                  depth >= oldDepth ||
+                  flag == TTExact
 
     when replace $ do
         UM.unsafeWrite v idx key
-        UM.unsafeWrite v (idx + 1) (packData move score depth flag 0)
+        UM.unsafeWrite v (idx + 1) (packData move score depth flag currentAgeMasked)

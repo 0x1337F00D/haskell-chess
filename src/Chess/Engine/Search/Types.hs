@@ -63,4 +63,5 @@ data SearchContext (p :: Phase) = SearchContext
     , scPhase         :: !SearchPhase
     , scPly           :: !Int
     , scNullMoveState :: !NullMoveState
+    , scAge           :: !Int
     }
