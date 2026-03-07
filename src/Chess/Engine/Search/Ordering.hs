@@ -70,15 +70,11 @@ orderQSMoves vBoard caps proms quietChecks =
 
         sortDesc = sortOn (negate . scoreMove . getGenMove)
 
-        tagUnknown ms acc = foldr (\m a -> (m, Nothing) : a) acc ms
-        tagCheck ms acc = foldr (\m a -> (m, Just True) : a) acc ms
+        tagUnknown ms = map (\m -> (m, Nothing)) ms
+        tagCheck ms = map (\m -> (m, Just True)) ms
 
         -- Order: PromoCaps > GoodCaps > Proms > QuietChecks > BadCaps
-    in tagUnknown (sortDesc promoCaps) $
-       tagUnknown (sortDesc goodCaps) $
-       tagUnknown (sortDesc proms) $
-       tagCheck quietChecks $
-       tagCheck (sortDesc badCaps) []
+    in tagUnknown (sortDesc promoCaps) ++ tagUnknown (sortDesc goodCaps) ++ tagUnknown (sortDesc proms) ++ tagCheck quietChecks ++ tagCheck (sortDesc badCaps)
 
 scoreMove :: GenMove -> Int
 scoreMove (GenCapture _ _ pt capPt) = 1000 + (pieceValue capPt * 10) - (pieceValue pt)
@@ -231,18 +227,16 @@ scoreHistory ctx lm = do
         _ -> return 0
 
 sortMoves :: [LegalMove] -> [LegalMove]
-sortMoves [] = []
-sortMoves [x] = [x]
-sortMoves (x:xs) =
-    let (best, rest) = extractMax x (scoreMove (getGenMove x)) [] xs
-    in best : sortMoves rest
+sortMoves moves = map snd $ foldr insertMove [] moves
   where
-    extractMax curr currScore acc [] = (curr, acc)
-    extractMax curr currScore acc (y:ys) =
-        let yScore = scoreMove (getGenMove y)
-        in if yScore > currScore
-           then extractMax y yScore (curr:acc) ys
-           else extractMax curr currScore (y:acc) ys
+    insertMove m acc =
+        let s = scoreMove (getGenMove m)
+        in insert s m acc
+
+    insert s m [] = [(s, m)]
+    insert s m ((s', m'):xs)
+        | s >= s'   = (s, m) : (s', m') : xs
+        | otherwise = (s', m') : insert s m xs
 
 -- | Sorts a list of moves by score, optionally picking a TT move to be first.
 -- Does NOT re-partition or re-calculate SEE.
