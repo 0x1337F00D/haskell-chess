@@ -137,7 +137,9 @@ library
         parallel,
         http-client,
         http-client-tls,
-        http-types
+        http-types,
+        crypton < 1.1,
+        crypton-connection < 0.4.5
 
     -- Directories containing source files.
     hs-source-dirs:   src
