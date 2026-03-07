@@ -138,9 +138,7 @@ library
         http-client,
         http-client-tls,
         http-types,
-        crypton-x509 == 1.7.7,
-        memory == 0.18.0,
-        crypton == 1.0.0
+        crypton < 1.0.0
 
     -- Directories containing source files.
     hs-source-dirs:   src
