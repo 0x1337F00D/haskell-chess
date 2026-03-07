@@ -226,13 +226,25 @@ scoreHistory ctx lm = do
         GenCastling _ _ -> return 0
         _ -> return 0
 
+sortMoves :: [LegalMove] -> [LegalMove]
+sortMoves moves = map snd $ foldr insertMove [] moves
+  where
+    insertMove m acc =
+        let s = scoreMove (getGenMove m)
+        in insert s m acc
+
+    insert s m [] = [(s, m)]
+    insert s m ((s', m'):xs)
+        | s >= s'   = (s, m) : (s', m') : xs
+        | otherwise = (s', m') : insert s m xs
+
 -- | Sorts a list of moves by score, optionally picking a TT move to be first.
 -- Does NOT re-partition or re-calculate SEE.
 {-# INLINE pickAndSort #-}
 pickAndSort :: [LegalMove] -> Maybe Move -> [LegalMove]
-pickAndSort moves Nothing = sortOn (negate . scoreMove . getGenMove) moves
+pickAndSort moves Nothing = sortMoves moves
 pickAndSort moves (Just ttM) =
     let (pre, post) = break (\lm -> genMoveToMove (getGenMove lm) == ttM) moves
     in case post of
-        [] -> sortOn (negate . scoreMove . getGenMove) pre
-        (tt:rest) -> tt : sortOn (negate . scoreMove . getGenMove) (pre ++ rest)
+        [] -> sortMoves pre
+        (tt:rest) -> tt : sortMoves (pre ++ rest)
