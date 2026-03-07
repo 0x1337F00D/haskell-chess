@@ -1,0 +1,2 @@
+packages: .
+constraints: crypton < 1.0
