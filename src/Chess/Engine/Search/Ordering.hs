@@ -226,13 +226,27 @@ scoreHistory ctx lm = do
         GenCastling _ _ -> return 0
         _ -> return 0
 
+sortMoves :: [LegalMove] -> [LegalMove]
+sortMoves [] = []
+sortMoves [x] = [x]
+sortMoves (x:xs) =
+    let (best, rest) = extractMax x (scoreMove (getGenMove x)) [] xs
+    in best : sortMoves rest
+  where
+    extractMax curr currScore acc [] = (curr, acc)
+    extractMax curr currScore acc (y:ys) =
+        let yScore = scoreMove (getGenMove y)
+        in if yScore > currScore
+           then extractMax y yScore (curr:acc) ys
+           else extractMax curr currScore (y:acc) ys
+
 -- | Sorts a list of moves by score, optionally picking a TT move to be first.
 -- Does NOT re-partition or re-calculate SEE.
 {-# INLINE pickAndSort #-}
 pickAndSort :: [LegalMove] -> Maybe Move -> [LegalMove]
-pickAndSort moves Nothing = sortOn (negate . scoreMove . getGenMove) moves
+pickAndSort moves Nothing = sortMoves moves
 pickAndSort moves (Just ttM) =
     let (pre, post) = break (\lm -> genMoveToMove (getGenMove lm) == ttM) moves
     in case post of
-        [] -> sortOn (negate . scoreMove . getGenMove) pre
-        (tt:rest) -> tt : sortOn (negate . scoreMove . getGenMove) (pre ++ rest)
+        [] -> sortMoves pre
+        (tt:rest) -> tt : sortMoves (pre ++ rest)
