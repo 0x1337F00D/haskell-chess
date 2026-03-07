@@ -70,11 +70,15 @@ orderQSMoves vBoard caps proms quietChecks =
 
         sortDesc = sortOn (negate . scoreMove . getGenMove)
 
-        tagUnknown ms = map (\m -> (m, Nothing)) ms
-        tagCheck ms = map (\m -> (m, Just True)) ms
+        tagUnknown ms acc = foldr (\m a -> (m, Nothing) : a) acc ms
+        tagCheck ms acc = foldr (\m a -> (m, Just True) : a) acc ms
 
         -- Order: PromoCaps > GoodCaps > Proms > QuietChecks > BadCaps
-    in tagUnknown (sortDesc promoCaps) ++ tagUnknown (sortDesc goodCaps) ++ tagUnknown (sortDesc proms) ++ tagCheck quietChecks ++ tagCheck (sortDesc badCaps)
+    in tagUnknown (sortDesc promoCaps) $
+       tagUnknown (sortDesc goodCaps) $
+       tagUnknown (sortDesc proms) $
+       tagCheck quietChecks $
+       tagCheck (sortDesc badCaps) []
 
 scoreMove :: GenMove -> Int
 scoreMove (GenCapture _ _ pt capPt) = 1000 + (pieceValue capPt * 10) - (pieceValue pt)
