@@ -14,6 +14,7 @@ import qualified Data.Map as Map
 import Data.Bits (countTrailingZeros, popCount, clearBit)
 import Data.Char (toLower)
 import qualified Data.ByteString.Builder as B
+import Data.List (foldl')
 
 import qualified Chess.Board.Fen as Fen
 import qualified Chess.Board.Base as Base
@@ -254,7 +255,7 @@ collectPieces bb c =
         knights = if c == White then Base.whiteKnights bb else Base.blackKnights bb
 
         insertPieces pt pieces m =
-            foldr (\sq acc -> Map.insert (fromBaseSquare sq) pt acc) m (rawBitboardToSquares pieces)
+            foldl' (\acc sq -> Map.insert (fromBaseSquare sq) pt acc) m (rawBitboardToSquares pieces)
 
         m1 = insertPieces MQueen queens Map.empty
         m2 = insertPieces MRook rooks m1
