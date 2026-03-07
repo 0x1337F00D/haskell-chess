@@ -25,70 +25,39 @@ import Chess.Board (Board(..), ValidatedBoard, getBoard)
 import Chess.Board.Phase (Phase(..), Position(..))
 import Chess.Data.Evaluation
 
+import Chess.NNUE.Types (Nnue)
+import Chess.NNUE.Flat
+import Chess.NNUE.Feature
+import Chess.NNUE.Accumulator
+import Chess.NNUE.Eval
+import System.IO.Unsafe (unsafePerformIO)
+
+{-# NOINLINE globalNnue #-}
+globalNnue :: Nnue
+globalNnue = unsafePerformIO (loadNnueFlat "tiny.hsnn")
+
+evaluateNNUE :: Base.Board -> GameState -> Score
+evaluateNNUE !b !gs = unsafePerformIO $ do
+  let !afs = collectFeaturesSimple b
+  !acc <- refreshAcc globalNnue afs
+  let !score = evalAcc globalNnue acc
+  pure $ if turn gs == White then score else -score
+
 -- | Evaluation Typeclass
 class Evaluate (p :: Phase) where
     evaluatePos :: Position p s -> Score
 
 instance Evaluate 'Opening where
     {-# INLINE evaluatePos #-}
-    evaluatePos (Position vBoard) =
-        let (Board b gs _) = getBoard vBoard
-            clampedPhase = min totalPhase (max 0 (Base.gamePhase b))
-
-            (mgW, egW) = unpackScore (Base.scoreWhite b)
-            (mgB, egB) = unpackScore (Base.scoreBlack b)
-
-            mgScore = mgW - mgB
-            egScore = egW - egB
-
-            (wSafety, bSafety) = evalKingSafety b
-            safetyAdj = bSafety - wSafety
-            -- No MopUp in Opening
-            egScoreTotal = egScore + safetyAdj
-            finalScore = (((mgScore + safetyAdj) * clampedPhase) + (egScoreTotal * (totalPhase - clampedPhase))) `div` totalPhase
-        in if turn gs == White then finalScore else -finalScore
+    evaluatePos (Position vBoard) = evaluate vBoard
 
 instance Evaluate 'Middlegame where
     {-# INLINE evaluatePos #-}
-    evaluatePos (Position vBoard) =
-        let (Board b gs _) = getBoard vBoard
-            clampedPhase = min totalPhase (max 0 (Base.gamePhase b))
-
-            (mgW, egW) = unpackScore (Base.scoreWhite b)
-            (mgB, egB) = unpackScore (Base.scoreBlack b)
-
-            mgScore = mgW - mgB
-            egScore = egW - egB
-
-            (wSafety, bSafety) = evalKingSafety b
-            safetyAdj = bSafety - wSafety
-
-            -- Conditional MopUp: If phase drops to Endgame levels (< 10), enable MopUp.
-            mopUpAdj = if clampedPhase < 10 then evalMopUp b else 0
-
-            egScoreTotal = egScore + safetyAdj + mopUpAdj
-            finalScore = (((mgScore + safetyAdj) * clampedPhase) + (egScoreTotal * (totalPhase - clampedPhase))) `div` totalPhase
-        in if turn gs == White then finalScore else -finalScore
+    evaluatePos (Position vBoard) = evaluate vBoard
 
 instance Evaluate 'Endgame where
     {-# INLINE evaluatePos #-}
-    evaluatePos (Position vBoard) =
-        let (Board b gs _) = getBoard vBoard
-            clampedPhase = min totalPhase (max 0 (Base.gamePhase b))
-
-            (mgW, egW) = unpackScore (Base.scoreWhite b)
-            (mgB, egB) = unpackScore (Base.scoreBlack b)
-
-            mgScore = mgW - mgB
-            egScore = egW - egB
-
-            (wSafety, bSafety) = evalKingSafety b
-            safetyAdj = bSafety - wSafety
-            -- MopUp in Endgame
-            mopUpAdj = evalMopUp b
-            egScoreTotal = egScore + safetyAdj + mopUpAdj
-            finalScore = (((mgScore + safetyAdj) * clampedPhase) + (egScoreTotal * (totalPhase - clampedPhase))) `div` totalPhase
-        in if turn gs == White then finalScore else -finalScore
+    evaluatePos (Position vBoard) = evaluate vBoard
 
 -- | Calculate King Safety Score (MG bias usually).
 -- Returns (White Safety Penalty, Black Safety Penalty). Positive means penalty (bad for that side).
@@ -129,7 +98,6 @@ evalMopUp b =
 evaluate :: ValidatedBoard s -> Score
 evaluate vBoard =
     let (Board b gs _) = getBoard vBoard
-
         clampedPhase = min totalPhase (max 0 (Base.gamePhase b))
 
         (mgW, egW) = unpackScore (Base.scoreWhite b)
@@ -146,7 +114,10 @@ evaluate vBoard =
         egScoreTotal = egScore + safetyAdj + mopUpAdj
 
         finalScore = (((mgScore + safetyAdj) * clampedPhase) + (egScoreTotal * (totalPhase - clampedPhase))) `div` totalPhase
-    in if turn gs == White then finalScore else -finalScore
+        classicalScore = if turn gs == White then finalScore else -finalScore
+
+        nnueScore = evaluateNNUE b gs
+    in classicalScore + nnueScore
 
 -- | Calculate King Safety Penalty
 kingSafety :: Base.Board -> Color -> Square -> Score
