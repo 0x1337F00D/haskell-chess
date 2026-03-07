@@ -2,12 +2,13 @@
 module Chess.NNUE.Feature
   ( Perspective(..)
   , ActiveFeatures(..)
-  , collectFeaturesSimple
+  , collectFeaturesHalfKP
   ) where
 
 import Chess.Types
 import Chess.Board.Base
 import Chess.Bitboard (mapBitboard)
+import Data.Bits (countTrailingZeros)
 
 data Perspective = WhiteP | BlackP
   deriving (Eq, Show)
@@ -32,26 +33,27 @@ boardPieces b =
   mapBitboard (\sq -> (Black, Queen, sq)) (blackQueens b) ++
   mapBitboard (\sq -> (Black, King, sq)) (blackKings b)
 
-collectFeaturesSimple :: Board -> ActiveFeatures
-collectFeaturesSimple b =
+collectFeaturesHalfKP :: Board -> ActiveFeatures
+collectFeaturesHalfKP b =
   ActiveFeatures
-    { whiteFeatures = go WhiteP
-    , blackFeatures = go BlackP
+    { whiteFeatures = go WhiteP (kingSq White)
+    , blackFeatures = go BlackP (kingSq Black)
     }
   where
-    go persp =
-      [ featureIndex persp c pt sq
+    go persp !ksq =
+      [ featureIndex persp ksq c pt sq
       | (c, pt, sq) <- boardPieces b
       ]
 
-featureIndex :: Perspective -> Color -> PieceType -> Square -> Int
-featureIndex persp c pt (Square sq) =
-  perspBase + pieceBase + sq
+    kingSq !c = Square (countTrailingZeros (if c == White then whiteKings b else blackKings b))
+
+featureIndex :: Perspective -> Square -> Color -> PieceType -> Square -> Int
+featureIndex persp (Square ksq) c pt (Square sq) =
+  perspBase + ksq * (12 * 64) + pieceCode c pt * 64 + sq
   where
     perspBase = case persp of
       WhiteP -> 0
-      BlackP -> 12 * 64
-    pieceBase = pieceCode c pt * 64
+      BlackP -> 64 * 12 * 64
 
 pieceCode :: Color -> PieceType -> Int
 pieceCode c pt = colorBase + ptCode pt

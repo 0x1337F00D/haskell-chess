@@ -6,7 +6,7 @@ import Data.Int
 
 main :: IO ()
 main = do
-  let ftIn  = 2 * 12 * 64
+  let ftIn  = 2 * 64 * 12 * 64
       acc   = 256
       hid   = 32
       sc    = 400

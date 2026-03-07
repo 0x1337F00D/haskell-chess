@@ -109,7 +109,9 @@ library
                     , Chess.NNUE.Types
                     , Chess.NNUE.Flat
                     , Chess.NNUE.Feature
+                    , Chess.NNUE.FeatureDelta
                     , Chess.NNUE.Accumulator
+                    , Chess.NNUE.AccumulatorDelta
                     , Chess.NNUE.Eval
                     , Chess.Engine.Evaluation
                     , Chess.Engine.Search
@@ -187,6 +189,16 @@ executable create-tiny
     import:           warnings
     default-language: Haskell2010
     main-is:          CreateTiny.hs
+    hs-source-dirs:   tools
+    build-depends:
+        base >= 4.17.2.0 && < 5,
+        binary,
+        bytestring
+
+executable convert-nnue
+    import:           warnings
+    default-language: Haskell2010
+    main-is:          ConvertNnue.hs
     hs-source-dirs:   tools
     build-depends:
         base >= 4.17.2.0 && < 5,

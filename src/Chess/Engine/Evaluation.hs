@@ -45,7 +45,7 @@ evaluateNNUE :: Base.Board -> GameState -> Score
 evaluateNNUE !b !gs = case globalNnue of
   Nothing -> 0
   Just nnue -> unsafePerformIO $ do
-    let !afs = collectFeaturesSimple b
+    let !afs = collectFeaturesHalfKP b
     !acc <- refreshAcc nnue afs
     let !score = evalAcc nnue acc
     pure $ if turn gs == White then score else -score

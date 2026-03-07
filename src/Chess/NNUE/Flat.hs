@@ -57,26 +57,28 @@ getNnue = do
 
 getInt16Array :: Int -> Get ByteArray
 getInt16Array n = do
-  xs <- replicateM n getInt16le
-  pure $ byteArrayFromList16 n xs
+  let totalBytes = n * 2
+  bs <- getByteString totalBytes
+  pure $ unsafePerformIO $ do
+    mba <- newByteArray totalBytes
+    let go !i
+          | i == totalBytes = pure ()
+          | otherwise = do
+              writeByteArray mba i (BS.index bs i)
+              go (i + 1)
+    go 0
+    unsafeFreezeByteArray mba
 
 getInt32Array :: Int -> Get ByteArray
 getInt32Array n = do
-  xs <- replicateM n getInt32le
-  pure $ byteArrayFromList32 n xs
-
-byteArrayFromList16 :: Int -> [Int16] -> ByteArray
-byteArrayFromList16 n xs = unsafePerformIO $ do
-  mba <- newByteArray (n * 2)
-  let go _ [] = pure ()
-      go !i (y:ys) = writeByteArray mba i y >> go (i + 1) ys
-  go 0 xs
-  unsafeFreezeByteArray mba
-
-byteArrayFromList32 :: Int -> [Int32] -> ByteArray
-byteArrayFromList32 n xs = unsafePerformIO $ do
-  mba <- newByteArray (n * 4)
-  let go _ [] = pure ()
-      go !i (y:ys) = writeByteArray mba i y >> go (i + 1) ys
-  go 0 xs
-  unsafeFreezeByteArray mba
+  let totalBytes = n * 4
+  bs <- getByteString totalBytes
+  pure $ unsafePerformIO $ do
+    mba <- newByteArray totalBytes
+    let go !i
+          | i == totalBytes = pure ()
+          | otherwise = do
+              writeByteArray mba i (BS.index bs i)
+              go (i + 1)
+    go 0
+    unsafeFreezeByteArray mba
