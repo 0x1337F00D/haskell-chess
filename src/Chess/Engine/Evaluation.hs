@@ -31,17 +31,24 @@ import Chess.NNUE.Feature
 import Chess.NNUE.Accumulator
 import Chess.NNUE.Eval
 import System.IO.Unsafe (unsafePerformIO)
+import Control.Exception (try, SomeException)
 
 {-# NOINLINE globalNnue #-}
-globalNnue :: Nnue
-globalNnue = unsafePerformIO (loadNnueFlat "tiny.hsnn")
+globalNnue :: Maybe Nnue
+globalNnue = unsafePerformIO $ do
+  res <- try (loadNnueFlat "tiny.hsnn") :: IO (Either SomeException Nnue)
+  case res of
+    Left _ -> pure Nothing
+    Right n -> pure (Just n)
 
 evaluateNNUE :: Base.Board -> GameState -> Score
-evaluateNNUE !b !gs = unsafePerformIO $ do
-  let !afs = collectFeaturesSimple b
-  !acc <- refreshAcc globalNnue afs
-  let !score = evalAcc globalNnue acc
-  pure $ if turn gs == White then score else -score
+evaluateNNUE !b !gs = case globalNnue of
+  Nothing -> 0
+  Just nnue -> unsafePerformIO $ do
+    let !afs = collectFeaturesSimple b
+    !acc <- refreshAcc nnue afs
+    let !score = evalAcc nnue acc
+    pure $ if turn gs == White then score else -score
 
 -- | Evaluation Typeclass
 class Evaluate (p :: Phase) where
@@ -109,7 +116,7 @@ evaluate vBoard =
         (wSafety, bSafety) = evalKingSafety b
         safetyAdj = bSafety - wSafety
 
-        mopUpAdj = evalMopUp b
+        mopUpAdj = if clampedPhase < 10 then evalMopUp b else 0
 
         egScoreTotal = egScore + safetyAdj + mopUpAdj
 
