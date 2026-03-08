@@ -147,7 +147,8 @@ library
         http-client-tls,
         http-types,
         primitive,
-        crypton < 1.0
+        crypton < 1.1,
+        crypton-connection < 0.4.5
 
     -- Directories containing source files.
     hs-source-dirs:   src

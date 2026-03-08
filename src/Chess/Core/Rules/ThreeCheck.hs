@@ -107,13 +107,13 @@ instance ChessVariant 'ThreeCheck where
             then Checkmate (Winner c)
             else
                let checked = case checkStatus nextAg of SChecked -> True; _ -> False
-                   (hasMoves, nextAgChecked) = if checked
-                      then (not (null (generateMoves (setStatus SChecked nextAg))), Right (setStatus SChecked nextAg))
-                      else (not (null (generateMoves (setStatus SSafe nextAg))), Left (setStatus SSafe nextAg))
+                   hasMoves = if checked
+                      then not (null (generateMoves (setStatus SChecked nextAg)))
+                      else not (null (generateMoves (setStatus SSafe nextAg)))
                in if checked
                   then if hasMoves
-                       then case nextAgChecked of Right finalAg -> Continue finalAg; Left _ -> error "Impossible"
+                       then Continue (setStatus SChecked nextAg)
                        else Checkmate (Winner (colorVal @c))
                   else if hasMoves
-                       then case nextAgChecked of Left finalAg -> Continue finalAg; Right _ -> error "Impossible"
+                       then Continue (setStatus SSafe nextAg)
                        else Stalemate
