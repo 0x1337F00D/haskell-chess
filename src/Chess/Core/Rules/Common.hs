@@ -385,16 +385,12 @@ genericExecuteMove m@(Move gm) ag =
          -- bypassing the list allocation of full generateMoves
          hasMoves = Val.hasLegalMoves (internalBoard nextAg) (toGameState nextAg)
 
-         nextAgChecked = if checked
-            then Right (setStatus SChecked nextAg)
-            else Left (setStatus SSafe nextAg)
-
       in if checked
          then if hasMoves
-              then case nextAgChecked of Right finalAg -> Continue finalAg; Left _ -> error "Impossible"
+              then Continue (setStatus SChecked nextAg)
               else Checkmate (Winner (colorVal @c))
          else if hasMoves
-              then case nextAgChecked of Left finalAg -> Continue finalAg; Right _ -> error "Impossible"
+              then Continue (setStatus SSafe nextAg)
               else Stalemate
 
 getAdjacentSquares :: Square -> [Square]

@@ -188,17 +188,13 @@ instance ChessVariant 'Atomic where
             then Checkmate (Winner (colorVal @c))
             else
                 let checked = Val.isCheck baseBoard (toGameState nextAg)
-                    (hasMoves, nextAgChecked) = if checked
-                        then
-                           let agChecked = setStatus SChecked nextAg
-                           in (not (null (generateMoves agChecked)), Right agChecked)
-                        else
-                           let agSafe = setStatus SSafe nextAg
-                           in (not (null (generateMoves agSafe)), Left agSafe)
+                    hasMoves = if checked
+                        then not (null (generateMoves (setStatus SChecked nextAg)))
+                        else not (null (generateMoves (setStatus SSafe nextAg)))
                 in if checked
                    then if hasMoves
-                        then case nextAgChecked of Right finalAg -> Continue finalAg; Left _ -> error "Impossible"
+                        then Continue (setStatus SChecked nextAg)
                         else Checkmate (Winner (colorVal @c))
                    else if hasMoves
-                        then case nextAgChecked of Left finalAg -> Continue finalAg; Right _ -> error "Impossible"
+                        then Continue (setStatus SSafe nextAg)
                         else Stalemate
