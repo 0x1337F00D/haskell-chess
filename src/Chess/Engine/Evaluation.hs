@@ -47,7 +47,7 @@ evaluateNNUE !b !gs = case globalNnue of
   Just nnue -> unsafePerformIO $ do
     let !afs = collectFeaturesHalfKP b
     !acc <- refreshAcc nnue afs
-    let !score = evalAcc nnue acc
+    let !score = evalAcc nnue acc gs
     pure $ if turn gs == White then score else -score
 
 -- | Evaluation Typeclass

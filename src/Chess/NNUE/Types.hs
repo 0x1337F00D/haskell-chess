@@ -16,7 +16,9 @@ data Nnue = Nnue
   , ftBias      :: !ByteArray    -- Int16[accSize]
   , ftWeights   :: !ByteArray    -- Int16[ftInputSize * accSize], row-major
   , h1Bias      :: !ByteArray    -- Int32[hiddenSize]
-  , h1Weights   :: !ByteArray    -- Int16[hiddenSize * accSize], row-major
+  , h1Weights   :: !ByteArray    -- Int16[hiddenSize * (accSize * 2)], row-major
+  , h2Bias      :: !ByteArray    -- Int32[hiddenSize]
+  , h2Weights   :: !ByteArray    -- Int16[hiddenSize * hiddenSize], row-major
   , outBias     :: !Int32
   , outWeights  :: !ByteArray    -- Int16[hiddenSize]
   , scale       :: !Int32

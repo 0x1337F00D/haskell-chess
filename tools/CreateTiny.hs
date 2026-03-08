@@ -6,7 +6,7 @@ import Data.Int
 
 main :: IO ()
 main = do
-  let ftIn  = 41024
+  let ftIn  = 98304
       acc   = 256
       hid   = 32
       sc    = 400
@@ -14,7 +14,9 @@ main = do
       ftB   = replicate acc (0 :: Int16)
       ftW   = replicate (ftIn * acc) (0 :: Int16)
       h1B   = replicate hid (0 :: Int32)
-      h1W   = replicate (hid * acc) (0 :: Int16)
+      h1W   = replicate (hid * (acc * 2)) (0 :: Int16)
+      h2B   = replicate hid (0 :: Int32)
+      h2W   = replicate (hid * hid) (0 :: Int16)
       outB  = 0 :: Int32
       outW  = replicate hid (0 :: Int16)
 
@@ -28,5 +30,7 @@ main = do
     mapM_ putInt16le ftW
     mapM_ putInt32le h1B
     mapM_ putInt16le h1W
+    mapM_ putInt32le h2B
+    mapM_ putInt16le h2W
     putInt32le outB
     mapM_ putInt16le outW

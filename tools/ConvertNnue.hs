@@ -98,6 +98,8 @@ main = do
         -- and truncate the rest for the MWE scope, or the user can expand it.
         mapM_ putInt32le (rawH1Bias raw)
         mapM_ putInt16le (rawH1Weights raw)
+        mapM_ putInt32le (rawH2Bias raw)
+        mapM_ putInt16le (rawH2Weights raw)
         putInt32le (rawOutBias raw)
         mapM_ putInt16le (rawOutWeights raw)
       putStrLn $ "Successfully converted " ++ inFile ++ " to " ++ outFile

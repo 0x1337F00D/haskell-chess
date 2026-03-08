@@ -3,6 +3,7 @@ module Chess.NNUE.Feature
   ( Perspective(..)
   , ActiveFeatures(..)
   , collectFeaturesHalfKP
+  , featureIndex
   ) where
 
 import Chess.Types

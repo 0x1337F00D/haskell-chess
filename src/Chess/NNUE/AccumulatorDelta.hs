@@ -26,31 +26,32 @@ applyDelta :: Nnue -> MutableByteArray RealWorld -> AccDelta -> IO ()
 applyDelta !nnue !mba !d
   | fullRefresh d = error "use refreshAcc for full refresh"
   | otherwise = do
-      mapM_ (subRow mba) (removedW d)
-      mapM_ (addRow mba) (addedW d)
-      mapM_ (subRow mba) (removedB d)
-      mapM_ (addRow mba) (addedB d)
+      let halfSize = accSize nnue
+      mapM_ (subRow mba 0) (removedW d)
+      mapM_ (addRow mba 0) (addedW d)
+      mapM_ (subRow mba halfSize) (removedB d)
+      mapM_ (addRow mba halfSize) (addedB d)
   where
     !rowWidth = accSize nnue
 
-    addRow !m !feat = loop 0
+    addRow !m !offset !feat = loop 0
       where
         !base = feat * rowWidth
         loop !j
           | j == rowWidth = pure ()
           | otherwise = do
               let !w = fromIntegral (indexByteArray (ftWeights nnue) (base + j) :: Int16) :: Int32
-              !old <- readByteArray m j :: IO Int32
-              writeByteArray m j (old + w)
+              !old <- readByteArray m (offset + j) :: IO Int32
+              writeByteArray m (offset + j) (old + w)
               loop (j + 1)
 
-    subRow !m !feat = loop 0
+    subRow !m !offset !feat = loop 0
       where
         !base = feat * rowWidth
         loop !j
           | j == rowWidth = pure ()
           | otherwise = do
               let !w = fromIntegral (indexByteArray (ftWeights nnue) (base + j) :: Int16) :: Int32
-              !old <- readByteArray m j :: IO Int32
-              writeByteArray m j (old - w)
+              !old <- readByteArray m (offset + j) :: IO Int32
+              writeByteArray m (offset + j) (old - w)
               loop (j + 1)

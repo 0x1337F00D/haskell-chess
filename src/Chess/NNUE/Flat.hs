@@ -38,7 +38,9 @@ getNnue = do
   !ftB  <- getInt16Array acc
   !ftW  <- getInt16Array (ftIn * acc)
   !h1B  <- getInt32Array hid
-  !h1W  <- getInt16Array (hid * acc)
+  !h1W  <- getInt16Array (hid * (acc * 2))
+  !h2B  <- getInt32Array hid
+  !h2W  <- getInt16Array (hid * hid)
   !outB <- getInt32le
   !outW <- getInt16Array hid
 
@@ -50,6 +52,8 @@ getNnue = do
     , ftWeights   = ftW
     , h1Bias      = h1B
     , h1Weights   = h1W
+    , h2Bias      = h2B
+    , h2Weights   = h2W
     , outBias     = outB
     , outWeights  = outW
     , scale       = sc
@@ -64,7 +68,8 @@ getInt16Array n = do
     let go !i
           | i == totalBytes = pure ()
           | otherwise = do
-              writeByteArray mba i (BS.index bs i)
+              let byte = BS.index bs i
+              writeByteArray mba i byte
               go (i + 1)
     go 0
     unsafeFreezeByteArray mba
@@ -78,7 +83,8 @@ getInt32Array n = do
     let go !i
           | i == totalBytes = pure ()
           | otherwise = do
-              writeByteArray mba i (BS.index bs i)
+              let byte = BS.index bs i
+              writeByteArray mba i byte
               go (i + 1)
     go 0
     unsafeFreezeByteArray mba
