@@ -115,12 +115,14 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
     let !bb = pieces board
     let !st = state board
 
+    let !dcBitboard = KingSafety.discoveryCandidates bb (GS.turn st)
+
     -- We know moves are legal, so we just process the first one.
     let processFirstMove [] = return Nothing
         processFirstMove (lm:lms) = do
             let gm = getGenMove lm
             let m = genMoveToMove gm
-            let givesCheck = MoveGen.givesCheck bb st gm
+            let givesCheck = KingSafety.givesCheckOptimized bb st dcBitboard gm
 
             do
                 (s, _) <- case applyLegalMoveValidated vBoard lm givesCheck of
@@ -143,7 +145,7 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
             else do
                 let gm = getGenMove lm
                 let m = genMoveToMove gm
-                let givesCheck = MoveGen.givesCheck bb st gm
+                let givesCheck = KingSafety.givesCheckOptimized bb st dcBitboard gm
 
                 do
                     score <- case applyLegalMoveValidated vBoard lm givesCheck of
@@ -186,13 +188,7 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
 
                             -- Precalculate Discovery Candidates for optimization
                             -- This is per-worker but computed once per search call effectively.
-                            -- Wait, 'results' is for root moves. 'board' is the root board.
-                            -- The logic inside 'loop' applies 'lmWorker' which changes the board.
-                            -- The recursive calls inside 'loop' will call 'alphaBeta' which calls 'alphaBetaBody'.
-                            -- The discovery optimization should be inside 'alphaBetaBody'.
-                            -- We can't easily optimize 'givesCheckWorker' here because it applies to the root move,
-                            -- but 'givesCheck' is already fast enough for root moves (few of them).
-                            -- The main gain is inside the recursive search.
+                            let !dcBitboard = KingSafety.discoveryCandidates (pieces board) (GS.turn (state board))
 
                             let loop bestRes = do
                                     mbMove <- modifyMVar queue $ \ms -> case ms of
@@ -212,7 +208,7 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
                                             else do
                                                 let gmWorker = getGenMove lmWorker
                                                 let mWorker = genMoveToMove gmWorker
-                                                let givesCheckWorker = MoveGen.givesCheck (pieces board) (state board) gmWorker
+                                                let givesCheckWorker = KingSafety.givesCheckOptimized (pieces board) (state board) dcBitboard gmWorker
 
                                                 do
                                                     searchScore <- case applyLegalMoveValidated vBoard lmWorker givesCheckWorker of

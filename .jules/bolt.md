@@ -66,3 +66,8 @@
 **Learning:** `pstValue` and `packedMaterialValue` introduced significant branching (12 branches) and arithmetic overhead (`score + val + mat`) in the hot `applyMove` loop.
 **Action:** Flattened the 12 PST vectors into a single `globalPstTable` (size 768) and merged material values into the table during initialization. This replaced branching with index arithmetic and removed `mat` addition in incremental updates.
 **Impact:** `bench-core` speedup: KiwiPete (Depth 4) 33.0 MNPS -> 41.7 MNPS (+26%). Atomic Start (Depth 4) 1.58 MNPS -> 2.20 MNPS (+39%).
+
+## 2026-03-07 – [Discovery Candidates Propagation]
+**Learning:** Even though `discoveryCandidates` was precalculated inside `alphaBetaBody`, the top-level search loop (`alphaBetaRoot`) and the parallel worker loop within it were still using the slow `givesCheck` for the first move evaluated and all root moves in the worker. The calculation of `discoveryCandidates` per move in the hot path misses the optimization of performing it once per board state.
+**Action:** Hoisted the computation of `dcBitboard` (via `KingSafety.discoveryCandidates`) inside `alphaBetaRoot` and within its parallel worker loops so that all `applyLegalMoveValidated` calls benefit from the `givesCheckOptimized` code path.
+**Impact:** Re-ran benchmarks and maintained equivalent/slightly better search NPS with functionally zero additional overhead for the root move computations.
