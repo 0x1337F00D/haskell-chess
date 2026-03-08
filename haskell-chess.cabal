@@ -113,6 +113,7 @@ library
                     , Chess.NNUE.Accumulator
                     , Chess.NNUE.AccumulatorDelta
                     , Chess.NNUE.Eval
+                    , Chess.NNUE.Global
                     , Chess.Engine.Evaluation
                     , Chess.Engine.Search
                     , Chess.Engine.Search.Types

@@ -6,7 +6,6 @@
 
 module Chess.Engine.Evaluation (
     evaluate,
-    evaluatePos,
     Evaluate(..),
     evalKingSafety,
     evalMopUp,
@@ -15,7 +14,7 @@ module Chess.Engine.Evaluation (
 ) where
 
 import qualified Data.Vector.Unboxed as U
-import Data.Bits (countTrailingZeros, clearBit, popCount, (.&.), (.|.))
+import Data.Bits (countTrailingZeros, popCount, (.&.), (.|.))
 
 import Chess.Types
 import Chess.Bitboard
@@ -25,8 +24,6 @@ import Chess.Board (Board(..), ValidatedBoard, getBoard)
 import Chess.Board.Phase (Phase(..), Position(..))
 import Chess.Data.Evaluation
 
-import Chess.NNUE.Types (Nnue)
-import Chess.NNUE.Flat
 import Chess.NNUE.Feature
 import Chess.NNUE.Accumulator
 import Chess.NNUE.Eval
