@@ -106,6 +106,14 @@ library
                     , Chess.Core.Rules.Horde
                     , Chess.Core.Fen
                     , Chess.Data.Evaluation
+                    , Chess.NNUE.Types
+                    , Chess.NNUE.Flat
+                    , Chess.NNUE.Feature
+                    , Chess.NNUE.FeatureDelta
+                    , Chess.NNUE.Accumulator
+                    , Chess.NNUE.AccumulatorDelta
+                    , Chess.NNUE.Eval
+                    , Chess.NNUE.Global
                     , Chess.Engine.Evaluation
                     , Chess.Engine.Search
                     , Chess.Engine.Search.Types
@@ -138,6 +146,7 @@ library
         http-client,
         http-client-tls,
         http-types,
+        primitive,
         crypton < 1.1,
         crypton-connection < 0.4.5
 
@@ -165,6 +174,38 @@ executable haskell-chess
         base >= 4.17.2.0 && < 5,
         haskell-chess,
         time
+
+executable tiny-main2
+    import:           warnings
+    default-language: Haskell2010
+    main-is:          TinyMain2.hs
+    hs-source-dirs:   app
+    build-depends:
+        base >= 4.17.2.0 && < 5,
+        haskell-chess,
+        binary,
+        bytestring,
+        primitive
+
+executable create-tiny
+    import:           warnings
+    default-language: Haskell2010
+    main-is:          CreateTiny.hs
+    hs-source-dirs:   tools
+    build-depends:
+        base >= 4.17.2.0 && < 5,
+        binary,
+        bytestring
+
+executable convert-nnue
+    import:           warnings
+    default-language: Haskell2010
+    main-is:          ConvertNnue.hs
+    hs-source-dirs:   tools
+    build-depends:
+        base >= 4.17.2.0 && < 5,
+        binary,
+        bytestring
 
 executable bench-magic
     import:           warnings
