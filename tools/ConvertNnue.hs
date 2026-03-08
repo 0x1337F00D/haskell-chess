@@ -53,9 +53,15 @@ getNnueRaw = do
   -- Feature Transformer
   _ftHash <- getWord32le
   let ftIn = 41024
+      engineFtIn = 98304
       accSize = 256
   ftB <- replicateM accSize getInt16le
-  ftW <- replicateM (ftIn * accSize) getInt16le
+  ftWStockfish <- replicateM (ftIn * accSize) getInt16le
+
+  -- Pad the weights array to match our uncompressed HalfKP engine mapping
+  let paddingSize = (engineFtIn - ftIn) * accSize
+      ftWPadding = replicate paddingSize 0
+      ftW = ftWStockfish ++ ftWPadding
 
   -- FC Layers
   _fcHash <- getWord32le
@@ -79,7 +85,7 @@ main = do
       bs <- BL.readFile inFile
       let raw = runGet getNnueRaw bs
 
-      let ftIn  = 41024
+      let ftIn  = 98304
           acc   = 256
           hid   = 32
           sc    = 400 -- Default scale
@@ -92,10 +98,6 @@ main = do
         putInt32le sc
         mapM_ putInt16le (rawFtBias raw)
         mapM_ putInt16le (rawFtWeights raw)
-        -- We only use 1 hidden layer in the tiny flat format currently.
-        -- If we want the full 3-layer FC we'd need to update Nnue Types.
-        -- We will just pack the first hidden layer into the flat file
-        -- and truncate the rest for the MWE scope, or the user can expand it.
         mapM_ putInt32le (rawH1Bias raw)
         mapM_ putInt16le (rawH1Weights raw)
         mapM_ putInt32le (rawH2Bias raw)
