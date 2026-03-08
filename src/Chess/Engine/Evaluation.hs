@@ -30,16 +30,8 @@ import Chess.NNUE.Flat
 import Chess.NNUE.Feature
 import Chess.NNUE.Accumulator
 import Chess.NNUE.Eval
+import Chess.NNUE.Global (globalNnue)
 import System.IO.Unsafe (unsafePerformIO)
-import Control.Exception (try, SomeException)
-
-{-# NOINLINE globalNnue #-}
-globalNnue :: Maybe Nnue
-globalNnue = unsafePerformIO $ do
-  res <- try (loadNnueFlat "tiny.hsnn") :: IO (Either SomeException Nnue)
-  case res of
-    Left _ -> pure Nothing
-    Right n -> pure (Just n)
 
 evaluateNNUE :: Base.Board -> GameState -> Score
 evaluateNNUE !b !gs = case globalNnue of
