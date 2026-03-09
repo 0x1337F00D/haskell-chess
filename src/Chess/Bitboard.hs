@@ -718,8 +718,16 @@ ray :: Square -> Square -> Bitboard
 {-# INLINE ray #-}
 ray (Square from) (Square to) = bbRaysBetween `U.unsafeIndex` (from * 64 + to)
 
+-- | Precomputed squares strictly between all pairs of squares.
+-- Index = from * 64 + to
+bbBetween :: U.Vector Bitboard
+bbBetween = U.generate (64 * 64) $ \i ->
+    let from = Square (i `div` 64)
+        to   = Square (i `mod` 64)
+        r    = rayInit from to
+    in if r == 0 then 0 else r `clearBit` unSquare to
+
 -- | Squares strictly between two aligned squares.
 between :: Square -> Square -> Bitboard
-between a b = case ray a b of
-                0 -> 0
-                bb -> bb `clearBit` (unSquare b)
+{-# INLINE between #-}
+between (Square from) (Square to) = bbBetween `U.unsafeIndex` (from * 64 + to)
