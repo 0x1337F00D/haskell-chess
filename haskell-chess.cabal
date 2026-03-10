@@ -53,6 +53,11 @@ extra-doc-files:    README.md
 common warnings
     ghc-options: -Wall
 
+flag avx512
+    description: Enable AVX-512 backend for NNUE Evaluation
+    default: False
+    manual: True
+
 library
     -- Import common warning flags.
     import:           warnings
@@ -132,6 +137,12 @@ library
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
+    if flag(avx512)
+        cpp-options:      -DUSE_AVX512
+        c-sources:        src/cbits/nnue_eval.c
+        includes:         src/cbits/nnue_eval.h
+        cc-options:       -O3 -mavx512f -mavx512bw -mavx2
+
     build-depends:
         base >= 4.17.2.0 && < 5,
         ghc-prim,
