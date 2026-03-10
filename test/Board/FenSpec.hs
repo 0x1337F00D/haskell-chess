@@ -46,7 +46,7 @@ spec = do
 
     it "parses FEN with en passant and move counts" $ do
       let fenStr = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
-      let (Just (b, gs)) = Fen.parseFen fenStr
+      Just (b, gs) <- pure $ Fen.parseFen fenStr
       GS.turn gs `shouldBe` Black
       GS.epSquare gs `shouldBe` E3
       Board.pieceAt b E4 `shouldBe` Just (Piece White Pawn)
