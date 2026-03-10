@@ -1,0 +1,28 @@
+--- src/Chess/Board/MoveGen/KingSafety.hs
++++ src/Chess/Board/MoveGen/KingSafety.hs
+@@ -441,20 +441,20 @@
+
+         -- Optimized:
+         -- 1. Check alignment and compatibility
+-        f1 = unSquare kingSq .&. 7
+-        r1 = unSquare kingSq `shiftR` 3
+-        f2 = unSquare to .&. 7
+-        r2 = unSquare to `shiftR` 3
+-        df = abs (f1 - f2)
+-        dr = abs (r1 - r2)
+-        isOrth = df == 0 || dr == 0
+-        isDiagRay = df == dr && df /= 0
+-        aligned = if isDiag then isDiagRay else isOrth
++        let f1 = unSquare kingSq .&. 7
++            r1 = unSquare kingSq `shiftR` 3
++            f2 = unSquare to .&. 7
++            r2 = unSquare to `shiftR` 3
++            df = abs (f1 - f2)
++            dr = abs (r1 - r2)
++            isOrth = df == 0 || dr == 0
++            isDiagRay = df == dr && df /= 0
++            aligned = if isDiag then isDiagRay else isOrth
+     in if not aligned
+        then False
+        else
+            -- 3. Check Blockers
