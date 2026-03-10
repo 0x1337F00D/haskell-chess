@@ -1,0 +1,9 @@
+<<<<<<< SEARCH
+             r = ray kingSq attackerSq
+             targetMask = if r == 0 then bbFromSquare attackerSq else r
+         fillPawnEvasionPromotions b gs targetMask
+=======
+             r = ray kingSq attackerSq
+             targetMask = r .|. bbFromSquare attackerSq
+         fillPawnEvasionPromotions b gs targetMask
+>>>>>>> REPLACE
