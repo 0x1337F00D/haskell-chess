@@ -39,7 +39,7 @@ pinnedBits b c =
                            in if not isCompatible then acc
                               else
                                   let blockers = between kingSq pinner .&. occ
-                                  in if popCount blockers == 1 && (blockers .&. friends /= 0)
+                                  in if (blockers .&. friends /= 0) && (blockers .&. (blockers - 1)) == 0
                                      then acc .|. blockers
                                      else acc
             in foldBitboard checkPinner 0 sliders
@@ -74,7 +74,7 @@ discoveryCandidates b c =
                               else
                                   let blockers = between enemyKingSq slider .&. occ
                                   -- If exactly one blocker and it is ours, it's a discovery candidate
-                                  in if popCount blockers == 1 && (blockers .&. friends /= 0)
+                                  in if (blockers .&. friends /= 0) && (blockers .&. (blockers - 1)) == 0
                                      then acc .|. blockers
                                      else acc
             in foldBitboard checkSlider 0 mySliders
