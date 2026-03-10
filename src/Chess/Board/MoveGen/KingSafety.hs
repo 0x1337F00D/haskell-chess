@@ -446,14 +446,14 @@ givesCheckSlider b kingSq from to isDiag =
     in if r == 0
        then False
        else
-           -- 2. Check if compatible (Diag/Orth)
+           -- 2. Check if isCompatible (Diag/Orth)
            let isOrth = squareFile kingSq == squareFile to || squareRank kingSq == squareRank to
                -- If we want Diag (isDiag=True), but it is Orth, fail.
                -- If we want Orth (isDiag=False), but it is Diag, fail.
-               compatible = if isDiag
+               isCompatible = if isDiag
                             then not isOrth -- If isDiag is True (Bishop), we want Diagonal (not Orth)
                             else isOrth     -- If isDiag is False (Rook), we want Orth
-           in if not compatible then False
+           in if not isCompatible then False
               else
                    -- 3. Check Blockers
                    -- We need updated occupancy.
