@@ -50,7 +50,7 @@ instance ChessVariant 'Atomic where
 
         isSelfExplosion :: MG.GenMove -> Bool
         isSelfExplosion gm =
-           let ownKingSq = MG.kingSquare baseBoard (toColor c)
+           let ownKingSq = if MG.hasKing baseBoard (toColor c) then Just (MG.kingSquareFast baseBoard (toColor c)) else Nothing
                checkExplosion t = case ownKingSq of
                                     Just k -> chebyshevDist t k <= 1
                                     Nothing -> False
@@ -170,7 +170,7 @@ instance ChessVariant 'Atomic where
          let
             oppC = colorVal @(Opposite c)
             baseBoard = internalBoard nextAg
-            enemyKingSq = MG.kingSquare baseBoard (toColor oppC)
+            enemyKingSq = if MG.hasKing baseBoard (toColor oppC) then Just (MG.kingSquareFast baseBoard (toColor oppC)) else Nothing
             enemyKingExploded = enemyKingSq == Nothing
          in if enemyKingExploded
             then Checkmate (Winner (colorVal @c))
@@ -182,7 +182,7 @@ instance ChessVariant 'Atomic where
          let
             oppC = colorVal @(Opposite c)
             baseBoard = internalBoard nextAg
-            enemyKingSq = MG.kingSquare baseBoard (toColor oppC)
+            enemyKingSq = if MG.hasKing baseBoard (toColor oppC) then Just (MG.kingSquareFast baseBoard (toColor oppC)) else Nothing
             enemyKingExploded = enemyKingSq == Nothing
          in if enemyKingExploded
             then Checkmate (Winner (colorVal @c))

@@ -66,8 +66,8 @@ instance ChessVariant 'RacingKings where
            nextMoves = generateMoves nextAgSafe
            realHasMoves = not (null nextMoves)
 
-           wKingSq = MG.kingSquare internalB' T.White
-           bKingSq = MG.kingSquare internalB' T.Black
+           wKingSq = if MG.hasKing internalB' T.White then Just (MG.kingSquareFast internalB' T.White) else Nothing
+           bKingSq = if MG.hasKing internalB' T.Black then Just (MG.kingSquareFast internalB' T.Black) else Nothing
            wInGoal = case wKingSq of Just sq -> T.squareRank sq == 7; _ -> False
            bInGoal = case bKingSq of Just sq -> T.squareRank sq == 7; _ -> False
 
