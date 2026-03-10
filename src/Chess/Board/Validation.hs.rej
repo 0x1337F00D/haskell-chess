@@ -1,0 +1,20 @@
+--- src/Chess/Board/Validation.hs
++++ src/Chess/Board/Validation.hs
+@@ -7,14 +7,14 @@
+ import Chess.Types
+ import Chess.Bitboard
+ import Chess.Board.Base
+-import Chess.Board.MoveGen (pseudoLegalMoves, isLegal, kingSquare, hasLegalMove)
++import Chess.Board.MoveGen (pseudoLegalMoves, isLegal, hasLegalMove, kingSquareFast, hasKing)
+ import Chess.Board.GameState
+
+ -- | Check if the side to move is in check.
+ isCheck :: Board -> GameState -> Bool
+ isCheck b gs =
+     let c = turn gs
+-    in case kingSquare b c of
+-        Nothing -> False -- Should not happen if king exists
+-        Just k -> isAttackedBy b (oppositeColor c) k
++    in if not (hasKing b c) then False -- Should not happen if king exists
++       else let k = kingSquareFast b c
++            in isAttackedBy b (oppositeColor c) k

@@ -1,0 +1,13 @@
+--- src/Chess/Core/Rules/RacingKings.hs
++++ src/Chess/Core/Rules/RacingKings.hs
+@@ -66,8 +66,8 @@
+            -- We need to know if nextAg has moves (Stalemate check).
+            -- But we also need to check win conditions.
+
+-           wKingSq = MG.kingSquare internalB' T.White
+-           bKingSq = MG.kingSquare internalB' T.Black
++           wKingSq = if MG.hasKing internalB' T.White then Just (MG.kingSquareFast internalB' T.White) else Nothing
++           bKingSq = if MG.hasKing internalB' T.Black then Just (MG.kingSquareFast internalB' T.Black) else Nothing
+
+            wReached = case wKingSq of
+                         Just (T.Square i) -> i >= 56

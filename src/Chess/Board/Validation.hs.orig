@@ -7,15 +7,15 @@ import Chess.Types
 import Chess.Bitboard
 import Chess.Board.Base
 import Chess.Board.GameState
-import Chess.Board.MoveGen (pseudoLegalMoves, isLegal, hasKing, kingSquareFast, hasLegalMove)
+import Chess.Board.MoveGen (pseudoLegalMoves, isLegal, kingSquare, hasLegalMove)
 
 -- | Check if the side to move is in check.
 isCheck :: Board -> GameState -> Bool
 isCheck b gs =
     let c = turn gs
-    in if not (hasKing b c) then False -- Should not happen if king exists
-       else let k = kingSquareFast b c
-            in isAttackedBy b (oppositeColor c) k
+    in case kingSquare b c of
+        Nothing -> False -- Should not happen if king exists
+        Just k -> isAttackedBy b (oppositeColor c) k
 
 -- | Check if the side to move has any legal moves.
 hasLegalMoves :: Board -> GameState -> Bool

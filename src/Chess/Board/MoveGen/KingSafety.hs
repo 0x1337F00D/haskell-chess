@@ -17,18 +17,18 @@ import Chess.Board.MoveGen.Internal
 {-# INLINE pinnedBits #-}
 pinnedBits :: Board -> Color -> Bitboard
 pinnedBits b c =
-    case kingSquare b c of
-        Nothing -> 0 -- No King, no pins (e.g. Horde White)
-        Just kingSq ->
-            let occ = occupiedTotal b
-                friends = occupiedBy b c
-                oppC = oppositeColor c
-                -- Gather all enemy sliders (R, B, Q)
-                rooks = pieceBitboard b oppC Rook .|. pieceBitboard b oppC Queen
-                bishops = pieceBitboard b oppC Bishop .|. pieceBitboard b oppC Queen
-                sliders = rooks .|. bishops
+    if not (hasKing b c) then 0 -- No King, no pins (e.g. Horde White)
+    else
+        let kingSq = kingSquareFast b c
+            occ = occupiedTotal b
+            friends = occupiedBy b c
+            oppC = oppositeColor c
+            -- Gather all enemy sliders (R, B, Q)
+            rooks = pieceBitboard b oppC Rook .|. pieceBitboard b oppC Queen
+            bishops = pieceBitboard b oppC Bishop .|. pieceBitboard b oppC Queen
+            sliders = rooks .|. bishops
 
-                checkPinner acc pinner =
+            checkPinner acc pinner =
                     let r = ray kingSq pinner
                     in if r == 0
                        then acc
@@ -51,18 +51,18 @@ pinnedBits b c =
 discoveryCandidates :: Board -> Color -> Bitboard
 discoveryCandidates b c =
     let oppC = oppositeColor c
-    in case kingSquare b oppC of
-        Nothing -> 0
-        Just enemyKingSq ->
-            let occ = occupiedTotal b
-                friends = occupiedBy b c
+    in if not (hasKing b oppC) then 0
+       else
+        let enemyKingSq = kingSquareFast b oppC
+            occ = occupiedTotal b
+            friends = occupiedBy b c
 
-                -- Friendly sliders (R, B, Q)
-                myRooks = pieceBitboard b c Rook .|. pieceBitboard b c Queen
-                myBishops = pieceBitboard b c Bishop .|. pieceBitboard b c Queen
-                mySliders = myRooks .|. myBishops
+            -- Friendly sliders (R, B, Q)
+            myRooks = pieceBitboard b c Rook .|. pieceBitboard b c Queen
+            myBishops = pieceBitboard b c Bishop .|. pieceBitboard b c Queen
+            mySliders = myRooks .|. myBishops
 
-                checkSlider acc slider =
+            checkSlider acc slider =
                     let r = ray enemyKingSq slider
                     in if r == 0
                        then acc
@@ -109,7 +109,7 @@ isLegalSafe b gs pinned gm =
           | otherwise -> isLegal b gs gm
   where
     c = turn gs
-    kingSq = case kingSquare b c of Just k -> k; Nothing -> Square 0
+    kingSq = if hasKing b c then kingSquareFast b c else Square 0
 
     checkPinned from to =
         if not (testBit pinned (unSquare from))
@@ -145,39 +145,34 @@ isLegalFast b gs gm =
             let occ = (occupiedTotal b `clearBit` fromI) `setBit` toI
             in if pt == King
                then not (isAttackedByOptimized b opp to occ 0)
-               else case kingSquare b c of
-                      Nothing -> True
-                      Just k -> not (isAttackedByOptimized b opp k occ 0)
+               else if not (hasKing b c) then True
+               else not (isAttackedByOptimized b opp (kingSquareFast b c) occ 0)
 
           | t == tagCapture ->
             let occ = occupiedTotal b `clearBit` fromI
                 ignored = bit toI
             in if pt == King
                then not (isAttackedByOptimized b opp to occ ignored)
-               else case kingSquare b c of
-                      Nothing -> True
-                      Just k -> not (isAttackedByOptimized b opp k occ ignored)
+               else if not (hasKing b c) then True
+               else not (isAttackedByOptimized b opp (kingSquareFast b c) occ ignored)
 
           | t == tagPromotion ->
             let occ = (occupiedTotal b `clearBit` fromI) `setBit` toI
-            in case kingSquare b c of
-                 Nothing -> True
-                 Just k -> not (isAttackedByOptimized b opp k occ 0)
+            in if not (hasKing b c) then True
+               else not (isAttackedByOptimized b opp (kingSquareFast b c) occ 0)
 
           | t == tagPromotionCapture ->
             let occ = occupiedTotal b `clearBit` fromI
                 ignored = bit toI
-            in case kingSquare b c of
-                 Nothing -> True
-                 Just k -> not (isAttackedByOptimized b opp k occ ignored)
+            in if not (hasKing b c) then True
+               else not (isAttackedByOptimized b opp (kingSquareFast b c) occ ignored)
 
           | t == tagEnPassant ->
             let capSqI = if c == White then toI - 8 else toI + 8
                 occ = ((occupiedTotal b `clearBit` fromI) `setBit` toI) `clearBit` capSqI
                 ignored = bit capSqI
-            in case kingSquare b c of
-                 Nothing -> True
-                 Just k -> not (isAttackedByOptimized b opp k occ ignored)
+            in if not (hasKing b c) then True
+               else not (isAttackedByOptimized b opp (kingSquareFast b c) occ ignored)
 
           | otherwise -> True -- Should be handled by isLegalSlow
 
@@ -185,11 +180,11 @@ isLegalSlow :: Board -> GameState -> GenMove -> Bool
 isLegalSlow b gs gm =
     let b' = applyMoveBoardFast b gs gm
         c = turn gs
-        kingSq' = kingSquare b' c
         isCastling = getTag gm == tagCastling
-    in case kingSq' of
-        Nothing -> True
-        Just k -> not (isAttackedBy b' (oppositeColor c) k) && (if isCastling then castlingSafe b gs gm else True)
+    in if not (hasKing b' c) then True
+       else
+        let k = kingSquareFast b' c
+        in not (isAttackedBy b' (oppositeColor c) k) && (if isCastling then castlingSafe b gs gm else True)
 
     where
          castlingSafe :: Board -> GameState -> GenMove -> Bool
@@ -291,8 +286,14 @@ castlingRookMove kingFrom kingTo
             fileOffset = i `mod` 8
         in Square (rankOffset + fileOffset)
 
-kingSquare :: Board -> Color -> Maybe Square
-kingSquare b c = fmap Square (lsb (pieceBitboard b c King))
+{-# INLINE hasKing #-}
+hasKing :: Board -> Color -> Bool
+hasKing b c = pieceBitboard b c King /= 0
+
+-- | Unsafe: Must only be called if hasKing is true.
+{-# INLINE kingSquareFast #-}
+kingSquareFast :: Board -> Color -> Square
+kingSquareFast b c = Square (fromIntegral (countTrailingZeros (pieceBitboard b c King)))
 
 -- | Apply a move to the board (without updating game state like counters).
 applyMoveBoard :: Board -> GameState -> Move -> Board
@@ -307,9 +308,7 @@ givesCheck :: Board -> GameState -> GenMove -> Bool
 givesCheck b gs gm =
     let c = turn gs
         oppC = oppositeColor c
-        kingSq = case kingSquare b oppC of
-                   Just k -> k
-                   Nothing -> Square 0
+        kingSq = if hasKing b oppC then kingSquareFast b oppC else Square 0
         t = getTag gm
         from = getFrom gm
         to = getTo gm
@@ -400,9 +399,7 @@ givesCheckOptimized :: Board -> GameState -> Bitboard -> GenMove -> Bool
 givesCheckOptimized b gs dcBitboard gm =
     let c = turn gs
         oppC = oppositeColor c
-        kingSq = case kingSquare b oppC of
-                   Just k -> k
-                   Nothing -> Square 0
+        kingSq = if hasKing b oppC then kingSquareFast b oppC else Square 0
         t = getTag gm
         from = getFrom gm
         to = getTo gm
