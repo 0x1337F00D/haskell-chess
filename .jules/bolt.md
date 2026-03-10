@@ -71,3 +71,7 @@
 **Learning:** Even though `discoveryCandidates` was precalculated inside `alphaBetaBody`, the top-level search loop (`alphaBetaRoot`) and the parallel worker loop within it were still using the slow `givesCheck` for the first move evaluated and all root moves in the worker. The calculation of `discoveryCandidates` per move in the hot path misses the optimization of performing it once per board state.
 **Action:** Hoisted the computation of `dcBitboard` (via `KingSafety.discoveryCandidates`) inside `alphaBetaRoot` and within its parallel worker loops so that all `applyLegalMoveValidated` calls benefit from the `givesCheckOptimized` code path.
 **Impact:** Re-ran benchmarks and maintained equivalent/slightly better search NPS with functionally zero additional overhead for the root move computations.
+
+## 2024-05-15 – [Fast Bitwise Single-Bit Check over popCount]
+**Learning:** `popCount x == 1` relies on the `popcnt` instruction or its software fallback, which can be unexpectedly slow in a tight loop. Using the bitwise trick `(x .&. friends /= 0) && (x .&. (x - 1)) == 0` (where `x` is the bitboard) is significantly faster (3-4x) and avoids the `popcnt` overhead, relying purely on simple integer ALU operations that fuse better in GHC Core.
+**Action:** When checking if a bitboard has exactly one bit set (especially on a hot path like move generation, `pinnedBits`, or `discoveryCandidates`), prefer the bitwise expression `x /= 0 && (x .&. (x - 1)) == 0` over `popCount x == 1`.
