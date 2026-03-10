@@ -295,6 +295,14 @@ hasKing b c = pieceBitboard b c King /= 0
 kingSquareFast :: Board -> Color -> Square
 kingSquareFast b c = Square (fromIntegral (countTrailingZeros (pieceBitboard b c King)))
 
+-- | Safe wrapper for finding the king's square.
+{-# DEPRECATED kingSquare "Use hasKing and kingSquareFast instead for performance" #-}
+kingSquare :: Board -> Color -> Maybe Square
+kingSquare b c =
+    if hasKing b c
+    then Just (kingSquareFast b c)
+    else Nothing
+
 -- | Apply a move to the board (without updating game state like counters).
 applyMoveBoard :: Board -> GameState -> Move -> Board
 applyMoveBoard b gs m =
