@@ -22,9 +22,6 @@ import Chess.Board.MoveGen.Pawn
 import Chess.Board.MoveGen.Piece
 import Chess.Board.MoveGen.Castling
 
-{-# SPECIALIZE runBuilder256 :: (forall s. Builder s GenMove ()) -> U.Vector GenMove #-}
-{-# SPECIALIZE emit :: GenMove -> Builder s GenMove () #-}
-
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> GameState -> U.Vector GenMove
 pseudoLegalMoves b gs = runBuilder256 $ do

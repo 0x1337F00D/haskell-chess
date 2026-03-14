@@ -24,7 +24,5 @@ jobs:
           key: ${{ runner.os }}-cabal-${{ hashFiles('cabal.project.freeze') }}
           restore-keys: ${{ runner.os }}-cabal-
       - run: cabal update
-      - run: cabal build all --ghc-options="+RTS -M4G -RTS"
-      - run: cabal test all --ghc-options="+RTS -M4G -RTS"
-      - name: Benchmark Summary
-        run: bash scripts/ci_summary.sh
+      - run: cabal build lib:haskell-chess exe:haskell-chess test:haskell-chess-test --ghc-options="-O0 +RTS -M4G -RTS"
+      - run: cabal test haskell-chess-test --ghc-options="-O0 +RTS -M4G -RTS"

@@ -19,7 +19,7 @@ import qualified Chess.Core.Board.Internal as CBI
 import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
 import qualified Chess.Bitboard as BB
-import Data.Bits ((.import Data.Bits ((.|.), (.&.)).))
+import Data.Bits ((.&.), (.|.))
 
 unsafeViewBoard :: Base.Board -> CBI.Board
 unsafeViewBoard bb = fromJust (CBI.fromBaseBoard bb)
