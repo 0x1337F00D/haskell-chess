@@ -706,28 +706,18 @@ rayInit a@(Square ai) b@(Square bi)
     drSign = signum dr
 
     go f r acc
-      | f == fileB && r == rankB = acc .|. bbFromSquare b
+      | f == fileB && r == rankB = acc
       | f < 0 || f > 7 || r < 0 || r > 7 = 0
       | otherwise =
           let acc' = acc .|. bbFromSquare (Square (r*8 + f))
           in go (f+dfSign) (r+drSign) acc'
 
--- | Bitboard of squares in a ray from one square to another, including the
--- target but excluding the origin. Zero if not aligned.
+-- | Bitboard of squares strictly between two aligned squares. Zero if not aligned.
 ray :: Square -> Square -> Bitboard
 {-# INLINE ray #-}
 ray (Square from) (Square to) = bbRaysBetween `U.unsafeIndex` (from * 64 + to)
 
--- | Precomputed squares strictly between all pairs of squares.
--- Index = from * 64 + to
-bbBetween :: U.Vector Bitboard
-bbBetween = U.generate (64 * 64) $ \i ->
-    let from = Square (i `div` 64)
-        to   = Square (i `mod` 64)
-        r    = rayInit from to
-    in if r == 0 then 0 else r `clearBit` unSquare to
-
 -- | Squares strictly between two aligned squares.
 between :: Square -> Square -> Bitboard
 {-# INLINE between #-}
-between (Square from) (Square to) = bbBetween `U.unsafeIndex` (from * 64 + to)
+between = ray
