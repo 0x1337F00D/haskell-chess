@@ -173,7 +173,7 @@ generateEvasions b gs = runBuilder256 $ do
              let attackerSq = Square (fromMaybe 0 (lsb attackers))
                  r = ray kingSq attackerSq
                  -- Target mask: capture attacker or block ray
-                 targetMask = if r == 0 then bbFromSquare attackerSq else r
+                 targetMask = r .|. bbFromSquare attackerSq
                  -- Handle En Passant
                  ep = epSquare gs
                  realTargetMask = case ep of

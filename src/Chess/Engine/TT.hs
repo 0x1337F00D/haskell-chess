@@ -58,9 +58,13 @@ unpackData w =
     in (m, s, d, f, a)
 
 -- | Probe the TT.
+-- Performance: Fold the upper 32 bits into the lower 32 bits before masking
+-- to reduce hash collisions when the TT mask discards high-entropy upper bits.
 probeTT :: TT -> Word64 -> IO (Maybe (Move, Int, Depth, TTFlag))
 probeTT (TT v mask) key = do
-    let idx = (fromIntegral key .&. mask) * 2
+    let k1 = fromIntegral key :: Int
+        k2 = fromIntegral (key `shiftR` 32) :: Int
+        idx = ((k1 `xor` k2) .&. mask) * 2
     entryKey <- UM.unsafeRead v idx
     if entryKey == key
     then do
@@ -72,13 +76,16 @@ probeTT (TT v mask) key = do
 -- | Store in TT.
 -- Replacement strategy: Always replace if age differs.
 -- Otherwise, depth-preferred or always replace for exact matches.
+-- Performance: Fold the upper 32 bits into the lower 32 bits before masking.
 storeTT :: TT -> Int -> Word64 -> Depth -> Int -> TTFlag -> Move -> IO ()
 storeTT (TT v mask) age key depth score flag move = do
-    let idx = (fromIntegral key .&. mask) * 2
+    let k1 = fromIntegral key :: Int
+        k2 = fromIntegral (key `shiftR` 32) :: Int
+        idx = ((k1 `xor` k2) .&. mask) * 2
     -- Read old entry to decide replacement
     oldKey <- UM.unsafeRead v idx
     oldData <- UM.unsafeRead v (idx + 1)
-    let (_, _, oldDepth, oldFlag, oldAge) = unpackData oldData
+    let (_, _, oldDepth, _, oldAge) = unpackData oldData
 
     -- Replace if:
     -- 1. Empty (oldKey == 0)
