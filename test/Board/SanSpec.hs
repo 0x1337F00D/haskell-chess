@@ -11,12 +11,12 @@ spec :: Spec
 spec = do
   describe "Chess.Board.San" $ do
     it "generates simple pawn move" $ do
-       let (Just (b, gs)) = Fen.parseFen startingFEN
+       Just (b, gs) <- pure $ Fen.parseFen startingFEN
        let m = Move E2 E4 Nothing
        San.san b gs m `shouldBe` "e4"
 
     it "generates knight move" $ do
-       let (Just (b, gs)) = Fen.parseFen startingFEN
+       Just (b, gs) <- pure $ Fen.parseFen startingFEN
        let m = Move G1 F3 Nothing
        San.san b gs m `shouldBe` "Nf3"
 
@@ -28,7 +28,7 @@ spec = do
        -- State before Qh4#:
        -- rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 1
        let fenStr = "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 1"
-       let (Just (b, gs)) = Fen.parseFen fenStr
+       Just (b, gs) <- pure $ Fen.parseFen fenStr
        -- Move: Qh4 (d8 to h4)
        let m = Move D8 H4 Nothing
        San.san b gs m `shouldBe` "Qh4#"
@@ -37,20 +37,20 @@ spec = do
        let fenStr = "rnbqk2r/pppp1ppp/5n2/2b1p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 4 4" -- Ruy Lopez
        -- Actually simple start position with pieces removed
        let fenStr2 = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"
-       let (Just (b, gs)) = Fen.parseFen fenStr2
+       Just (b, gs) <- pure $ Fen.parseFen fenStr2
        let m = Move E1 G1 Nothing
        San.san b gs m `shouldBe` "O-O"
 
     it "generates castling O-O-O" $ do
        let fenStr2 = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"
-       let (Just (b, gs)) = Fen.parseFen fenStr2
+       Just (b, gs) <- pure $ Fen.parseFen fenStr2
        let m = Move E1 C1 Nothing
        San.san b gs m `shouldBe` "O-O-O"
 
     it "generates capture" $ do
        -- e4 d5 exd5
        let fenStr = "rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
-       let (Just (b, gs)) = Fen.parseFen fenStr
+       Just (b, gs) <- pure $ Fen.parseFen fenStr
        -- Move: exd5. E4 to D5.
        let m = Move E4 D5 Nothing
        San.san b gs m `shouldBe` "exd5"
@@ -63,7 +63,7 @@ spec = do
        -- Target D2 (Standard empty).
        -- Both can jump to D2.
        -- Move B1-D2 -> Nbd2.
-       let (Just (b, gs)) = Fen.parseFen startingFEN
+       Just (b, gs) <- pure $ Fen.parseFen startingFEN
        let m = Move B1 C3 Nothing -- Standard opening Nc3. Only one knight can reach C3? No, nothing else.
        San.san b gs m `shouldBe` "Nc3"
 
@@ -84,12 +84,12 @@ spec = do
        San.san b4 gs m `shouldBe` "Nbc3"
 
     it "parses san" $ do
-       let (Just (b, gs)) = Fen.parseFen startingFEN
+       Just (b, gs) <- pure $ Fen.parseFen startingFEN
        San.parseSan b gs "e4" `shouldBe` Just (Move E2 E4 Nothing)
        San.parseSan b gs "Nf3" `shouldBe` Just (Move G1 F3 Nothing)
 
     it "parses san castling" $ do
        let fenStr = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"
-       let (Just (b, gs)) = Fen.parseFen fenStr
+       Just (b, gs) <- pure $ Fen.parseFen fenStr
        San.parseSan b gs "O-O" `shouldBe` Just (Move E1 G1 Nothing)
        San.parseSan b gs "O-O-O" `shouldBe` Just (Move E1 C1 Nothing)

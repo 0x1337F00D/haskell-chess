@@ -446,21 +446,20 @@ givesCheckSlider b kingSq from to isDiag =
         -- If blocker is King, check!
 
         -- Optimized:
-        -- 1. Check alignment.
-        r = ray kingSq to
-    in if r == 0
+        -- 1. Check alignment and compatibility
+        f1 = unSquare kingSq .&. 7
+        r1 = unSquare kingSq `shiftR` 3
+        f2 = unSquare to .&. 7
+        r2 = unSquare to `shiftR` 3
+        df = abs (f1 - f2)
+        dr = abs (r1 - r2)
+        isOrth = df == 0 || dr == 0
+        isDiagRay = df == dr && df /= 0
+        aligned = if isDiag then isDiagRay else isOrth
+    in if not aligned
        then False
        else
-           -- 2. Check if isCompatible (Diag/Orth)
-           let isOrth = squareFile kingSq == squareFile to || squareRank kingSq == squareRank to
-               -- If we want Diag (isDiag=True), but it is Orth, fail.
-               -- If we want Orth (isDiag=False), but it is Diag, fail.
-               isCompatible = if isDiag
-                            then not isOrth -- If isDiag is True (Bishop), we want Diagonal (not Orth)
-                            else isOrth     -- If isDiag is False (Rook), we want Orth
-           in if not isCompatible then False
-              else
-                   -- 3. Check Blockers
+           -- 3. Check Blockers
                    -- We need updated occupancy.
                    -- Remove 'from'. Add 'to'.
                    -- But 'from' is usually not on the ray between 'to' and 'King' (unless moving along ray away?)

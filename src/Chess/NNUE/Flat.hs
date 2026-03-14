@@ -8,11 +8,11 @@ import Control.Monad
 import Data.Binary.Get
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString as BS
-import Data.Int
+
 import Data.Word
 import Data.Primitive.ByteArray
-import Control.Monad.ST (RealWorld, stToIO)
-import Control.Monad.ST.Unsafe (unsafeIOToST)
+import Control.Monad.ST (RealWorld)
+
 import System.IO.Unsafe (unsafePerformIO)
 
 magicWord :: Word32
