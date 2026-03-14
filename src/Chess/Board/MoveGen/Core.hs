@@ -7,7 +7,7 @@ module Chess.Board.MoveGen.Core where
 
 import Data.Bits
 import Data.Maybe (fromMaybe)
-import Control.Monad (unless)
+import Control.Monad (unless, when)
 import qualified Data.Vector.Unboxed as U
 
 import Chess.Types
@@ -164,11 +164,11 @@ generateEvasions b gs = runBuilder256 $ do
         enemies = occupiedBy b (oppositeColor c)
 
         attackers = attackersTo b kingSq occ .&. enemies
-        numAttackers = popCount attackers
 
-    unless (numAttackers == 0) $ do
-        fillKingEvasions b gs (complement 0)
-        unless (numAttackers > 1) $ do
+    fillKingEvasions b gs (complement 0)
+    -- Bolt: isSingleCheck is faster than popCount > 1. attackers is guaranteed > 0 here.
+    let isSingleCheck = (attackers .&. (attackers - 1)) == 0
+    when isSingleCheck $ do
              let attackerSq = Square (fromMaybe 0 (lsb attackers))
                  r = ray kingSq attackerSq
                  -- Target mask: capture attacker or block ray
@@ -196,11 +196,11 @@ generateEvasionCaptures b gs = runBuilder256 $ do
         occ = occupiedTotal b
         enemies = occupiedBy b (oppositeColor c)
         attackers = attackersTo b kingSq occ .&. enemies
-        numAttackers = popCount attackers
 
-    unless (numAttackers == 0) $ do
-        fillKingEvasions b gs enemies
-        unless (numAttackers > 1) $ do
+    fillKingEvasions b gs enemies
+    -- Bolt: isSingleCheck is faster than popCount > 1. attackers is guaranteed > 0 here.
+    let isSingleCheck = (attackers .&. (attackers - 1)) == 0
+    when isSingleCheck $ do
             let attackerSq = Square (fromMaybe 0 (lsb attackers))
                 targetMask = bbFromSquare attackerSq
                 ep = epSquare gs
@@ -225,11 +225,11 @@ generateEvasionQuiets b gs = runBuilder256 $ do
         occ = occupiedTotal b
         enemies = occupiedBy b (oppositeColor c)
         attackers = attackersTo b kingSq occ .&. enemies
-        numAttackers = popCount attackers
 
-    unless (numAttackers == 0) $ do
-        fillKingEvasions b gs (complement enemies)
-        unless (numAttackers > 1) $ do
+    fillKingEvasions b gs (complement enemies)
+    -- Bolt: isSingleCheck is faster than popCount > 1. attackers is guaranteed > 0 here.
+    let isSingleCheck = (attackers .&. (attackers - 1)) == 0
+    when isSingleCheck $ do
             let attackerSq = Square (fromMaybe 0 (lsb attackers))
                 r = ray kingSq attackerSq
                 targetMask = r
@@ -248,9 +248,10 @@ generateEvasionPromotions b gs = runBuilder256 $ do
         occ = occupiedTotal b
         enemies = occupiedBy b (oppositeColor c)
         attackers = attackersTo b kingSq occ .&. enemies
-        numAttackers = popCount attackers
 
-    unless (numAttackers > 1) $ do
+    -- Bolt: isSingleCheck is faster than popCount > 1. attackers is guaranteed > 0 here.
+    let isSingleCheck = (attackers .&. (attackers - 1)) == 0
+    when isSingleCheck $ do
          let attackerSq = Square (fromMaybe 0 (lsb attackers))
              r = ray kingSq attackerSq
              targetMask = if r == 0 then bbFromSquare attackerSq else r
