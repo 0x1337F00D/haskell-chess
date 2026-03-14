@@ -19,7 +19,6 @@ import Chess.Core.Game.Internal
 import Chess.Core.Move.Internal
 
 import qualified Chess.Types as T
-import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
@@ -37,15 +36,6 @@ instance ChessVariant 'ThreeCheck where
         oppC = colorVal @(Opposite c)
         internalB = internalBoard ag
         internalB' = applyMoveBase m internalB
-        (from, to) = case m of
-                       QuietMove f t _ -> (f, t)
-                       CaptureMove f t _ _ -> (f, t)
-                       PromotionMove f t _ -> (f, t)
-                       PromotionCaptureMove f t _ _ -> (f, t)
-                       CastlingMove f t -> (f, t)
-                       EnPassantMove f t -> (f, t)
-                       DropMove _ t -> (t, t)
-                       Castling960Move _ _ -> error "Castling960Move invalid in ThreeCheck"
 
         gs = gameState ag
         gsUpdated = updateCastlingRights gs m

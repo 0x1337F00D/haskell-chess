@@ -78,7 +78,7 @@ storeTT (TT v mask) age key depth score flag move = do
     -- Read old entry to decide replacement
     oldKey <- UM.unsafeRead v idx
     oldData <- UM.unsafeRead v (idx + 1)
-    let (_, _, oldDepth, oldFlag, oldAge) = unpackData oldData
+    let (_, _, oldDepth, _oldFlag, oldAge) = unpackData oldData
 
     -- Replace if:
     -- 1. Empty (oldKey == 0)

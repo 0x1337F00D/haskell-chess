@@ -22,13 +22,9 @@ import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
-import Data.Bits (setBit, clearBit, (.&.), (.|.), testBit, complement)
-import Data.Word (Word8)
+import Data.Bits (setBit, (.&.), (.|.), complement)
 import qualified Data.Map as Map
 import qualified Data.Vector as V
-import qualified Data.Vector.Unboxed as U
-import qualified Data.Vector.Unboxed.Mutable as UM
-import Control.Monad (forM_)
 
 -- | Convert Core Color to Engine Color
 toColor :: Color -> T.Color
@@ -93,11 +89,6 @@ toBaseBoard b = Base.computeScores $ Base.Board
   , Base.gamePhase = 0
   }
   where
-    mmToPieceType :: MajorMinorPiece c -> PieceType
-    mmToPieceType MQueen = Queen
-    mmToPieceType MRook = Rook
-    mmToPieceType MBishop = Bishop
-    mmToPieceType MKnight = Knight
 
     -- Helper to create bitboard from list of squares
     squaresToBB :: [Square] -> BB.Bitboard
@@ -241,16 +232,16 @@ applyMoveBase m b =
        PromotionMove f t promo ->
           let c = toColor (colorVal @c)
               b1 = Base.unsafeRemovePiece b (toSquare f) c T.Pawn
-              promoted = T.Piece c (toPieceType promo)
-          in Base.unsafePutPiece b1 (toSquare t) promoted
+              promoPiece = T.Piece c (toPieceType promo)
+          in Base.unsafePutPiece b1 (toSquare t) promoPiece
 
        PromotionCaptureMove f t promo cap ->
           let c = toColor (colorVal @c)
               oppC = Base.oppositeColor c
               b1 = Base.unsafeRemovePiece b (toSquare f) c T.Pawn
               b2 = Base.unsafeRemovePiece b1 (toSquare t) oppC (toPieceType cap)
-              promoted = T.Piece c (toPieceType promo)
-          in Base.unsafePutPiece b2 (toSquare t) promoted
+              promoPiece = T.Piece c (toPieceType promo)
+          in Base.unsafePutPiece b2 (toSquare t) promoPiece
 
        CastlingMove f t ->
           let c = toColor (colorVal @c)
@@ -266,8 +257,8 @@ applyMoveBase m b =
           in Base.unsafeMovePiece b1 (toSquare f) (toSquare t) c T.Pawn
 
        DropMove p t ->
-          let promoted = T.Piece (toColor (colorVal @c)) (toPieceType p)
-          in Base.putPiece b (toSquare t) promoted
+          let dropPiece = T.Piece (toColor (colorVal @c)) (toPieceType p)
+          in Base.putPiece b (toSquare t) dropPiece
 
        Castling960Move k r ->
           let
@@ -313,16 +304,6 @@ genericApplyMove m ag =
         c = colorVal @c
         internalB = internalBoard ag
         internalB' = applyMoveBase m internalB
-        (from, to) = case m of
-                       QuietMove f t _ -> (f, t)
-                       CaptureMove f t _ _ -> (f, t)
-                       PromotionMove f t _ -> (f, t)
-                       PromotionCaptureMove f t _ _ -> (f, t)
-                       CastlingMove f t -> (f, t)
-                       EnPassantMove f t -> (f, t)
-                       DropMove _ t -> (t, t)
-                       Castling960Move _ _ -> error "Castling960Move not supported in genericApplyMove"
-
         gs = gameState ag
         gs3 = updateCastlingRights gs m
 

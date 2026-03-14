@@ -26,9 +26,7 @@ import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
 import qualified Chess.Board.Fen as Fen
-import Data.Bits (testBit, countTrailingZeros, (.|.), (.&.), complement, setBit)
-import Data.List (find)
-import Data.Maybe (mapMaybe)
+import Data.Bits (testBit, (.&.))
 
 -- | Create a game from FEN string (Fischer Random variant).
 fischerRandomGameFromFEN :: String -> Maybe (Game 'FischerRandom 'Active)
@@ -115,15 +113,6 @@ instance ChessVariant 'FischerRandom where
         c = colorVal @c
         internalB = internalBoard ag
         internalB' = applyMoveBase m internalB
-        (from, to) = case m of
-                       QuietMove f t _ -> (f, t)
-                       CaptureMove f t _ _ -> (f, t)
-                       PromotionMove f t _ -> (f, t)
-                       PromotionCaptureMove f t _ _ -> (f, t)
-                       CastlingMove f t -> (f, t)
-                       EnPassantMove f t -> (f, t)
-                       DropMove _ t -> (t, t)
-                       Castling960Move f _ -> (f, f)
 
         gs = gameState ag
         gsUpdated = updateCastlingRights gs m

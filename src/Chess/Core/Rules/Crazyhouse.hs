@@ -23,10 +23,10 @@ import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
-import qualified Chess.Bitboard as BB
+import Data.Bits (setBit, clearBit, testBit)
+
 import qualified Chess.Board.Fen as Fen
-import Data.Bits (testBit, countTrailingZeros, (.|.), setBit, clearBit)
-import Data.Word (Word8)
+
 
 -- | Create a game from FEN string (Crazyhouse variant).
 crazyhouseGameFromFEN :: String -> Maybe (Game 'Crazyhouse 'Active)
@@ -149,7 +149,7 @@ instance ChessVariant 'Crazyhouse where
         internalB = internalBoard ag
         internalB' = applyMoveBase m internalB
 
-        (CrazyhouseState wPocket bPocket promoted) = variantState ag
+        (CrazyhouseState wPocket bPocket promotedState) = variantState ag
 
         -- Helper to modify pockets
         updatePockets p pt f = case pt of
@@ -175,7 +175,7 @@ instance ChessVariant 'Crazyhouse where
               let pockets = if c == White
                             then (updatePockets wPocket p (\x -> x - 1), bPocket)
                             else (wPocket, updatePockets bPocket p (\x -> x - 1))
-              in (pockets, promoted)
+              in (pockets, promotedState)
            _ ->
               let capture = case m of
                               CaptureMove _ _ _ cap -> Just (T.Piece (toColor oppC) (toPieceType cap))
@@ -193,7 +193,7 @@ instance ChessVariant 'Crazyhouse where
                      Just (T.Piece _ pt) ->
                         let capturedType = fromPieceType pt
                             isPromoted = case capturedSquare of
-                                           Just sq -> testBit promoted (T.unSquare (toSquare sq))
+                                           Just sq -> testBit promotedState (T.unSquare (toSquare sq))
                                            Nothing -> False
                             addToPocket = if isPromoted then Pawn else capturedType
                             (wm, bm) = (wPocket, bPocket)
@@ -204,8 +204,8 @@ instance ChessVariant 'Crazyhouse where
 
                   -- Update Promoted Bitboard
                   p1 = case capturedSquare of
-                          Just sq -> clearBit promoted (T.unSquare (toSquare sq))
-                          Nothing -> promoted
+                          Just sq -> clearBit promotedState (T.unSquare (toSquare sq))
+                          Nothing -> promotedState
 
                   isMovingPromoted = testBit p1 (T.unSquare (toSquare from))
                   p2 = if isMovingPromoted

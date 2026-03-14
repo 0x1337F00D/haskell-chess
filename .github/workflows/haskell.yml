@@ -24,7 +24,7 @@ jobs:
           key: ${{ runner.os }}-cabal-${{ hashFiles('cabal.project.freeze') }}
           restore-keys: ${{ runner.os }}-cabal-
       - run: cabal update
-      - run: cabal build all
-      - run: cabal test all
+      - run: cabal build all --ghc-options="+RTS -M4G -RTS"
+      - run: cabal test all --ghc-options="+RTS -M4G -RTS"
       - name: Benchmark Summary
         run: bash scripts/ci_summary.sh

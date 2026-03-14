@@ -18,11 +18,7 @@ import Chess.Core.Board.Internal
 import Chess.Core.Game.Internal
 import Chess.Core.Move.Internal
 
-import qualified Chess.Types as T
-import qualified Chess.Board.Base as Base
-import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
-import qualified Chess.Board.Validation as Val
 
 instance ChessVariant 'KingOfTheHill where
   generateMoves (ag :: ActiveGame 'KingOfTheHill c s) =
@@ -35,9 +31,9 @@ instance ChessVariant 'KingOfTheHill where
 
   executeMove (m :: Move c) (ag :: ActiveGame 'KingOfTheHill c s) =
     case applyMove m ag of
-      Transition nextAg ->
+      Transition _nextAg ->
          let
-            c = colorVal @c
+            cColor = colorVal @c
 
             -- Extract destination for win check
             to = case m of
@@ -61,5 +57,5 @@ instance ChessVariant 'KingOfTheHill where
             kingInCenter = isKing && to `elem` centerSquares
 
          in if kingInCenter
-            then Checkmate (Winner c)
+            then Checkmate (Winner cColor)
             else genericExecuteMove m ag

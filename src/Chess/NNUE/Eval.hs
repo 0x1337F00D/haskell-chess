@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, MagicHash, UnliftedFFITypes, CPP #-}
+{-# LANGUAGE BangPatterns #-}
 module Chess.NNUE.Eval
   ( evalAcc
   , clippedRelu16
@@ -10,16 +10,6 @@ import Chess.Board.GameState (GameState, turn)
 import Data.Int
 import Data.Primitive.ByteArray
 import System.IO.Unsafe (unsafePerformIO)
-
-#ifdef USE_AVX512
-import GHC.Exts (ByteArray#)
-
-foreign import ccall unsafe "dotAccRowHalfKPC"
-  c_dotAccRowHalfKPC :: ByteArray# -> ByteArray# -> Int -> Int -> Int32 -> Int -> Int -> Int32
-
-foreign import ccall unsafe "dotH2RowC"
-  c_dotH2RowC :: ByteArray# -> ByteArray# -> Int -> Int -> Int32 -> Int32
-#endif
 
 {-# INLINE clippedRelu16 #-}
 clippedRelu16 :: Int32 -> Int16
@@ -72,10 +62,6 @@ evalAcc !nnue (Acc !accBA) !gs = fromIntegral (out `quot` scale nnue)
 
 {-# INLINE dotH2Row #-}
 dotH2Row :: ByteArray -> ByteArray -> Int -> Int -> Int32 -> Int32
-#ifdef USE_AVX512
-dotH2Row (ByteArray !actBA) (ByteArray !wBA) !hidN !row !z0 =
-    c_dotH2RowC actBA wBA hidN row z0
-#else
 dotH2Row !actBA !wBA !hidN !row !z0 = go 0 z0
   where
     !base = row * hidN
@@ -85,14 +71,9 @@ dotH2Row !actBA !wBA !hidN !row !z0 = go 0 z0
           let !a = indexByteArray actBA j :: Int32
               !w = fromIntegral (indexByteArray wBA (base + j) :: Int16) :: Int32
           in go (j + 1) (z + a * w)
-#endif
 
 {-# INLINE dotAccRowHalfKP #-}
 dotAccRowHalfKP :: ByteArray -> ByteArray -> Int -> Int -> Int32 -> Int -> Int -> Int32
-#ifdef USE_AVX512
-dotAccRowHalfKP (ByteArray !accBA) (ByteArray !wBA) !accN !row !z0 !usOffset !themOffset =
-    c_dotAccRowHalfKPC accBA wBA accN row z0 usOffset themOffset
-#else
 dotAccRowHalfKP !accBA !wBA !accN !row !z0 !usOffset !themOffset = goThem 0 (goUs 0 z0)
   where
     -- Row width is accN * 2 in HalfKP!
@@ -113,4 +94,3 @@ dotAccRowHalfKP !accBA !wBA !accN !row !z0 !usOffset !themOffset = goThem 0 (goU
           let !a = fromIntegral (clippedRelu16 (indexByteArray accBA (themOffset + j) :: Int32)) :: Int32
               !w = fromIntegral (indexByteArray wBA (baseThem + j) :: Int16) :: Int32
           in goThem (j + 1) (z + a * w)
-#endif

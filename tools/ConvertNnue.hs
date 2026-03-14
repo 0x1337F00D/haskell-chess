@@ -1,13 +1,11 @@
 module Main where
 
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import Data.Binary.Put
 import Data.Binary.Get
 import Data.Int
 import System.Environment (getArgs)
 import Control.Monad (replicateM)
-import Data.Word (Word32)
 
 -- | Read a standard Stockfish .nnue file (HalfKP 256x2-32-32-1)
 -- and output our flat .hsnn layout.
@@ -85,10 +83,10 @@ main = do
       bs <- BL.readFile inFile
       let raw = runGet getNnueRaw bs
 
-      let ftIn  = 98304
-          acc   = 256
-          hid   = 32
-          sc    = 400 -- Default scale
+      let ftIn  = 98304 :: Int
+          acc   = 256 :: Int
+          hid   = 32 :: Int
+          sc    = 400 :: Int32 -- Default scale
 
       BL.writeFile outFile $ runPut $ do
         putWord32le 0x48534E4E

@@ -21,7 +21,6 @@ import Chess.Types (Depth, mkDepth, unDepth)
 import Data.Time.Clock
 import Text.Printf
 import Control.Exception (evaluate)
-import System.Environment (getArgs)
 
 withOpposite :: forall c r. KnownColor c => (KnownColor (Opposite c) => r) -> r
 withOpposite f = case sColor @c of

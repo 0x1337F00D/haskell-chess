@@ -18,7 +18,9 @@ main = do
                   [d] -> read d :: Int
                   _ -> 6
     putStrLn $ "Starting Benchmark (KiwiPete Depth " ++ show depth ++ ")..."
-    let Just b = parseFen fen
+    let b = case parseFen fen of
+              Just b' -> b'
+              Nothing -> error "Invalid FEN"
     tt <- newTT 20
     start <- getCurrentTime
     _ <- search b tt (defaultLimits { limitDepth = Just depth })

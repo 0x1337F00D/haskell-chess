@@ -1,6 +1,6 @@
 module Chess.Board.Fen where
 
-import Control.Monad (foldM, guard)
+import Control.Monad (foldM)
 import Data.Char (isDigit, ord, chr, toLower)
 import Data.List (foldl', intercalate)
 import Data.Bits ((.|.), testBit)

@@ -1,13 +1,11 @@
 {-# LANGUAGE BangPatterns #-}
 module Main where
 
-import System.Environment
 import Data.Time.Clock
 import Chess.Bitboard
 import Chess.Types (Square(..))
 import Data.Bits
 import Data.Word
-import Control.Monad (replicateM_)
 import Text.Printf
 
 -- Xorshift64*

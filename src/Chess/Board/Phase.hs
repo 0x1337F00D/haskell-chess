@@ -7,7 +7,6 @@
 
 module Chess.Board.Phase where
 
-import Data.Kind (Type)
 import Data.Bits (popCount)
 import qualified Chess.Board.Base as Base
 import Chess.Board (Board(..), ValidatedBoard, getBoard)

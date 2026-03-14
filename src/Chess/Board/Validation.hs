@@ -2,12 +2,11 @@ module Chess.Board.Validation where
 
 import Data.Bits ((.|.))
 import Data.Word (Word64)
-import qualified Data.Vector.Unboxed as U
 import Chess.Types
 import Chess.Bitboard
 import Chess.Board.Base
 import Chess.Board.GameState
-import Chess.Board.MoveGen (pseudoLegalMoves, isLegal, kingSquare, hasLegalMove)
+import Chess.Board.MoveGen (kingSquare, hasLegalMove)
 
 -- | Check if the side to move is in check.
 isCheck :: Board -> GameState -> Bool

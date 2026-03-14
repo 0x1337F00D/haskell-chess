@@ -30,8 +30,8 @@ fillPieceMoves b gs pt = do
         enemies = occupiedBy b oppC
 
     let {-# INLINE go #-}
-        go attacks = forBitboard bb $ \from -> do
-            let att   = attacks from
+        go getAttacks = forBitboard bb $ \from -> do
+            let att   = getAttacks from
                 valid = att .&. complement friends
             forBitboard valid $ \to -> do
                 let toI = unSquare to
@@ -60,8 +60,8 @@ fillPieceCaptures b gs pt = do
         enemies = occupiedBy b oppC
 
     let {-# INLINE go #-}
-        go attacks = forBitboard bb $ \from -> do
-            let att   = attacks from
+        go getAttacks = forBitboard bb $ \from -> do
+            let att   = getAttacks from
                 valid = att .&. enemies
             forBitboard valid $ \to -> do
                 emit (GenCapture from to pt (findPieceType b oppC to))
@@ -85,8 +85,8 @@ fillPieceQuiets b gs pt = do
         occ     = occupiedTotal b
 
     let {-# INLINE go #-}
-        go attacks = forBitboard bb $ \from -> do
-            let att   = attacks from
+        go getAttacks = forBitboard bb $ \from -> do
+            let att   = getAttacks from
                 valid = att .&. complement occ
             forBitboard valid $ \to -> do
                 emit (GenQuiet from to pt)
@@ -132,8 +132,8 @@ fillPieceEvasions b gs pt targetMask = do
         enemies = occupiedBy b oppC
 
     let {-# INLINE go #-}
-        go attacks = forBitboard bb $ \from -> do
-            let att = attacks from
+        go getAttacks = forBitboard bb $ \from -> do
+            let !att = getAttacks from
             let valid = att .&. complement friends .&. targetMask
             forBitboard valid $ \to -> do
                     let toI = unSquare to

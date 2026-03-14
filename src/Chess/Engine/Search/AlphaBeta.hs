@@ -188,7 +188,7 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
 
                             -- Precalculate Discovery Candidates for optimization
                             -- This is per-worker but computed once per search call effectively.
-                            let !dcBitboard = KingSafety.discoveryCandidates (pieces board) (GS.turn (state board))
+                            let !_dcBitboard = KingSafety.discoveryCandidates (pieces board) (GS.turn (state board))
 
                             let loop bestRes = do
                                     mbMove <- modifyMVar queue $ \ms -> case ms of
@@ -484,7 +484,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
             return s
 
     searchStage _ [] _ _ _ a _ _ flag bestScore bestM found playedQuiets = return (bestScore, flag, bestM, found, a, playedQuiets)
-    searchStage dcBitboard (lm:lms) !index inCheck staticEval !a !b !d !flag !bestScore !bestM !found !playedQuiets = do
+    searchStage dcBitboard (lm:lms) !index inCheck staticEval !a !b !d !flag !bestScore !bestM !_found !playedQuiets = do
         let isCap = isCapture lm
         let isProm = isPromotion lm
         let isQuiet = not isCap && not isProm
