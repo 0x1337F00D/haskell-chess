@@ -10,8 +10,6 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString as BS
 import Data.Word
 import Data.Primitive.ByteArray
-import Control.Monad.ST (RealWorld)
-
 import System.IO.Unsafe (unsafePerformIO)
 
 magicWord :: Word32

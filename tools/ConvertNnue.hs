@@ -1,6 +1,5 @@
 module Main where
 
-
 import qualified Data.ByteString.Lazy as BL
 import Data.Binary.Put
 import Data.Binary.Get
@@ -8,7 +7,6 @@ import Data.Int
 import Data.Word (Word32)
 import System.Environment (getArgs)
 import Control.Monad (replicateM)
-
 
 -- | Read a standard Stockfish .nnue file (HalfKP 256x2-32-32-1)
 -- and output our flat .hsnn layout.

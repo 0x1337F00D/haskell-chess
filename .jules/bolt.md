@@ -1,3 +1,6 @@
+## 2025-02-14 – [Optimize TT Index Calculation]
+**Learning:** `fromIntegral key` to `Int` drops the upper 32 bits on 32-bit machines, or the TT masking operation discards the upper bits anyway. The 64-bit Zobrist hash has entropy in all bits, so simply using the lower bits for the array index can lead to significantly more hash collisions and clustering inside the Transposition Table.
+**Action:** When computing TT indices from 64-bit Zobrist hashes, XOR the upper 32 bits with the lower 32 bits before masking (i.e. `((fromIntegral key `xor` fromIntegral (key `shiftR` 32)) .&. mask) * 2`). This vastly improves key distribution with very few extra ALU instructions.
 ## 2025-05-20 – [Attack Table Vectorization]
 **Learning:** Found that attack tables (knight, king, pawn) were implemented as standard Haskell lists `[Bitboard]`. Lookup was `!!` (O(n)). This is a catastrophic bottleneck for chess engines where attack lookups happen millions of times per second.
 **Action:** Always check `O(1)` access structures for static lookup tables. Replaced with `Data.Vector.Unboxed`. Measured ~100x speedup on lookups (4.15s -> 0.04s for 10M lookups).
