@@ -318,15 +318,18 @@ bbFromSquare (Square i) = 1 `shiftL` i
 
 -- | Generate knight attacks from a square using coordinate offsets.
 knightAttacksFrom :: Square -> Bitboard
-knightAttacksFrom (Square n) = foldl' (.|.) 0 [ bbFromSquare (Square idx)
-                                              | (df,dr) <- deltas
-                                              , let f = file + df
-                                                    r = rank + dr
-                                              , f >= 0, f < 8, r >= 0, r < 8
-                                              , let idx = r*8 + f ]
+knightAttacksFrom (Square n) = knightAttacksArray `U.unsafeIndex` n
+
+{-# NOINLINE knightAttacksArray #-}
+knightAttacksArray :: U.Vector Bitboard
+knightAttacksArray = U.generate 64 gen
   where
-    file = n `mod` 8
-    rank = n `div` 8
+    gen n = foldl' (.|.) 0 [ bbFromSquare (Square idx)
+                           | (df,dr) <- deltas
+                           , let f = (n `mod` 8) + df
+                                 r = (n `div` 8) + dr
+                           , f >= 0, f < 8, r >= 0, r < 8
+                           , let idx = r*8 + f ]
     deltas = [ (1,2), (2,1), (2,-1), (1,-2)
              , (-1,-2), (-2,-1), (-2,1), (-1,2) ]
 
