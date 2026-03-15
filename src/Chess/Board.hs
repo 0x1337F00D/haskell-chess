@@ -285,8 +285,8 @@ legalGenMovesVector :: Board -> U.Vector MoveGen.GenMove
 legalGenMovesVector (Board b gs _) = MoveGen.legalGenMoves b gs
 
 -- | Generate all pseudo-legal moves.
-pseudoLegalMoves :: Board -> [Move]
-pseudoLegalMoves (Board b gs _) = map MoveGen.genMoveToMove $ U.toList $ MoveGen.pseudoLegalMoves b gs
+pseudoLegalMoves :: Board -> U.Vector Move
+pseudoLegalMoves (Board b gs _) = U.map MoveGen.genMoveToMove $ MoveGen.pseudoLegalMoves b gs
 
 -- | Generate all pseudo-legal moves as GenMoves.
 pseudoLegalGenMoves :: Board -> [MoveGen.GenMove]
@@ -316,12 +316,12 @@ legalGenPromotions :: Board -> [MoveGen.GenMove]
 legalGenPromotions (Board b gs _) = U.toList $ MoveGen.legalGenPromotions b gs
 
 -- | Generate all pseudo-legal quiet moves.
-pseudoLegalQuiets :: Board -> [Move]
-pseudoLegalQuiets (Board b gs _) = map MoveGen.genMoveToMove $ U.toList $ MoveGen.pseudoLegalQuiets b gs
+pseudoLegalQuiets :: Board -> U.Vector Move
+pseudoLegalQuiets (Board b gs _) = U.map MoveGen.genMoveToMove $ MoveGen.pseudoLegalQuiets b gs
 
 -- | Generate all pseudo-legal promotion moves.
-pseudoLegalPromotions :: Board -> [Move]
-pseudoLegalPromotions (Board b gs _) = map MoveGen.genMoveToMove $ U.toList $ MoveGen.pseudoLegalPromotions b gs
+pseudoLegalPromotions :: Board -> U.Vector Move
+pseudoLegalPromotions (Board b gs _) = U.map MoveGen.genMoveToMove $ MoveGen.pseudoLegalPromotions b gs
 
 -- | Check if the side to move is in check.
 isCheck :: Board -> Bool

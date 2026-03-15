@@ -44,7 +44,7 @@ legalMoves b gs =
             let k = kingSquareFast b c
             in attackersTo b k occ .&. occupiedBy b (oppositeColor c)
     in if attackers /= 0
-       then map genMoveToMove $ U.toList $ generateEvasions b gs
+       then U.toList $ U.map genMoveToMove $ generateEvasions b gs
        else
            let pinned = pinnedBits b c
                pseudo = pseudoLegalMoves b gs
@@ -85,7 +85,7 @@ legalCaptures b gs =
             let k = kingSquareFast b c
             in attackersTo b k occ .&. occupiedBy b (oppositeColor c)
     in if attackers /= 0
-       then map genMoveToMove $ U.toList $ generateEvasionCaptures b gs
+       then U.toList $ U.map genMoveToMove $ generateEvasionCaptures b gs
        else
            let pinned = pinnedBits b c
                pseudo = pseudoLegalCaptures b gs
