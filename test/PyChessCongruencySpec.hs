@@ -22,7 +22,6 @@ import qualified Chess.Core.Fen as CoreFen
 import qualified Data.Set as Set
 import qualified Data.ByteString.Char8 as BSC
 import qualified PyChessData as PD
-import qualified Chess.Types as T
 import Chess.Types (mkDepth, Depth, unDepth)
 
 -- | Wrapper for any game variant

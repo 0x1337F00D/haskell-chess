@@ -2,7 +2,6 @@ module Chess.Board.Validation where
 
 import Data.Bits ((.|.))
 import Data.Word (Word64)
-import qualified Data.Vector.Unboxed as U
 import Chess.Types
 import Chess.Bitboard
 import Chess.Board.Base

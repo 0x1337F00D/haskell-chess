@@ -71,7 +71,6 @@ pattern GenCastling960 f t <- (unpackGenCastling960 -> Just (f, t))
 -- ========================================
 -- HOTPATH: Direct Tag-Dispatch without Maybe
 -- ========================================
-
 -- View helpers using MoveTag interface
 {-# INLINE unpackQuiet #-}
 unpackQuiet :: GenMove -> Maybe (Square, Square, PieceType)

@@ -13,12 +13,16 @@ import Chess.Board.Fen
 main :: IO ()
 main = do
   nn <- loadNnueFlat "tiny.hsnn"
-  let Just (b, gs) = parseFen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-      afs = collectFeaturesHalfKP b
+  let (_b, _gs) = case parseFen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" of
+                     Just x -> x
+                     Nothing -> error "Invalid FEN"
+      afs = collectFeaturesHalfKP _b
   acc <- refreshAcc nn afs
-  print (evalAcc nn acc gs)
+  print (evalAcc nn acc _gs)
 
-  let Just (b2, gs2) = parseFen "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
-      afs2 = collectFeaturesHalfKP b2
+  let (_b2, _gs2) = case parseFen "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1" of
+                       Just x -> x
+                       Nothing -> error "Invalid FEN"
+      afs2 = collectFeaturesHalfKP _b2
   acc2 <- refreshAcc nn afs2
-  print (evalAcc nn acc2 gs2)
+  print (evalAcc nn acc2 _gs2)

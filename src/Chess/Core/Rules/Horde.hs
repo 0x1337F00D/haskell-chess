@@ -25,9 +25,7 @@ import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
 import Data.Bits (popCount, testBit, setBit, (.|.))
-import Data.Word (Word64)
 import qualified Data.Vector.Unboxed as U
-import qualified Data.Vector.Unboxed.Mutable as UM
 
 -- | Initial Game State for Horde
 hordeInitialGame :: Game 'Horde 'Active
@@ -141,15 +139,6 @@ instance ChessVariant 'Horde where
         c = colorVal @c
         internalB = internalBoard ag
         internalB' = applyMoveBase m internalB
-        (from, to) = case m of
-                       QuietMove f t _ -> (f, t)
-                       CaptureMove f t _ _ -> (f, t)
-                       PromotionMove f t _ -> (f, t)
-                       PromotionCaptureMove f t _ _ -> (f, t)
-                       CastlingMove f t -> (f, t)
-                       EnPassantMove f t -> (f, t)
-                       DropMove _ t -> (t, t)
-                       Castling960Move _ _ -> error "Castling960Move invalid in Horde"
 
         gs = gameState ag
         gsUpdated = updateCastlingRights gs m

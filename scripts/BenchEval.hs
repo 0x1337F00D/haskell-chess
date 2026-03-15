@@ -2,7 +2,6 @@
 
 module Main where
 
-import Control.Monad (forM_)
 import Data.Time.Clock (getCurrentTime, diffUTCTime)
 import Chess.Board (parseFen, trustBoard, SomeValidatedBoard(..))
 import Chess.Engine.Evaluation (evaluate)
@@ -41,4 +40,4 @@ main = do
     putStrLn $ "Total Score: " ++ show totalScore -- force evaluation
     putStrLn $ "Time: " ++ show duration
     let nps = fromIntegral n / realToFrac duration
-    putStrLn $ "NPS: " ++ show nps
+    putStrLn $ "NPS: " ++ show (nps :: Double)

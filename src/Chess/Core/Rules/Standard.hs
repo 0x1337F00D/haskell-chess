@@ -16,18 +16,14 @@ import Chess.Core.Rules.Class
 import Chess.Core.Rules.Common
 import Chess.Core.Board.Internal
 import Chess.Core.Game.Internal
-import Chess.Core.Move.Internal
 
 import qualified Chess.Types as T
-import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
-import qualified Chess.Bitboard as BB
 import qualified Chess.Board.Fen as Fen
 import qualified Chess.Board as FastBoard
-import Chess.Board (legalGenMovesVector, applyGenMoveFast, pseudoLegalGenMoves, isKingSafe, pattern GenCastling) -- Import fast board ops
-import Data.Bits (testBit, countTrailingZeros, (.|.))
+import Chess.Board (legalGenMovesVector, applyGenMoveFast) -- Import fast board ops
 import Control.Parallel.Strategies (parMap, rseq)
 import qualified Data.Vector.Unboxed as U
 

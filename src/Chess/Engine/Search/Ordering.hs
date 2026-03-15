@@ -8,16 +8,15 @@
 
 module Chess.Engine.Search.Ordering where
 
-import Control.Monad (forM_)
 
 import Data.List (sortOn, partition)
 import Data.Ord (Down(..))
 import qualified Data.Vector.Unboxed.Mutable as UM
 
 import Chess.Types
-import Chess.Board (Board(..), ValidatedBoard, LegalMove, GenMove, genMoveToMove, pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture, pattern GenCastling960, pattern GenDrop, getBoard, pieces, getGenMove)
+import Chess.Board (Board(..), ValidatedBoard, LegalMove, GenMove, genMoveToMove, pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture, pattern GenCastling960, pattern GenDrop, getBoard, getGenMove)
 import qualified Chess.Board.GameState as GS
-import Chess.Engine.SEE (see, seeGen)
+import Chess.Engine.SEE (seeGen)
 import Chess.Engine.Search.Types (SearchContext(..), SearchResources(..))
 
 -- | Move Ordering

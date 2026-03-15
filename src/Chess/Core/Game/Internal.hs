@@ -7,6 +7,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Chess.Core.Game.Internal where
 
@@ -130,7 +131,7 @@ viewBoard ag = case fromBaseBoard (internalBoard ag) of
 -- | Transition: Setup -> Active
 -- This allows for board validation logic to be inserted here.
 startGame :: forall v. (VariantState v ~ ()) => Game v 'Setup -> Maybe (Game v 'Active)
-startGame (SetupGame board) =
+startGame (SetupGame _board) =
     -- Validation placeholder: Ensure kings exist
     -- In a real implementation, we would convert Board to Base.Board here
     -- and check variant-specific constraints.

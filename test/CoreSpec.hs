@@ -11,7 +11,7 @@ import Chess.Core.Game
 import Chess.Core.Move
 import Chess.Core.Rules
 import Chess.Core.Board.Internal (movePiece)
-import Chess.Core.Game.Internal (ActiveGame(..), Game(..), CastlingRights(..), Pockets(..), CrazyhouseState(..), castlingWhiteKingSide, castlingWhiteQueenSide, castlingBlackKingSide, castlingBlackQueenSide, SCheckStatus(..))
+import Chess.Core.Game.Internal (ActiveGame(..), Game(..), CastlingRights(..), Pockets(..), SCheckStatus(..))
 import Chess.Core.Move.Internal
 import qualified Data.Map as Map
 import Data.Maybe (fromJust)
@@ -19,9 +19,7 @@ import qualified Chess.Core.Board.Internal as CBI
 import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
 import qualified Chess.Bitboard as BB
-import qualified Chess.Types as T
-import Data.Bits ((.|.), (.&.))
-import Data.Word (Word8)
+import Data.Bits ((.&.), (.|.))
 
 unsafeViewBoard :: Base.Board -> CBI.Board
 unsafeViewBoard bb = fromJust (CBI.fromBaseBoard bb)

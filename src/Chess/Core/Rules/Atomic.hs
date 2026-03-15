@@ -24,7 +24,7 @@ import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
-import Data.Bits ((.&.), complement, (.|.))
+import Data.Bits ((.&.), complement)
 
 instance ChessVariant 'Atomic where
   generateMoves (ag :: ActiveGame 'Atomic c s) =
@@ -70,21 +70,12 @@ instance ChessVariant 'Atomic where
         internalB = internalBoard ag
 
         bBasic = applyMoveBase m internalB
-        (from, to) = case m of
-                       QuietMove f t _ -> (f, t)
-                       CaptureMove f t _ _ -> (f, t)
-                       PromotionMove f t _ -> (f, t)
-                       PromotionCaptureMove f t _ _ -> (f, t)
-                       CastlingMove f t -> (f, t)
-                       EnPassantMove f t -> (f, t)
-                       DropMove _ t -> (t, t)
-                       Castling960Move _ _ -> error "Castling960Move invalid in Atomic"
 
-        isCapture = case m of
-                      CaptureMove {} -> True
-                      PromotionCaptureMove {} -> True
-                      EnPassantMove _ _ -> True
-                      _ -> False
+        isCaptureCenter = case m of
+                      CaptureMove _ t _ _ -> Just t
+                      PromotionCaptureMove _ t _ _ -> Just t
+                      EnPassantMove _ t -> Just t
+                      _ -> Nothing
 
         isPawn = case m of
                    QuietMove _ _ pt -> pt == Pawn
@@ -95,10 +86,9 @@ instance ChessVariant 'Atomic where
                    DropMove pt _ -> pt == Pawn
                    _ -> False
 
-        bFinal = if isCapture
-          then
-            let center = to
-                centerSq = toSquare center
+        bFinal = case isCaptureCenter of
+          Just center ->
+            let centerSq = toSquare center
                 explosionMask = BB.kingAttacks centerSq
                 maskNonPawns = complement explosionMask
                 maskCenter = complement (BB.bbFromSquare centerSq)
@@ -137,7 +127,7 @@ instance ChessVariant 'Atomic where
                    , Base.blackKings   = bKings
                    }
             in Base.updateOccupancy b2
-          else bBasic
+          Nothing -> bBasic
 
         gs = gameState ag
         gsUpdated = updateCastlingRights gs m
@@ -149,7 +139,10 @@ instance ChessVariant 'Atomic where
                     else T.NoSquare
                   _ -> T.NoSquare
 
-        newHMC = if isPawn || isCapture then 0 else GS.halfmoveClock gs + 1
+        isCaptureAny = case isCaptureCenter of
+                          Just _ -> True
+                          Nothing -> False
+        newHMC = if isPawn || isCaptureAny then 0 else GS.halfmoveClock gs + 1
         newFMN = GS.fullmoveNumber gs + (if c == Black then 1 else 0)
 
         newGS = gsUpdated
