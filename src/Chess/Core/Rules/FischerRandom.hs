@@ -79,9 +79,7 @@ instance ChessVariant 'FischerRandom where
         frState = variantState ag
         rooksBB = if c == White then whiteRookFiles frState else blackRookFiles frState
 
-        kingSq = case MG.kingSquare baseBoard (toColor c) of
-                   Just sq -> sq
-                   Nothing -> T.Square 0
+        kingSq = if MG.hasKing baseBoard (toColor c) then MG.kingSquareFast baseBoard (toColor c) else T.Square 0
 
         currentRights = GS.castlingRights gs
 

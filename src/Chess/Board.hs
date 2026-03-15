@@ -295,9 +295,9 @@ pseudoLegalGenMoves (Board b gs _) = MoveGen.pseudoLegalMovesList b gs
 -- | Check if the king of the given color is safe (not attacked).
 isKingSafe :: Board -> Color -> Bool
 isKingSafe (Board b _ _) c =
-    case MoveGen.kingSquare b c of
-        Nothing -> False -- Should not happen
-        Just k -> not (Base.isAttackedBy b (Base.oppositeColor c) k)
+    if not (MoveGen.hasKing b c) then False -- Should not happen
+    else let k = MoveGen.kingSquareFast b c
+         in not (Base.isAttackedBy b (Base.oppositeColor c) k)
 
 -- | Generate all legal capture moves.
 captureMoves :: Board -> [Move]

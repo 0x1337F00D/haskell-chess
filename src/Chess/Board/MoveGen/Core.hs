@@ -8,7 +8,7 @@ module Chess.Board.MoveGen.Core where
 
 import Data.Bits
 import Data.Maybe (fromMaybe)
-import Control.Monad (unless)
+import Control.Monad (unless, when)
 import qualified Data.Vector.Unboxed as U
 
 import Chess.Types
@@ -40,10 +40,9 @@ legalMoves :: Board -> GameState -> [Move]
 legalMoves b gs =
     let c = turn gs
         occ = occupiedTotal b
-        mbKing = kingSquare b c
-        attackers = case mbKing of
-            Nothing -> 0
-            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+        attackers = if not (hasKing b c) then 0 else
+            let k = kingSquareFast b c
+            in attackersTo b k occ .&. occupiedBy b (oppositeColor c)
     in if attackers /= 0
        then map genMoveToMove $ U.toList $ generateEvasions b gs
        else
@@ -57,10 +56,9 @@ legalGenMoves :: Board -> GameState -> U.Vector GenMove
 legalGenMoves b gs =
     let c = turn gs
         occ = occupiedTotal b
-        mbKing = kingSquare b c
-        attackers = case mbKing of
-            Nothing -> 0
-            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+        attackers = if not (hasKing b c) then 0 else
+            let k = kingSquareFast b c
+            in attackersTo b k occ .&. occupiedBy b (oppositeColor c)
     in if attackers /= 0
        then generateEvasions b gs
        else
@@ -83,10 +81,9 @@ legalCaptures :: Board -> GameState -> [Move]
 legalCaptures b gs =
     let c = turn gs
         occ = occupiedTotal b
-        mbKing = kingSquare b c
-        attackers = case mbKing of
-            Nothing -> 0
-            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+        attackers = if not (hasKing b c) then 0 else
+            let k = kingSquareFast b c
+            in attackersTo b k occ .&. occupiedBy b (oppositeColor c)
     in if attackers /= 0
        then map genMoveToMove $ U.toList $ generateEvasionCaptures b gs
        else
@@ -100,10 +97,9 @@ legalGenCaptures :: Board -> GameState -> U.Vector GenMove
 legalGenCaptures b gs =
     let c = turn gs
         occ = occupiedTotal b
-        mbKing = kingSquare b c
-        attackers = case mbKing of
-            Nothing -> 0
-            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+        attackers = if not (hasKing b c) then 0 else
+            let k = kingSquareFast b c
+            in attackersTo b k occ .&. occupiedBy b (oppositeColor c)
     in if attackers /= 0
        then generateEvasionCaptures b gs
        else
@@ -127,10 +123,9 @@ legalGenQuiets :: Board -> GameState -> U.Vector GenMove
 legalGenQuiets b gs =
     let c = turn gs
         occ = occupiedTotal b
-        mbKing = kingSquare b c
-        attackers = case mbKing of
-            Nothing -> 0
-            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+        attackers = if not (hasKing b c) then 0 else
+            let k = kingSquareFast b c
+            in attackersTo b k occ .&. occupiedBy b (oppositeColor c)
     in if attackers /= 0
        then generateEvasionQuiets b gs
        else
@@ -147,10 +142,9 @@ legalGenPromotions :: Board -> GameState -> U.Vector GenMove
 legalGenPromotions b gs =
     let c = turn gs
         occ = occupiedTotal b
-        mbKing = kingSquare b c
-        attackers = case mbKing of
-            Nothing -> 0
-            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+        attackers = if not (hasKing b c) then 0 else
+            let k = kingSquareFast b c
+            in attackersTo b k occ .&. occupiedBy b (oppositeColor c)
     in if attackers /= 0
        then generateEvasionPromotions b gs
        else
@@ -162,23 +156,22 @@ legalGenPromotions b gs =
 generateEvasions :: Board -> GameState -> U.Vector GenMove
 generateEvasions b gs = runBuilder256 $ do
     let c = turn gs
-        kingSq = case kingSquare b c of
-                        Just k -> k
-                        Nothing -> Square 0 -- Should not happen
+        kingSq = if hasKing b c then kingSquareFast b c else Square 0
 
         occ = occupiedTotal b
         enemies = occupiedBy b (oppositeColor c)
 
         attackers = attackersTo b kingSq occ .&. enemies
-        numAttackers = popCount attackers
 
-    unless (numAttackers == 0) $ do
+    unless (attackers == 0) $ do
         fillKingEvasions b gs (complement 0)
-        unless (numAttackers > 1) $ do
+        -- Bolt: isSingleCheck is faster than popCount > 1. attackers is guaranteed > 0 here.
+        let isSingleCheck = (attackers .&. (attackers - 1)) == 0
+        when isSingleCheck $ do
              let attackerSq = Square (fromMaybe 0 (lsb attackers))
                  r = ray kingSq attackerSq
                  -- Target mask: capture attacker or block ray
-                 targetMask = if r == 0 then bbFromSquare attackerSq else r
+                 targetMask = r .|. bbFromSquare attackerSq
                  -- Handle En Passant
                  ep = epSquare gs
                  realTargetMask = case ep of
@@ -198,15 +191,16 @@ generateEvasions b gs = runBuilder256 $ do
 generateEvasionCaptures :: Board -> GameState -> U.Vector GenMove
 generateEvasionCaptures b gs = runBuilder256 $ do
     let c = turn gs
-        kingSq = case kingSquare b c of Just k -> k; Nothing -> Square 0
+        kingSq = if hasKing b c then kingSquareFast b c else Square 0
         occ = occupiedTotal b
         enemies = occupiedBy b (oppositeColor c)
         attackers = attackersTo b kingSq occ .&. enemies
-        numAttackers = popCount attackers
 
-    unless (numAttackers == 0) $ do
+    unless (attackers == 0) $ do
         fillKingEvasions b gs enemies
-        unless (numAttackers > 1) $ do
+        -- Bolt: isSingleCheck is faster than popCount > 1. attackers is guaranteed > 0 here.
+        let isSingleCheck = (attackers .&. (attackers - 1)) == 0
+        when isSingleCheck $ do
             let attackerSq = Square (fromMaybe 0 (lsb attackers))
                 targetMask = bbFromSquare attackerSq
                 ep = epSquare gs
@@ -227,15 +221,16 @@ generateEvasionCaptures b gs = runBuilder256 $ do
 generateEvasionQuiets :: Board -> GameState -> U.Vector GenMove
 generateEvasionQuiets b gs = runBuilder256 $ do
     let c = turn gs
-        kingSq = case kingSquare b c of Just k -> k; Nothing -> Square 0
+        kingSq = if hasKing b c then kingSquareFast b c else Square 0
         occ = occupiedTotal b
         enemies = occupiedBy b (oppositeColor c)
         attackers = attackersTo b kingSq occ .&. enemies
-        numAttackers = popCount attackers
 
-    unless (numAttackers == 0) $ do
+    unless (attackers == 0) $ do
         fillKingEvasions b gs (complement enemies)
-        unless (numAttackers > 1) $ do
+        -- Bolt: isSingleCheck is faster than popCount > 1. attackers is guaranteed > 0 here.
+        let isSingleCheck = (attackers .&. (attackers - 1)) == 0
+        when isSingleCheck $ do
             let attackerSq = Square (fromMaybe 0 (lsb attackers))
                 r = ray kingSq attackerSq
                 targetMask = r
@@ -250,17 +245,19 @@ generateEvasionQuiets b gs = runBuilder256 $ do
 generateEvasionPromotions :: Board -> GameState -> U.Vector GenMove
 generateEvasionPromotions b gs = runBuilder256 $ do
     let c = turn gs
-        kingSq = case kingSquare b c of Just k -> k; Nothing -> Square 0
+        kingSq = if hasKing b c then kingSquareFast b c else Square 0
         occ = occupiedTotal b
         enemies = occupiedBy b (oppositeColor c)
         attackers = attackersTo b kingSq occ .&. enemies
-        numAttackers = popCount attackers
 
-    unless (numAttackers > 1) $ do
-         let attackerSq = Square (fromMaybe 0 (lsb attackers))
-             r = ray kingSq attackerSq
-             targetMask = if r == 0 then bbFromSquare attackerSq else r
-         fillPawnEvasionPromotions b gs targetMask
+    unless (attackers == 0) $ do
+         -- Bolt: isSingleCheck is faster than popCount > 1. attackers is guaranteed > 0 here.
+         let isSingleCheck = (attackers .&. (attackers - 1)) == 0
+         when isSingleCheck $ do
+             let attackerSq = Square (fromMaybe 0 (lsb attackers))
+                 r = ray kingSq attackerSq
+                 targetMask = if r == 0 then bbFromSquare attackerSq else r
+             fillPawnEvasionPromotions b gs targetMask
 
 -- | Check if there is any legal move.
 hasLegalMove :: Board -> GameState -> Bool
@@ -283,10 +280,9 @@ legalGenMovesList :: Board -> GameState -> [GenMove]
 legalGenMovesList b gs =
     let c = turn gs
         occ = occupiedTotal b
-        mbKing = kingSquare b c
-        attackers = case mbKing of
-            Nothing -> 0
-            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+        attackers = if not (hasKing b c) then 0 else
+            let k = kingSquareFast b c
+            in attackersTo b k occ .&. occupiedBy b (oppositeColor c)
     in if attackers /= 0
        then U.toList (generateEvasions b gs)
        else
@@ -300,10 +296,9 @@ legalGenCapturesList :: Board -> GameState -> [GenMove]
 legalGenCapturesList b gs =
     let c = turn gs
         occ = occupiedTotal b
-        mbKing = kingSquare b c
-        attackers = case mbKing of
-            Nothing -> 0
-            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+        attackers = if not (hasKing b c) then 0 else
+            let k = kingSquareFast b c
+            in attackersTo b k occ .&. occupiedBy b (oppositeColor c)
     in if attackers /= 0
        then U.toList (generateEvasionCaptures b gs)
        else
@@ -317,10 +312,9 @@ legalGenQuietsList :: Board -> GameState -> [GenMove]
 legalGenQuietsList b gs =
     let c = turn gs
         occ = occupiedTotal b
-        mbKing = kingSquare b c
-        attackers = case mbKing of
-            Nothing -> 0
-            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+        attackers = if not (hasKing b c) then 0 else
+            let k = kingSquareFast b c
+            in attackersTo b k occ .&. occupiedBy b (oppositeColor c)
     in if attackers /= 0
        then U.toList (generateEvasionQuiets b gs)
        else
@@ -334,10 +328,9 @@ legalGenPromotionsList :: Board -> GameState -> [GenMove]
 legalGenPromotionsList b gs =
     let c = turn gs
         occ = occupiedTotal b
-        mbKing = kingSquare b c
-        attackers = case mbKing of
-            Nothing -> 0
-            Just k -> attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+        attackers = if not (hasKing b c) then 0 else
+            let k = kingSquareFast b c
+            in attackersTo b k occ .&. occupiedBy b (oppositeColor c)
     in if attackers /= 0
        then U.toList (generateEvasionPromotions b gs)
        else

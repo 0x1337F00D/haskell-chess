@@ -109,7 +109,7 @@ instance ChessVariant 'Horde where
         whiteExtraMoves = if c == White
             then
                let
-                   currentPawns = Base.whitePawns baseBoard
+                   wPawns = Base.whitePawns baseBoard
                    occ = Base.occupiedTotal baseBoard
 
                    -- Pawns on Rank 1 (indices 0-7)
@@ -119,7 +119,7 @@ instance ChessVariant 'Horde where
                        let idx1 = fromIdx + 8
                            idx2 = fromIdx + 16
                        in if fromIdx < 8
-                             && testBit currentPawns fromIdx
+                             && testBit wPawns fromIdx
                              && not (testBit occ idx1)
                              && not (testBit occ idx2)
                           then [MG.GenQuiet (T.Square fromIdx) (T.Square idx2) T.Pawn]

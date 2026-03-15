@@ -4,6 +4,7 @@ import qualified Data.ByteString.Lazy as BL
 import Data.Binary.Put
 import Data.Binary.Get
 import Data.Int
+import Data.Word (Word32)
 import System.Environment (getArgs)
 import Control.Monad (replicateM)
 
@@ -83,10 +84,10 @@ main = do
       bs <- BL.readFile inFile
       let raw = runGet getNnueRaw bs
 
-      let ftIn  = 98304 :: Int
-          acc   = 256 :: Int
-          hid   = 32 :: Int
-          sc    = 400 :: Int32 -- Default scale
+      let ftIn  = 98304 :: Word32
+          acc   = 256 :: Word32
+          hid   = 32 :: Word32
+          sc    = 400 -- Default scale
 
       BL.writeFile outFile $ runPut $ do
         putWord32le 0x48534E4E
