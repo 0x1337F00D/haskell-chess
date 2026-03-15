@@ -1,0 +1,52 @@
+--- src/Chess/Engine/Search/AlphaBeta.hs
++++ src/Chess/Engine/Search/AlphaBeta.hs
+@@ -383,9 +383,9 @@
+
+                                          score <- case nullVB of
+-                                             InCheckBoard vb -> alphaBeta nmpCtx vb tt Nothing d' (-beta) (-beta + 1) nodes stopFlag limits
+-                                             NotInCheckBoard vb -> alphaBeta nmpCtx vb tt Nothing d' (-beta) (-beta + 1) nodes stopFlag limits
+-                                         return (if stepScore score >= beta then Just beta else Nothing)
++                                             InCheckBoard vb -> alphaBeta nmpCtx vb tt Nothing d' (-beta') (-beta' + 1) nodes stopFlag limits
++                                             NotInCheckBoard vb -> alphaBeta nmpCtx vb tt Nothing d' (-beta') (-beta' + 1) nodes stopFlag limits
++                                         return (if stepScore score >= beta' then Just beta' else Nothing)
+                                      else return Nothing
+
+                         case nmpResult of
+@@ -412,26 +412,26 @@
+                                                             let extension = if inCheck then depthOne else depthZero
+                                                             let nextDepth = (decDepth depth) `plusDepth` extension
+                                                             let nextCtx = ctx { scNodeKind = nodeKind, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+-                                                            s <- alphaBeta nextCtx newVBoard tt (Just ttM) nextDepth (-beta) (-alpha) nodes stopFlag limits
++                                                            s <- alphaBeta nextCtx newVBoard tt (Just ttM) nextDepth (-beta') (-alpha') nodes stopFlag limits
+                                                             return (stepScore s)
+                                                         NotInCheckBoard newVBoard -> do
+                                                             let extension = if inCheck then depthOne else depthZero
+                                                             let nextDepth = (decDepth depth) `plusDepth` extension
+                                                             let nextCtx = ctx { scNodeKind = nodeKind, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+-                                                            s <- alphaBeta nextCtx newVBoard tt (Just ttM) nextDepth (-beta) (-alpha) nodes stopFlag limits
++                                                            s <- alphaBeta nextCtx newVBoard tt (Just ttM) nextDepth (-beta') (-alpha') nodes stopFlag limits
+                                                             return (stepScore s)
+
+-                                                    if score >= beta
+-                                                    then return (score, TTLower, ttM, True, alpha, True)
++                                                    if score >= beta'
++                                                    then return (score, TTLower, ttM, True, alpha', True)
+                                                     else do
+                                                         let newBestScore = max (-infinity) score
+-                                                        let newAlpha = max alpha score
+-                                                        let newFlag = if score > alpha then TTExact else TTUpper
++                                                        let newAlpha = max alpha' score
++                                                        let newFlag = if score > alpha' then TTExact else TTUpper
+                                                         let newBestM = if score > -infinity then ttM else nullMove
+                                                         return (newBestScore, newFlag, newBestM, True, newAlpha, True)
+-                                                Nothing -> return (-infinity, TTUpper, nullMove, False, alpha, False)
+-                                        else return (-infinity, TTUpper, nullMove, False, alpha, False)
+-                                    else return (-infinity, TTUpper, nullMove, False, alpha, False)
++                                                Nothing -> return (-infinity, TTUpper, nullMove, False, alpha', False)
++                                        else return (-infinity, TTUpper, nullMove, False, alpha', False)
++                                    else return (-infinity, TTUpper, nullMove, False, alpha', False)
+
+-                                if score0 >= beta
++                                if score0 >= beta'
+                                 then storeAndReturn score0 bestM0 TTLower
+                                 else do

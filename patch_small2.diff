@@ -1,0 +1,61 @@
+--- src/Chess/Engine/Search/AlphaBeta.hs
++++ src/Chess/Engine/Search/AlphaBeta.hs
+@@ -306,8 +306,8 @@
+         let ttCutoff = if ttHit
+                        then case ttFlag of
+                            TTExact -> True
+-                           TTLower -> ttScore >= beta
+-                           TTUpper -> ttScore <= alpha
++                           TTLower -> ttScore >= beta'
++                           TTUpper -> ttScore <= alpha'
+                            TTEval  -> False
+                        else False
+
+@@ -319,7 +319,7 @@
+             if isZeroDepth depth
+             then do
+                  let qsCtx = ctx { scPhase = Quiescence } :: SearchContext p
+-                 quiescence qsCtx vBoard tt alpha beta nodes depth
++                 quiescence qsCtx vBoard tt alpha' beta' nodes depth
+             else do
+                 let depthVal = unDepth depth
+
+@@ -329,10 +329,10 @@
+                                   then do
+                                       let razoringMargin = 300 * depthVal
+-                                      if staticEval + razoringMargin <= alpha
++                                      if staticEval + razoringMargin <= alpha'
+                                       then do
+                                           let qsCtx = ctx { scPhase = Quiescence } :: SearchContext p
+-                                          qsScore <- quiescence qsCtx vBoard tt alpha beta nodes depthZero
+-                                          return $ if qsScore <= alpha then Just qsScore else Nothing
++                                          qsScore <- quiescence qsCtx vBoard tt alpha' beta' nodes depthZero
++                                          return $ if qsScore <= alpha' then Just qsScore else Nothing
+                                       else return Nothing
+                                   else return Nothing
+
+@@ -341,11 +341,11 @@
+                   Nothing -> do
+
+                     -- Reverse Futility Pruning (Static NMP)
+-                    let doRFP = depthVal <= 6 && not inCheck && nodeKind == NonPV && abs beta < mateValue
++                    let doRFP = depthVal <= 6 && not inCheck && nodeKind == NonPV && abs beta' < mateValue
+                     let rfpResult = if doRFP
+                                     then do
+                                         let futilityMargin = 120 * depthVal
+-                                        if staticEval - futilityMargin >= beta
++                                        if staticEval - futilityMargin >= beta'
+                                         then Just staticEval
+                                         else Nothing
+                                     else Nothing
+@@ -356,8 +356,8 @@
+
+                         let r = if depth > mkDepth 6 then mkDepth 3 else mkDepth 2
+                         let canNull = scNullMoveState ctx == NullMoveAllowed
+-                        let doNmp = canNull && not inCheck && depth >= r && beta < mateValue
+-                                    && staticEval >= beta
++                        let doNmp = canNull && not inCheck && depth >= r && beta' < mateValue
++                                    && staticEval >= beta'
+                                     && popCount (Base.occupiedTotal (pieces board)) > 5
+
+                         nmpResult <- if doNmp

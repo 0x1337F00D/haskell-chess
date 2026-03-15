@@ -1,0 +1,25 @@
+--- src/Chess/Engine/Search/AlphaBeta.hs
++++ src/Chess/Engine/Search/AlphaBeta.hs
+@@ -288,6 +288,14 @@
+         let checkState = scCheckState ctx
+         let inCheck = case checkState of InCheck -> True; NotInCheck -> False
+
++        -- Mate Distance Pruning
++        let mateScore = mateValue - scPly ctx
++        let alpha' = max alpha (-mateScore)
++        let beta'  = min beta (mateScore - 1)
++        if alpha' >= beta'
++        then return alpha'
++        else do
++
+         ttEntry <- probeTT tt hash
+         let (ttMove, ttScore, ttDepth, ttFlag) = case ttEntry of
+                 Just (m, s, d, f) -> (Just m, s, d, f)
+@@ -311,8 +319,8 @@
+             if isZeroDepth depth
+             then do
+                  let qsCtx = ctx { scPhase = Quiescence } :: SearchContext p
+-                 quiescence qsCtx vBoard tt alpha beta nodes depth
++                 quiescence qsCtx vBoard tt alpha' beta' nodes depth
+             else do
+                 let depthVal = unDepth depth
