@@ -38,7 +38,7 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
         if null evasions
         then return (-mateValue)
         else do
-            let sortedMoves = orderGenMoves vBoard evasions nullMove
+            let sortedMoves = orderGenMoves vBoard evasions Nothing
 
             -- Precalculate DC for Evasions? No, Evasions are few.
             -- But standard loop does calls to givesCheck for next recursion.
