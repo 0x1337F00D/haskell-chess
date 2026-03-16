@@ -21,7 +21,7 @@ import Chess.Engine.Search.Types (SearchContext(..), SearchResources(..))
 
 -- | Move Ordering
 -- Optimized to use a single sort pass with a comprehensive scoring function.
-orderGenMoves :: ValidatedBoard s -> [LegalMove] -> Maybe Move -> [LegalMove]
+orderGenMoves :: ValidatedBoard s -> [LegalMove] -> Move -> [LegalMove]
 orderGenMoves vBoard moves ttM = sortOn (Down . orderScore) moves
   where
     (Board b gs _) = getBoard vBoard
@@ -33,9 +33,7 @@ orderGenMoves vBoard moves ttM = sortOn (Down . orderScore) moves
            then 2000000
            else scoreGenMove gm
 
-    isTTMove gm = case ttM of
-        Nothing -> False
-        Just tm -> genMoveToMove gm == tm
+    isTTMove gm = not (isNullMove ttM) && genMoveToMove gm == ttM
 
     scoreGenMove gm = case gm of
         GenPromotionCapture {} -> 100000 + scoreMove gm
@@ -162,46 +160,42 @@ penaltyHistory ctx depth (Move f t _) = do
     UM.unsafeWrite (resHistory res) idx (scaledV - penalty)
 penaltyHistory _ _ _ = return ()
 
-updateCounterMove :: forall p. SearchContext p -> Maybe Move -> Move -> IO ()
-updateCounterMove _ Nothing _ = return ()
-updateCounterMove ctx (Just prevM) m = do
-    let res = scResources ctx
+updateCounterMove :: forall p. SearchContext p -> Move -> Move -> IO ()
+updateCounterMove ctx prevM m = do
     if isNullMove prevM then return () else do
+        let res = scResources ctx
         let idx = moveToIndex prevM
         if idx >= 0 && idx < 4096 then
             UM.unsafeWrite (resCounterMove res) idx m
         else return ()
 
-getCounterMove :: forall p. SearchContext p -> Maybe Move -> IO (Maybe Move)
-getCounterMove _ Nothing = return Nothing
-getCounterMove ctx (Just prevM) = do
-    let res = scResources ctx
-    if isNullMove prevM then return Nothing else do
+getCounterMove :: forall p. SearchContext p -> Move -> IO Move
+getCounterMove ctx prevM = do
+    if isNullMove prevM then return nullMove else do
+        let res = scResources ctx
         let idx = moveToIndex prevM
         if idx >= 0 && idx < 4096 then do
             m <- UM.unsafeRead (resCounterMove res) idx
-            if isNullMove m then return Nothing else return (Just m)
-        else return Nothing
+            if isNullMove m then return nullMove else return m
+        else return nullMove
 
 moveToIndex :: Move -> Int
 moveToIndex (Move f t _) = (unSquare f) * 64 + (unSquare t)
 moveToIndex _ = -1
 
-orderQuiets :: forall p. SearchContext p -> [LegalMove] -> [Move] -> Maybe Move -> Maybe Move -> IO [LegalMove]
+orderQuiets :: forall p. SearchContext p -> [LegalMove] -> [Move] -> Move -> Move -> IO [LegalMove]
 orderQuiets ctx quiets killers counterMove ttM = do
     let (kMoves, others) = partitionKillers quiets killers
-    let (cmMoves, others2) = case counterMove of
-            Nothing -> ([], others)
-            Just cm -> partitionCounterMove others cm
+    let (cmMoves, others2) = if isNullMove counterMove then ([], others) else partitionCounterMove others counterMove
 
     scoredOthers <- mapM (\lm -> do s <- scoreHistory ctx lm; return (lm, s)) others2
     let sortedOthers = map fst $ sortOn (negate . snd) scoredOthers
 
     let combined = kMoves ++ cmMoves ++ sortedOthers
 
-    let filtered = case ttM of
-            Nothing -> combined
-            Just tm -> filter (\lm -> genMoveToMove (getGenMove lm) /= tm) combined
+    let filtered = if isNullMove ttM
+                   then combined
+                   else filter (\lm -> genMoveToMove (getGenMove lm) /= ttM) combined
     return filtered
 
 partitionCounterMove :: [LegalMove] -> Move -> ([LegalMove], [LegalMove])
@@ -240,9 +234,9 @@ sortMoves moves = map snd $ foldr insertMove [] moves
 -- | Sorts a list of moves by score, optionally picking a TT move to be first.
 -- Does NOT re-partition or re-calculate SEE.
 {-# INLINE pickAndSort #-}
-pickAndSort :: [LegalMove] -> Maybe Move -> [LegalMove]
-pickAndSort moves Nothing = sortMoves moves
-pickAndSort moves (Just ttM) =
+pickAndSort :: [LegalMove] -> Move -> [LegalMove]
+pickAndSort moves ttM | isNullMove ttM = sortMoves moves
+pickAndSort moves ttM =
     let (pre, post) = break (\lm -> genMoveToMove (getGenMove lm) == ttM) moves
     in case post of
         [] -> sortMoves pre
