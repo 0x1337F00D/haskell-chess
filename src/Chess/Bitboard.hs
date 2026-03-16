@@ -681,6 +681,31 @@ getRayAttacks sq dirIdx occ =
 
 -- Rays ----------------------------------------------------------------------
 
+-- | Precomputed alignment masks for orthogonal and diagonal rays.
+bbOrthogonalMasks :: U.Vector Bitboard
+bbOrthogonalMasks = U.generate 64 $ \i ->
+    let f = i `mod` 8
+        r = i `div` 8
+    in ((bbRank1 `shiftL` (r*8)) .|. (bbFileA `shiftL` f)) `clearBit` i
+
+bbDiagonalMasks :: U.Vector Bitboard
+bbDiagonalMasks = U.generate 64 $ \i ->
+    let sq = Square i
+        att = getRayAttacksSlow sq 4 0 .|. getRayAttacksSlow sq 5 0 .|. getRayAttacksSlow sq 6 0 .|. getRayAttacksSlow sq 7 0
+    in att `clearBit` i
+
+-- | Returns true if the two squares are orthogonally aligned.
+isOrthogonallyAligned :: Square -> Square -> Bool
+{-# INLINE isOrthogonallyAligned #-}
+isOrthogonallyAligned (Square s1) (Square s2) =
+    testBit (bbOrthogonalMasks `U.unsafeIndex` s1) s2
+
+-- | Returns true if the two squares are diagonally aligned.
+isDiagonallyAligned :: Square -> Square -> Bool
+{-# INLINE isDiagonallyAligned #-}
+isDiagonallyAligned (Square s1) (Square s2) =
+    testBit (bbDiagonalMasks `U.unsafeIndex` s1) s2
+
 -- | Precomputed rays between all pairs of squares.
 -- Index = from * 64 + to
 bbRaysBetween :: U.Vector Bitboard

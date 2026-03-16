@@ -84,3 +84,8 @@
 **Learning:** `popCount` was being used in move generation `generateEvasions*` to verify check state (single check vs double check) and ensure there was at least one attacker. However, `generateEvasions*` is ONLY called when the number of attackers is strictly greater than 0, making the `== 0` check redundant. Additionally, verifying that a number is a power of two (has exactly one bit set) can be done with `(x .&. (x - 1)) == 0` instead of `popCount x == 1` to skip slow `popcnt` instructions.
 **Action:** Removed redundant `numAttackers == 0` checks and replaced `numAttackers > 1` checks with `let isSingleCheck = (attackers .&. (attackers - 1)) == 0` in `generateEvasions`, `generateEvasionCaptures`, `generateEvasionQuiets`, and `generateEvasionPromotions`.
 **Impact:** 6,004,374 NPS on Core Start and 50,448,394 NPS on Core KiwiPete.
+
+## 2026-03-09 - [O(1) Alignment Check for Slider Evasions]
+**Learning:** `givesCheckSlider` checked for orthogonal/diagonal alignment by extracting and diffing the file/rank coordinates of two squares at runtime, creating multiple branches and arithmetic ops in a hot path.
+**Action:** Replaced dynamic coordinate math with O(1) bitwise lookup using precomputed alignment masks (`bbOrthogonalMasks`, `bbDiagonalMasks`) indexed by square.
+**Impact:** `bench-core` start NPS improved from 2.87M to 2.98M (+3.8%), and KiwiPete NPS improved from 46.9M to 48.4M (+3%).
