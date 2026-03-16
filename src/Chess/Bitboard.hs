@@ -318,7 +318,9 @@ bbFromSquare (Square i) = 1 `shiftL` i
 
 -- | Generate knight attacks from a square using coordinate offsets.
 knightAttacksFrom :: Square -> Bitboard
-knightAttacksFrom (Square n) = knightAttacksArray `U.unsafeIndex` n
+knightAttacksFrom (Square n)
+  | n >= 0 && n < 64 = knightAttacksArray `U.unsafeIndex` n
+  | otherwise        = BB_EMPTY
 
 {-# NOINLINE knightAttacksArray #-}
 knightAttacksArray :: U.Vector Bitboard
