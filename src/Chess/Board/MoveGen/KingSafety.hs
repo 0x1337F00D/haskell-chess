@@ -436,60 +436,13 @@ givesCheckDirect b _ c kingSq from to pt =
 {-# INLINE givesCheckSlider #-}
 givesCheckSlider :: Board -> Square -> Square -> Square -> Bool -> Bool
 givesCheckSlider b kingSq from to isDiag =
-    let occ = occupiedTotal b
-        -- Occupancy update: Remove 'from', Add 'to' (we assume 'to' is empty or capture doesn't matter for blockage of THIS ray)
-        -- Wait, if 'to' is on the ray, it matters.
-        -- Standard slider logic:
-        -- Get attack ray from 'to' on the empty board.
-        -- Intersect with occupied.
-        -- Find first blocker.
-        -- If blocker is King, check!
-
-        -- Optimized:
-        -- 1. Check alignment and compatibility
-        f1 = unSquare kingSq .&. 7
-        r1 = unSquare kingSq `shiftR` 3
-        f2 = unSquare to .&. 7
-        r2 = unSquare to `shiftR` 3
-        df = abs (f1 - f2)
-        dr = abs (r1 - r2)
-        isOrth = df == 0 || dr == 0
-        isDiagRay = df == dr && df /= 0
-        aligned = if isDiag then isDiagRay else isOrth
+    let aligned = if isDiag
+                  then isDiagonallyAligned kingSq to
+                  else isOrthogonallyAligned kingSq to
     in if not aligned
        then False
        else
-           -- 3. Check Blockers
-                   -- We need updated occupancy.
-                   -- Remove 'from'. Add 'to'.
-                   -- But 'from' is usually not on the ray between 'to' and 'King' (unless moving along ray away?)
-                   -- If moving away on same ray, it would be a discovery, handled by dcBitboard!
-                   -- So 'from' is NOT on the ray between 'to' and 'King'.
-                   -- So we just need to check if existing occupancy (minus 'to' if capture? No, 'to' IS the piece now)
-                   -- blocks the ray.
-                   -- The ray 'between' does NOT include endpoints.
-                   -- So 'to' is not in 'between'. 'King' is not in 'between'.
-                   -- So we just check 'between kingSq to' against 'occ'.
-                   -- Wait, we must REMOVE 'from' from occ?
-                   -- If 'from' was blocking the ray from 'to' to 'King'?
-                   -- Impossible, 'to' is the new position. 'from' is the old.
-                   -- If 'from' was between 'to' and 'King', then we are moving TOWARDS the king or AWAY?
-                   -- If we move from 'from' to 'to', and 'from' was between 'to' and 'King'.
-                   -- That means 'to' is behind 'from' relative to King.
-                   -- Then 'from' is no longer there.
-                   -- But wait, this is covered by discovery logic?
-                   -- No, discovery logic covers friendly sliders BEHIND 'from'.
-                   -- Here 'to' IS the slider.
-                   -- So we assume 'from' is NOT on the segment (to, kingSq).
-                   -- Unless we move e.g. Rook A1 to A2. King at A8.
-                   -- from=A1, to=A2. King=A8.
-                   -- Ray A2->A8. A1 is not on it.
-                   -- Rook A2 to A1. King A8.
-                   -- Ray A1->A8. A2 is on it.
-                   -- But 'from' is A2. 'to' is A1.
-                   -- So 'from' is on the ray. But 'from' is EMPTY after move.
-                   -- So we must ensure 'from' is NOT treated as a blocker.
-                   -- So: (between kingSq to) .&. (occ `clearBit` from) == 0
-                   let blockers = between kingSq to .&. occ
-                       realBlockers = blockers `clearBit` (unSquare from)
-                   in realBlockers == 0
+           let occ = occupiedTotal b
+               blockers = between kingSq to .&. occ
+               realBlockers = blockers `clearBit` unSquare from
+           in realBlockers == 0
