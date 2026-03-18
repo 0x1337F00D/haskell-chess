@@ -89,3 +89,7 @@
 **Learning:** `givesCheckSlider` checked for orthogonal/diagonal alignment by extracting and diffing the file/rank coordinates of two squares at runtime, creating multiple branches and arithmetic ops in a hot path.
 **Action:** Replaced dynamic coordinate math with O(1) bitwise lookup using precomputed alignment masks (`bbOrthogonalMasks`, `bbDiagonalMasks`) indexed by square.
 **Impact:** `bench-core` start NPS improved from 2.87M to 2.98M (+3.8%), and KiwiPete NPS improved from 46.9M to 48.4M (+3%).
+## 2026-03-10 - [O(1) Alignment Check in King Safety]
+**Learning:** `pinnedBits` and `discoveryCandidates` used dynamic file/rank coordinate comparison `squareFile a == squareFile b || squareRank a == squareRank b` which compiles to multiple branches and arithmetic ops in a hot path.
+**Action:** Replaced dynamic coordinate math with O(1) `isOrthogonallyAligned` (bitwise lookup via precomputed alignment masks) indexed by square.
+**Impact:** NPS on Atomic Start improved from 23.0M to 23.1M.
