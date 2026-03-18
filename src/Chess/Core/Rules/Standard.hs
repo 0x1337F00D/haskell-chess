@@ -23,7 +23,7 @@ import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Board.Fen as Fen
 import qualified Chess.Board as FastBoard
-import Chess.Board (legalGenMovesVector, applyGenMoveFast) -- Import fast board ops
+import Chess.Board (legalGenMovesVector, legalGenMovesSafeVector, applyGenMoveFast) -- Import fast board ops
 import Control.Parallel.Strategies (parMap, rseq)
 import qualified Data.Vector.Unboxed as U
 
@@ -91,14 +91,21 @@ instance ChessVariant 'Standard where
       let b = internalBoard ag
           gs = toGameState ag
           board = FastBoard.Board b gs []
-      in fastPerft depth board
+          isCh = case checkStatus ag of
+                   SChecked -> True
+                   _ -> False
+      in fastPerft depth isCh board
 
-fastPerft :: Int -> FastBoard.Board -> Int
-fastPerft 0 _ = 1
-fastPerft 1 b = U.length (legalGenMovesVector b)
-fastPerft d b =
-    let moves = legalGenMovesVector b
-        evalMove m = fastPerft (d - 1) (applyGenMoveFast b m)
+fastPerft :: Int -> Bool -> FastBoard.Board -> Int
+fastPerft 0 _ _ = 1
+fastPerft 1 isCh b =
+    let moves = if isCh then legalGenMovesVector b else legalGenMovesSafeVector b
+    in U.length moves
+fastPerft d isCh b =
+    let moves = if isCh then legalGenMovesVector b else legalGenMovesSafeVector b
+        evalMove m =
+            let nextIsCheck = MG.givesCheck (FastBoard.pieces b) (FastBoard.state b) m
+            in fastPerft (d - 1) nextIsCheck (applyGenMoveFast b m)
     in if d >= 3
        then sum $ parMap rseq evalMove (U.toList moves)
        else U.foldl' (\acc m -> acc + evalMove m) 0 moves

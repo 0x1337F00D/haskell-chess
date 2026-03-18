@@ -388,3 +388,13 @@ legalGenPromotionsSafeList b gs =
         pseudo = pseudoLegalPromotions b gs
         step gm acc = if isLegalSafe b gs pinned gm then gm : acc else acc
     in U.foldr step [] pseudo
+
+-- | Generate all legal moves assuming the king is not in check.
+-- This skips the expensive attackers check and uses isLegalSafe directly.
+{-# INLINE legalGenMovesSafe #-}
+legalGenMovesSafe :: Board -> GameState -> U.Vector GenMove
+legalGenMovesSafe b gs =
+    let c = turn gs
+        pinned = pinnedBits b c
+        pseudo = pseudoLegalMoves b gs
+    in U.filter (isLegalSafe b gs pinned) pseudo

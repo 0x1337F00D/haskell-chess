@@ -17,6 +17,7 @@ module Chess.Board
   , legalMoves
   , legalGenMoves
   , legalGenMovesVector
+  , legalGenMovesSafeVector
   , pseudoLegalMoves
   , pseudoLegalGenMoves
   , captureMoves
@@ -283,6 +284,10 @@ legalGenMoves (Board b gs _) = U.toList $ MoveGen.legalGenMoves b gs
 -- | Generate all legal moves as an unboxed vector.
 legalGenMovesVector :: Board -> U.Vector MoveGen.GenMove
 legalGenMovesVector (Board b gs _) = MoveGen.legalGenMoves b gs
+
+-- | Generate all legal moves as an unboxed vector assuming the king is not in check.
+legalGenMovesSafeVector :: Board -> U.Vector MoveGen.GenMove
+legalGenMovesSafeVector (Board b gs _) = MoveGen.legalGenMovesSafe b gs
 
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> U.Vector Move
