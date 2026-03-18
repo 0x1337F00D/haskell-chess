@@ -34,7 +34,9 @@ pinnedBits b c =
                        then acc
                        else
                            -- Check compatibility (Rook/Queen for Orth, Bishop/Queen for Diag)
-                           let isOrth = squareFile kingSq == squareFile pinner || squareRank kingSq == squareRank pinner
+                           -- Bolt: replaced `squareFile a == squareFile b || squareRank a == squareRank b`
+                           -- with O(1) bitwise array lookup `isOrthogonallyAligned`. Avoids coordinate ops.
+                           let isOrth = isOrthogonallyAligned kingSq pinner
                                isCompatible = if isOrth then testBit rooks (unSquare pinner) else testBit bishops (unSquare pinner)
                            in if not isCompatible then acc
                               else
@@ -68,7 +70,9 @@ discoveryCandidates b c =
                        then acc
                        else
                            -- Check alignment compatibility
-                           let isOrth = squareFile enemyKingSq == squareFile slider || squareRank enemyKingSq == squareRank slider
+                           -- Bolt: replaced `squareFile a == squareFile b || squareRank a == squareRank b`
+                           -- with O(1) bitwise array lookup `isOrthogonallyAligned`. Avoids coordinate ops.
+                           let isOrth = isOrthogonallyAligned enemyKingSq slider
                                isCompatible = if isOrth then testBit myRooks (unSquare slider) else testBit myBishops (unSquare slider)
                            in if not isCompatible then acc
                               else
