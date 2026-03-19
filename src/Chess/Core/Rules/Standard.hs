@@ -93,7 +93,8 @@ instance ChessVariant 'Standard where
           board = FastBoard.Board b gs []
           isCh = case checkStatus ag of
                    SChecked -> True
-                   _ -> False
+                   SSafe -> False
+                   SUnchecked -> Val.isCheck b gs
       in fastPerft depth isCh board
 
 fastPerft :: Int -> Bool -> FastBoard.Board -> Int
