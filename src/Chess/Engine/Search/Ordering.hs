@@ -12,6 +12,7 @@ module Chess.Engine.Search.Ordering where
 import Data.List (sortOn, partition)
 import Data.Ord (Down(..))
 import qualified Data.Vector.Unboxed.Mutable as UM
+import qualified Data.Vector.Unboxed as U
 
 import Chess.Types
 import Chess.Board (Board(..), ValidatedBoard, LegalMove, GenMove, genMoveToMove, pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture, pattern GenCastling960, pattern GenDrop, getBoard, getGenMove)
@@ -21,8 +22,8 @@ import Chess.Engine.Search.Types (SearchContext(..), SearchResources(..))
 
 -- | Move Ordering
 -- Optimized to use a single sort pass with a comprehensive scoring function.
-orderGenMoves :: ValidatedBoard s -> [LegalMove] -> Maybe Move -> [LegalMove]
-orderGenMoves vBoard moves ttM = sortOn (Down . orderScore) moves
+orderGenMoves :: ValidatedBoard s -> U.Vector LegalMove -> Maybe Move -> [LegalMove]
+orderGenMoves vBoard moves ttM = sortOn (Down . orderScore) (U.toList moves)
   where
     (Board b gs _) = getBoard vBoard
     turn = GS.turn gs
@@ -50,13 +51,13 @@ orderGenMoves vBoard moves ttM = sortOn (Down . orderScore) moves
 -- | Specialized move ordering for Quiescence Search.
 -- Avoids concatenating lists and re-partitioning.
 -- Returns moves with known check status (True if known to give check, Nothing if unknown).
-orderQSMoves :: ValidatedBoard s -> [LegalMove] -> [LegalMove] -> [LegalMove] -> [(LegalMove, Maybe Bool)]
+orderQSMoves :: ValidatedBoard s -> U.Vector LegalMove -> U.Vector LegalMove -> [LegalMove] -> [(LegalMove, Maybe Bool)]
 orderQSMoves vBoard caps proms quietChecks =
     let (Board b gs _) = getBoard vBoard
         turn = GS.turn gs
 
         -- Process caps: Split into PromoCaps, GoodCaps, BadCaps
-        (promoCaps, goodCaps, badCaps) = foldr processCap ([], [], []) caps
+        (promoCaps, goodCaps, badCaps) = U.foldr processCap ([], [], []) caps
 
         processCap lm (pc, gc, bc) = case getGenMove lm of
             GenPromotionCapture {} -> (lm:pc, gc, bc)
@@ -73,7 +74,7 @@ orderQSMoves vBoard caps proms quietChecks =
         tagCheck ms = map (\m -> (m, Just True)) ms
 
         -- Order: PromoCaps > GoodCaps > Proms > QuietChecks > BadCaps
-    in tagUnknown (sortDesc promoCaps) ++ tagUnknown (sortDesc goodCaps) ++ tagUnknown (sortDesc proms) ++ tagCheck quietChecks ++ tagCheck (sortDesc badCaps)
+    in tagUnknown (sortDesc promoCaps) ++ tagUnknown (sortDesc goodCaps) ++ tagUnknown (sortDesc (U.toList proms)) ++ tagCheck quietChecks ++ tagCheck (sortDesc badCaps)
 
 scoreMove :: GenMove -> Int
 scoreMove (GenCapture _ _ pt capPt) = 1000 + (pieceValue capPt * 10) - (pieceValue pt)
@@ -90,8 +91,8 @@ pieceValue Rook = 5
 pieceValue Queen = 9
 pieceValue King = 100
 
-partitionSEE :: ValidatedBoard s -> [LegalMove] -> ([LegalMove], [LegalMove])
-partitionSEE vb moves = partition isGood moves
+partitionSEE :: ValidatedBoard s -> U.Vector LegalMove -> ([LegalMove], [LegalMove])
+partitionSEE vb moves = partition isGood (U.toList moves)
   where
     (Board b gs _) = getBoard vb
     turn = GS.turn gs

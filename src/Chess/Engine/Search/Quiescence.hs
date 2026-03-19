@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 module Chess.Engine.Search.Quiescence where
+import qualified Data.Vector.Unboxed as U
 
 import Data.IORef (IORef, modifyIORef')
 import Chess.Types (Depth(..), unDepth, decDepth, depthZero, CheckStatus(..))
@@ -35,7 +36,7 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
     then do
         -- If in check, we must search all evasions (legal moves)
         let evasions = legalMovesValidated vBoard
-        if null evasions
+        if U.null evasions
         then return (-mateValue)
         else do
             let sortedMoves = orderGenMoves vBoard evasions Nothing
@@ -81,12 +82,12 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
             quietChecks <- if unDepth depth > -1
                            then do
                                let quiets = legalQuietsValidated vBoard
-                               return $ filter givesCheckLocal quiets
+                               return $ U.toList $ U.filter givesCheckLocal quiets
                            else return []
 
             -- Also search bad captures if they give check (tactical sacrifices)
             let checkingBadCaps = filter givesCheckLocal badCaps
-            let qsMoves = goodCaps ++ checkingBadCaps
+            let qsMoves = U.fromList (goodCaps ++ checkingBadCaps)
 
             let sortedMoves = orderQSMoves vBoard qsMoves proms quietChecks
 

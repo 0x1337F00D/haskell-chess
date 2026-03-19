@@ -353,38 +353,34 @@ castlingMovesList b gs = U.toList (castlingMoves b gs)
 
 -- | Generate legal moves assuming the king is not in check (Safe).
 -- This skips the expensive attackers check and uses isLegalSafe directly.
-{-# INLINE legalGenMovesSafeList #-}
-legalGenMovesSafeList :: Board -> GameState -> [GenMove]
-legalGenMovesSafeList b gs =
+{-# INLINE legalGenMovesSafeVector #-}
+legalGenMovesSafeVector :: Board -> GameState -> U.Vector GenMove
+legalGenMovesSafeVector b gs =
     let c = turn gs
         pinned = pinnedBits b c
         pseudo = pseudoLegalMoves b gs
-        step gm acc = if isLegalSafe b gs pinned gm then gm : acc else acc
-    in U.foldr step [] pseudo
+    in U.filter (isLegalSafe b gs pinned) pseudo
 
-{-# INLINE legalGenCapturesSafeList #-}
-legalGenCapturesSafeList :: Board -> GameState -> [GenMove]
-legalGenCapturesSafeList b gs =
+{-# INLINE legalGenCapturesSafeVector #-}
+legalGenCapturesSafeVector :: Board -> GameState -> U.Vector GenMove
+legalGenCapturesSafeVector b gs =
     let c = turn gs
         pinned = pinnedBits b c
         pseudo = pseudoLegalCaptures b gs
-        step gm acc = if isLegalSafe b gs pinned gm then gm : acc else acc
-    in U.foldr step [] pseudo
+    in U.filter (isLegalSafe b gs pinned) pseudo
 
-{-# INLINE legalGenQuietsSafeList #-}
-legalGenQuietsSafeList :: Board -> GameState -> [GenMove]
-legalGenQuietsSafeList b gs =
+{-# INLINE legalGenQuietsSafeVector #-}
+legalGenQuietsSafeVector :: Board -> GameState -> U.Vector GenMove
+legalGenQuietsSafeVector b gs =
     let c = turn gs
         pinned = pinnedBits b c
         pseudo = pseudoLegalQuiets b gs
-        step gm acc = if isLegalSafe b gs pinned gm then gm : acc else acc
-    in U.foldr step [] pseudo
+    in U.filter (isLegalSafe b gs pinned) pseudo
 
-{-# INLINE legalGenPromotionsSafeList #-}
-legalGenPromotionsSafeList :: Board -> GameState -> [GenMove]
-legalGenPromotionsSafeList b gs =
+{-# INLINE legalGenPromotionsSafeVector #-}
+legalGenPromotionsSafeVector :: Board -> GameState -> U.Vector GenMove
+legalGenPromotionsSafeVector b gs =
     let c = turn gs
         pinned = pinnedBits b c
         pseudo = pseudoLegalPromotions b gs
-        step gm acc = if isLegalSafe b gs pinned gm then gm : acc else acc
-    in U.foldr step [] pseudo
+    in U.filter (isLegalSafe b gs pinned) pseudo
