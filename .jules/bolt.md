@@ -89,6 +89,14 @@
 **Learning:** `givesCheckSlider` checked for orthogonal/diagonal alignment by extracting and diffing the file/rank coordinates of two squares at runtime, creating multiple branches and arithmetic ops in a hot path.
 **Action:** Replaced dynamic coordinate math with O(1) bitwise lookup using precomputed alignment masks (`bbOrthogonalMasks`, `bbDiagonalMasks`) indexed by square.
 **Impact:** `bench-core` start NPS improved from 2.87M to 2.98M (+3.8%), and KiwiPete NPS improved from 46.9M to 48.4M (+3%).
+
+## 2026-03-17 - Context-Aware Legality (isLegalSafe)
+**Learning:** Calling `isAttackedBy` (an O(N) evaluation) for every generated pseudo-legal move to verify legality wastes tremendous time in Safe (non-check) positions. We can skip checking squares that aren't on pin rays.
+**Action:** Implemented `legalGenMovesSafe` returning an unboxed vector which utilizes the `isLegalSafe` function with a pre-calculated `pinned` bitboard. Refactored `fastPerft` in `Standard.hs` to propagate check status using `givesCheck` and conditionally invoke `legalGenMovesSafeVector` instead of the full evaluator.
+**Metrics:** `bench-core` KiwiPete Depth 4:
+Before: ~715,539 NPS (1.6s)
+After:  ~46,303,975 NPS (0.088s)
+*A 64x improvement on standard perft.*
 ## 2026-03-10 - [O(1) Alignment Check in King Safety]
 **Learning:** `pinnedBits` and `discoveryCandidates` used dynamic file/rank coordinate comparison `squareFile a == squareFile b || squareRank a == squareRank b` which compiles to multiple branches and arithmetic ops in a hot path.
 **Action:** Replaced dynamic coordinate math with O(1) `isOrthogonallyAligned` (bitwise lookup via precomputed alignment masks) indexed by square.
