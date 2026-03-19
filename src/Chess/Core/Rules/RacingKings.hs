@@ -70,17 +70,19 @@ instance ChessVariant 'RacingKings where
            wInGoal = case wKingSq of Just sq -> T.squareRank sq == 7; _ -> False
            bInGoal = case bKingSq of Just sq -> T.squareRank sq == 7; _ -> False
 
+           -- Use the standard classification for fallback
+           replies = if realHasMoves then HasReplies else NoReplies
+
            result =
                 if c == White
                 then if wInGoal
                      then if realHasMoves
                           then Continue nextAgSafe
                           else Checkmate (Winner White)
-                     else
-                          if realHasMoves then Continue nextAgSafe else Stalemate
+                     else statusToMoveResult @'RacingKings @c nextAg (SafePos replies)
                 else
                      if bInGoal && wInGoal then Checkmate Draw else
                      if wInGoal then Checkmate (Winner White) else
                      if bInGoal then Checkmate (Winner Black) else
-                     if realHasMoves then Continue nextAgSafe else Stalemate
+                     statusToMoveResult @'RacingKings @c nextAg (SafePos replies)
         in result
