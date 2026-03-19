@@ -97,13 +97,5 @@ instance ChessVariant 'ThreeCheck where
             then Checkmate (Winner c)
             else
                let checked = case checkStatus nextAg of SChecked -> True; _ -> False
-                   hasMoves = if checked
-                      then not (null (generateMoves (setStatus SChecked nextAg)))
-                      else not (null (generateMoves (setStatus SSafe nextAg)))
-               in if checked
-                  then if hasMoves
-                       then Continue (setStatus SChecked nextAg)
-                       else Checkmate (Winner (colorVal @c))
-                  else if hasMoves
-                       then Continue (setStatus SSafe nextAg)
-                       else Stalemate
+                   status = classifyPosition @'ThreeCheck @c nextAg checked
+               in statusToMoveResult @'ThreeCheck @c nextAg status

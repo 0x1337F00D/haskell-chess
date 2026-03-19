@@ -181,13 +181,5 @@ instance ChessVariant 'Atomic where
             then Checkmate (Winner (colorVal @c))
             else
                 let checked = Val.isCheck baseBoard (toGameState nextAg)
-                    hasMoves = if checked
-                        then not (null (generateMoves (setStatus SChecked nextAg)))
-                        else not (null (generateMoves (setStatus SSafe nextAg)))
-                in if checked
-                   then if hasMoves
-                        then Continue (setStatus SChecked nextAg)
-                        else Checkmate (Winner (colorVal @c))
-                   else if hasMoves
-                        then Continue (setStatus SSafe nextAg)
-                        else Stalemate
+                    status = classifyPosition @'Atomic @c nextAg checked
+                in statusToMoveResult @'Atomic @c nextAg status

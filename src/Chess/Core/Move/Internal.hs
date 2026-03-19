@@ -231,6 +231,13 @@ data GameTransition (v :: Variant) (c :: Color) where
 
 -- The Next State result wrapper
 -- Indexed by the color of the *next* turn (the side that just received the move).
+
+data Replies = HasReplies | NoReplies
+  deriving (Eq, Show)
+
+data PositionStatus = SafePos !Replies | CheckedPos !Replies
+  deriving (Eq, Show)
+
 data MoveResult (v :: Variant) (c :: Color) where
   -- Checkmate: The side 'c' is in checkmate. The game is won by 'Opposite c'.
   -- "Checkmate :: Winner c -> MoveResult c" in text might mean "Winner is defined relative to c"?
