@@ -355,6 +355,26 @@ genericPerftExecuteMove m ag =
   case applyMove m ag of
     Transition nextAg -> Continue (setStatus SUnchecked nextAg)
 
+-- | Classify post-move position status uniformly.
+classifyPosition :: forall v c s'. (KnownColor c, KnownColor (Opposite c), ChessVariant v)
+                 => ActiveGame v (Opposite c) s' -> Bool -> PositionStatus
+classifyPosition nextAg checked =
+    let hasMoves = if checked
+                   then not (null (generateMoves (setStatus SChecked nextAg)))
+                   else not (null (generateMoves (setStatus SSafe nextAg)))
+        replies = if hasMoves then HasReplies else NoReplies
+    in if checked then CheckedPos replies else SafePos replies
+
+-- | Convert a PositionStatus into a standard MoveResult.
+-- c represents the color of the player who made the move, so Opposite c is the next player.
+statusToMoveResult :: forall v c s'. (KnownColor c, KnownColor (Opposite c), ChessVariant v)
+                   => ActiveGame v (Opposite c) s' -> PositionStatus -> MoveResult v (Opposite c)
+statusToMoveResult nextAg status = case status of
+    CheckedPos HasReplies -> Continue (setStatus SChecked nextAg)
+    CheckedPos NoReplies  -> Checkmate (Winner (colorVal @c))
+    SafePos HasReplies    -> Continue (setStatus SSafe nextAg)
+    SafePos NoReplies     -> Stalemate
+
 genericExecuteMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
 genericExecuteMove m@(Move gm) ag =
   case applyMove m ag of
@@ -362,17 +382,13 @@ genericExecuteMove m@(Move gm) ag =
       let
          checked = MG.givesCheck (internalBoard ag) (toGameState ag) gm
 
-         -- Use fast validation to check if there are any legal moves,
-         -- bypassing the list allocation of full generateMoves
+         -- Use fast validation for standard chess
+         -- Variants using genericExecuteMove might override generateMoves but not necessarily Val.hasLegalMoves.
+         -- For generic parity with previous genericExecuteMove:
          hasMoves = Val.hasLegalMoves (internalBoard nextAg) (toGameState nextAg)
-
-      in if checked
-         then if hasMoves
-              then Continue (setStatus SChecked nextAg)
-              else Checkmate (Winner (colorVal @c))
-         else if hasMoves
-              then Continue (setStatus SSafe nextAg)
-              else Stalemate
+         replies = if hasMoves then HasReplies else NoReplies
+         status = if checked then CheckedPos replies else SafePos replies
+      in statusToMoveResult @v @c nextAg status
 
 getAdjacentSquares :: Square -> [Square]
 getAdjacentSquares (Square f r) =

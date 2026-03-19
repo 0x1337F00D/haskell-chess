@@ -97,3 +97,7 @@
 Before: ~715,539 NPS (1.6s)
 After:  ~46,303,975 NPS (0.088s)
 *A 64x improvement on standard perft.*
+## 2026-03-10 - [O(1) Alignment Check in King Safety]
+**Learning:** `pinnedBits` and `discoveryCandidates` used dynamic file/rank coordinate comparison `squareFile a == squareFile b || squareRank a == squareRank b` which compiles to multiple branches and arithmetic ops in a hot path.
+**Action:** Replaced dynamic coordinate math with O(1) `isOrthogonallyAligned` (bitwise lookup via precomputed alignment masks) indexed by square.
+**Impact:** NPS on Atomic Start improved from 23.0M to 23.1M.

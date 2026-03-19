@@ -227,11 +227,10 @@ instance ChessVariant 'Horde where
 
         in if blackWins
            then Checkmate (Winner Black)
-           else case (blackInCheck, hasMovesHorde) of
-             (True, False) -> Checkmate (Winner White) -- Black Checkmated
-             (False, False) -> Stalemate
-             (True, True) -> Continue (setStatus SChecked nextAg)
-             (False, True) -> Continue (setStatus SSafe nextAg)
+           else
+             let replies = if hasMovesHorde then HasReplies else NoReplies
+                 status = if blackInCheck then CheckedPos replies else SafePos replies
+             in statusToMoveResult @'Horde @c nextAg status
 
 getRank :: Square -> Rank
 getRank (Square _ r) = r
