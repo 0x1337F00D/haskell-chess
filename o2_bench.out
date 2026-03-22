@@ -1,0 +1,7 @@
+Build profile: -w ghc-9.4.7 -O1
+In order, the following will be built (use -v for more details):
+ - haskell-chess-0.1.0.0 (lib) (first run)
+ - haskell-chess-0.1.0.0 (exe:bench-core) (configuration changed)
+Preprocessing library for haskell-chess-0.1.0.0..
+Building library for haskell-chess-0.1.0.0..
+[29 of 65] Compiling Chess.Board.MoveGen.Core ( src/Chess/Board/MoveGen/Core.hs, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Board/MoveGen/Core.o, /app/dist-newstyle/build/x86_64-linux/ghc-9.4.7/haskell-chess-0.1.0.0/build/Chess/Board/MoveGen/Core.dyn_o ) [Optimisation flags changed]
