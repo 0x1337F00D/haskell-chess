@@ -22,29 +22,29 @@ spec = do
 
     it "should value material" $ do
       -- White has extra pawn
-      Just board <- pure $ parseFen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-      evaluateSome (trustBoard board) `shouldBe` 0
+      Just b1 <- pure $ parseFen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+      evaluateSome (trustBoard b1) `shouldBe` 0
 
       -- Position with material imbalance
-      Just board <- pure $ parseFen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBN1 w KQkq - 0 1" -- White missing Rook at H1
+      Just b2 <- pure $ parseFen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBN1 w KQkq - 0 1" -- White missing Rook at H1
       -- White to move. Missing rook -> Score should be very negative.
-      evaluateSome (trustBoard board) `shouldSatisfy` (< (-300))
+      evaluateSome (trustBoard b2) `shouldSatisfy` (< (-300))
 
     it "should recognize space/center control (somewhat)" $ do
-       Just board <- pure $ parseFen "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+       Just b3 <- pure $ parseFen "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
        -- Both sides e4/e5. Equal.
-       evaluateSome (trustBoard board) `shouldBe` 0
+       evaluateSome (trustBoard b3) `shouldBe` 0
 
-       Just board <- pure $ parseFen "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1"
+       Just b4 <- pure $ parseFen "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1"
        -- White has center pawn, Black doesn't. Material equal.
-       evaluateSome (trustBoard board) `shouldSatisfy` (> 0) -- Slight advantage for space/tempo?
+       evaluateSome (trustBoard b4) `shouldSatisfy` (> 0) -- Slight advantage for space/tempo?
 
     it "should penalize king safety" $ do
-       Just board <- pure $ parseFen "rnbqkbnr/pppppppp/8/8/8/8/PPP1PPPP/RNBQKBNR w KQkq - 0 1" -- Normal
-       evaluateSome (trustBoard board) `shouldSatisfy` (> (-50)) -- Roughly equal
+       Just b5 <- pure $ parseFen "rnbqkbnr/pppppppp/8/8/8/8/PPP1PPPP/RNBQKBNR w KQkq - 0 1" -- Normal
+       evaluateSome (trustBoard b5) `shouldSatisfy` (> (-50)) -- Roughly equal
 
-       Just board <- pure $ parseFen "rnbqkbnr/pppppppp/8/8/8/8/8/RNBQKBNR w KQkq - 0 1" -- White missing all pawns!
-       evaluateSome (trustBoard board) `shouldSatisfy` (< (-500))
+       Just b6 <- pure $ parseFen "rnbqkbnr/pppppppp/8/8/8/8/8/RNBQKBNR w KQkq - 0 1" -- White missing all pawns!
+       evaluateSome (trustBoard b6) `shouldSatisfy` (< (-500))
 
   describe "Search" $ do
     it "finds mate in 1 (Fool's Mate)" $ do

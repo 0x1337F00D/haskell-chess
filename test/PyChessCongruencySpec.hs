@@ -8,6 +8,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeOperators #-}
 
 module PyChessCongruencySpec (spec) where
 
@@ -82,7 +83,6 @@ withOpposite f = case sColor @c of
 runPerft :: Depth -> SomeGame -> Int
 runPerft d (SomeGame (InProgressGame (ag :: ActiveGame v c s))) =
   withOpposite @c $ perftVariant @v (unDepth d) ag
-runPerft _ _ = 0
 
 -- Helper to get legal moves
 getLegalMoves :: SomeGame -> [String]
@@ -90,7 +90,6 @@ getLegalMoves (SomeGame (InProgressGame (ag :: ActiveGame v c s))) =
   -- generateMoves does NOT require KnownColor (Opposite c) directly, but Move c requires KnownColor c
   -- generateMoves signature: KnownColor c => ActiveGame v c s -> [Move c]
   map (BSC.unpack . toUCI) (generateMoves ag)
-getLegalMoves _ = []
 
 spec :: Spec
 spec = do

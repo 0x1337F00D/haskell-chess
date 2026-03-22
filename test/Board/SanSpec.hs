@@ -34,7 +34,6 @@ spec = do
        San.san b gs m `shouldBe` "Qh4#"
 
     it "generates castling O-O" $ do
-       let fenStr = "rnbqk2r/pppp1ppp/5n2/2b1p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 4 4" -- Ruy Lopez
        -- Actually simple start position with pieces removed
        let fenStr2 = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"
        Just (b, gs) <- pure $ Fen.parseFen fenStr2
@@ -57,23 +56,20 @@ spec = do
 
     it "generates disambiguation (file)" $ do
        -- Two knights can move to d2. Nbd2 vs Nfd2.
-       -- White Knights at B1, F1. Target D2.
-       let fenStr = "rnbqkbnr/pppppppp/8/8/8/8/PPPNNPPP/R1BQKB1R w KQkq - 0 1" -- Wrong fen, knights on d2? No.
        -- Let's place Knights on B1 and F1. (Standard)
        -- Target D2 (Standard empty).
        -- Both can jump to D2.
        -- Move B1-D2 -> Nbd2.
        Just (b, gs) <- pure $ Fen.parseFen startingFEN
-       let m = Move B1 C3 Nothing -- Standard opening Nc3. Only one knight can reach C3? No, nothing else.
-       San.san b gs m `shouldBe` "Nc3"
+       let m1 = Move B1 C3 Nothing -- Standard opening Nc3. Only one knight can reach C3? No, nothing else.
+       San.san b gs m1 `shouldBe` "Nc3"
 
        -- Setup ambiguity. Knights on B1 and D1. Target C3.
-       let fenStr2 = "rnbqkbnr/pppppppp/8/8/8/8/PPP1PPPP/RN1QKBNR w KQkq - 0 1" -- Knights B1, G1 standard.
        -- Let's manually place Knight on D1.
        let b1 = Board.putPiece Board.empty B1 (Piece White Knight)
        let b2 = Board.putPiece b1 D1 (Piece White Knight)
-       let gs = GS.initialGameState
-       let m = Move B1 C3 Nothing
+       let gs2 = GS.initialGameState
+       let m2 = Move B1 C3 Nothing
        -- MoveGen for C3? Legal moves? Kings must be present for check?
        -- If no Kings, isLegal fails or crashes?
        -- isLegal checks kingSquare. If Nothing, returns False.
@@ -81,7 +77,7 @@ spec = do
        let b3 = Board.putPiece b2 E1 (Piece White King)
        let b4 = Board.putPiece b3 E8 (Piece Black King)
 
-       San.san b4 gs m `shouldBe` "Nbc3"
+       San.san b4 gs2 m2 `shouldBe` "Nbc3"
 
     it "parses san" $ do
        Just (b, gs) <- pure $ Fen.parseFen startingFEN

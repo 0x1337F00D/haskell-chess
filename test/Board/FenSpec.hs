@@ -27,7 +27,7 @@ spec = do
     it "parses starting FEN correctly" $ do
       let mbRes = Fen.parseFen startingFEN
       mbRes `shouldNotBe` Nothing
-      let (Just (b, gs)) = mbRes
+      Just (b, gs) <- pure mbRes
       -- Check piece placement (sampling)
       Board.pieceAt b E1 `shouldBe` Just (Piece White King)
       Board.pieceAt b E8 `shouldBe` Just (Piece Black King)
@@ -41,7 +41,7 @@ spec = do
 
     it "roundtrips starting FEN" $ do
       let mbRes = Fen.parseFen startingFEN
-      let (Just (b, gs)) = mbRes
+      Just (b, gs) <- pure mbRes
       Fen.fen b gs `shouldBe` startingFEN
 
     it "parses FEN with en passant and move counts" $ do
@@ -53,12 +53,12 @@ spec = do
 
     it "handles empty castling" $ do
       let fenStr = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1"
-      let (Just (_, gs)) = Fen.parseFen fenStr
+      Just (_, gs) <- pure $ Fen.parseFen fenStr
       GS.castlingRights gs `shouldBe` GS.noCastling
 
     it "handles partial castling" $ do
       let fenStr = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w Kq - 0 1"
-      let (Just (_, gs)) = Fen.parseFen fenStr
+      Just (_, gs) <- pure $ Fen.parseFen fenStr
       GS.canCastleStandardKingside gs White `shouldBe` True
       GS.canCastleStandardQueenside gs White `shouldBe` False
       GS.canCastleStandardKingside gs Black `shouldBe` False
@@ -68,7 +68,7 @@ spec = do
       let fenStr = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w CFcf - 0 1"
       let parsed = Fen.parseFen fenStr
       parsed `shouldNotBe` Nothing
-      let (Just (b, gs)) = parsed
+      Just (b, gs) <- pure parsed
       Fen.fen b gs `shouldBe` fenStr
 
     it "roundtrips all FENs from perftsuite.epd" $ do
