@@ -715,8 +715,8 @@ isDiagonallyAligned (Square s1) (Square s2) =
 -- Index = s1 * 64 + s2
 bbLines :: U.Vector Bitboard
 bbLines = U.generate (64 * 64) $ \i ->
-    let from = Square (i `div` 64)
-        to   = Square (i `mod` 64)
+    let from = Square (i `shiftR` 6)
+        to   = Square (i .&. 63)
     in lineInit from to
 
 -- | Helper to generate line
@@ -726,10 +726,10 @@ lineInit a@(Square ai) b@(Square bi)
   | abs df == abs dr || df == 0 || dr == 0 = go fileA rankA dfSign drSign 0 .|. go fileA rankA (-dfSign) (-drSign) 0
   | otherwise = 0
   where
-    fileA = ai `mod` 8
-    rankA = ai `div` 8
-    fileB = bi `mod` 8
-    rankB = bi `div` 8
+    fileA = ai .&. 7
+    rankA = ai `shiftR` 3
+    fileB = bi .&. 7
+    rankB = bi `shiftR` 3
     df = fileB - fileA
     dr = rankB - rankA
     dfSign = signum df
@@ -749,8 +749,8 @@ isCollinear (Square s1) (Square s2) (Square s3) =
 -- Index = from * 64 + to
 bbRaysBetween :: U.Vector Bitboard
 bbRaysBetween = U.generate (64 * 64) $ \i ->
-    let from = Square (i `div` 64)
-        to   = Square (i `mod` 64)
+    let from = Square (i `shiftR` 6)
+        to   = Square (i .&. 63)
     in rayInit from to
 
 -- | Helper to generate ray (logic from original ray function)
@@ -760,10 +760,10 @@ rayInit a@(Square ai) b@(Square bi)
   | abs df == abs dr || df == 0 || dr == 0 = go (fileA+dfSign) (rankA+drSign) 0
   | otherwise = 0
   where
-    fileA = ai `mod` 8
-    rankA = ai `div` 8
-    fileB = bi `mod` 8
-    rankB = bi `div` 8
+    fileA = ai .&. 7
+    rankA = ai `shiftR` 3
+    fileB = bi .&. 7
+    rankB = bi `shiftR` 3
     df = fileB - fileA
     dr = rankB - rankA
     dfSign = signum df
