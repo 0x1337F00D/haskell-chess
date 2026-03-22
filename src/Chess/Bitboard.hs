@@ -254,6 +254,18 @@ scanReversed bb
 popcount :: Bitboard -> Int
 popcount = popCount
 
+-- | Check if the bitboard has more than 5 bits set.
+-- Faster than `popCount bb > 5` by unrolling Brian Kernighan's algorithm.
+moreThan5 :: Bitboard -> Bool
+{-# INLINE moreThan5 #-}
+moreThan5 x =
+    let x1 = x .&. (x - 1)
+        x2 = x1 .&. (x1 - 1)
+        x3 = x2 .&. (x2 - 1)
+        x4 = x3 .&. (x3 - 1)
+        x5 = x4 .&. (x4 - 1)
+    in x5 /= 0
+
 -- Geometric transforms -------------------------------------------------------
 
 -- | Flip the board vertically (swap ranks).

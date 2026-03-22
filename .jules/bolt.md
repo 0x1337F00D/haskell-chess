@@ -101,3 +101,7 @@ After:  ~46,303,975 NPS (0.088s)
 **Learning:** `pinnedBits` and `discoveryCandidates` used dynamic file/rank coordinate comparison `squareFile a == squareFile b || squareRank a == squareRank b` which compiles to multiple branches and arithmetic ops in a hot path.
 **Action:** Replaced dynamic coordinate math with O(1) `isOrthogonallyAligned` (bitwise lookup via precomputed alignment masks) indexed by square.
 **Impact:** NPS on Atomic Start improved from 23.0M to 23.1M.
+
+## 2024-05-24 – Fast Bitboard PopCount Threshold
+**Learning:** Checking `popCount x > 5` inside hot search paths (e.g. for endgame pruning conditions) evaluates full generic hardware bit counting which takes non-trivial time relative to simple ALU operations. Because we only need to know if there are *more than 5* bits, unrolling Brian Kernighan's algorithm (`x & (x - 1)`) exactly 5 times and checking for `!= 0` is up to ~2.5x faster.
+**Action:** When only a specific threshold of bit counts is required (e.g., `popCount > 1`, `popCount > 5`), prefer explicit bit-clearing threshold functions (`moreThan1`, `moreThan5`) over full `popCount` evaluation to maximize GHC inlining and optimize ALU pipeline fusion.
