@@ -101,3 +101,8 @@ After:  ~46,303,975 NPS (0.088s)
 **Learning:** `pinnedBits` and `discoveryCandidates` used dynamic file/rank coordinate comparison `squareFile a == squareFile b || squareRank a == squareRank b` which compiles to multiple branches and arithmetic ops in a hot path.
 **Action:** Replaced dynamic coordinate math with O(1) `isOrthogonallyAligned` (bitwise lookup via precomputed alignment masks) indexed by square.
 **Impact:** NPS on Atomic Start improved from 23.0M to 23.1M.
+
+## 2026-03-20 - [O(1) Collinear Check for Pinned Pieces]
+**Learning:** Evaluating `isLegalSafe` (which tests if a pseudo-legal move is actually legal when the king isn't in check) involved calling `areCollinear` for pinned pieces. `areCollinear` relied on dynamic file/rank coordinate extractions and multiplications (`(f1 - f2) * (r2 - r3) == (f2 - f3) * (r1 - r2)`), compiling to multiple arithmetic branches in an inner loop.
+**Action:** Replaced the coordinate math with an O(1) bitwise lookup `isCollinear` indexed by square pair into a precomputed `bbLines` unboxed vector (size 64*64, containing infinite lines). This avoids the coordinate abstraction overhead completely.
+**Impact:** `bench-core` Start position NPS improved from ~2.98M to ~3.03M.

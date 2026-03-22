@@ -711,6 +711,40 @@ isDiagonallyAligned :: Square -> Square -> Bool
 isDiagonallyAligned (Square s1) (Square s2) =
     testBit (bbDiagonalMasks `U.unsafeIndex` s1) s2
 
+-- | Precomputed lines passing through two squares.
+-- Index = s1 * 64 + s2
+bbLines :: U.Vector Bitboard
+bbLines = U.generate (64 * 64) $ \i ->
+    let from = Square (i `div` 64)
+        to   = Square (i `mod` 64)
+    in lineInit from to
+
+-- | Helper to generate line
+lineInit :: Square -> Square -> Bitboard
+lineInit a@(Square ai) b@(Square bi)
+  | a == b = 0
+  | abs df == abs dr || df == 0 || dr == 0 = go fileA rankA dfSign drSign 0 .|. go fileA rankA (-dfSign) (-drSign) 0
+  | otherwise = 0
+  where
+    fileA = ai `mod` 8
+    rankA = ai `div` 8
+    fileB = bi `mod` 8
+    rankB = bi `div` 8
+    df = fileB - fileA
+    dr = rankB - rankA
+    dfSign = signum df
+    drSign = signum dr
+
+    go f r df' dr' acc
+      | f < 0 || f > 7 || r < 0 || r > 7 = acc
+      | otherwise = go (f+df') (r+dr') df' dr' (acc .|. bbFromSquare (Square (r*8 + f)))
+
+-- | Check if three squares are collinear. Returns false if any two squares are equal.
+isCollinear :: Square -> Square -> Square -> Bool
+{-# INLINE isCollinear #-}
+isCollinear (Square s1) (Square s2) (Square s3) =
+    testBit (bbLines `U.unsafeIndex` (s1 * 64 + s2)) s3
+
 -- | Precomputed rays between all pairs of squares.
 -- Index = from * 64 + to
 bbRaysBetween :: U.Vector Bitboard
