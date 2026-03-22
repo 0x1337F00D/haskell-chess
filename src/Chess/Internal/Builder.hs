@@ -4,13 +4,15 @@
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 module Chess.Internal.Builder
-  ( Builder
+  ( MonadEmit(..)
+  , Builder
   , runBuilder
   , runBuilder256
-  , emit
-  , emitWhen
+  , CountBuilder(..)
+  , runCountBuilder
   ) where
 
 import qualified Data.Vector.Unboxed as U
@@ -73,16 +75,73 @@ runBuilder cap b = U.create $ do
 runBuilder256 :: U.Unbox e => (forall s. Builder s e ()) -> U.Vector e
 runBuilder256 = runBuilder 256
 
-{-# INLINE emit #-}
-emit :: U.Unbox e => e -> Builder s e ()
-emit !x =
-  Builder $ \mv i s0 ->
-    case M.unsafeWrite mv (I# i) x of
-      ST writeST ->
-        case writeST s0 of
-          (# s1, () #) -> (# s1, i +# 1#, () #)
+class Monad m => MonadEmit e m | m -> e where
+  emit :: e -> m ()
+  emitWhen :: Bool -> m () -> m ()
 
-{-# INLINE emitWhen #-}
-emitWhen :: Bool -> Builder s e () -> Builder s e ()
-emitWhen False _ = mempty
-emitWhen True  b = b
+instance U.Unbox e => MonadEmit e (Builder s e) where
+  {-# INLINE emit #-}
+  emit !x =
+    Builder $ \mv i s0 ->
+      case M.unsafeWrite mv (I# i) x of
+        ST writeST ->
+          case writeST s0 of
+            (# s1, () #) -> (# s1, i +# 1#, () #)
+
+  {-# INLINE emitWhen #-}
+  emitWhen False _ = mempty
+  emitWhen True  b = b
+
+newtype CountBuilder e a =
+  CountBuilder { unCountBuilder :: (e -> Bool) -> Int# -> (# Int#, a #) }
+
+instance Functor (CountBuilder e) where
+  {-# INLINE fmap #-}
+  fmap f (CountBuilder k) =
+    CountBuilder $ \p i ->
+      case k p i of
+        (# i1, a #) -> (# i1, f a #)
+
+instance Applicative (CountBuilder e) where
+  {-# INLINE pure #-}
+  pure a = CountBuilder $ \_ i -> (# i, a #)
+
+  {-# INLINE (<*>) #-}
+  CountBuilder kf <*> CountBuilder ka =
+    CountBuilder $ \p i0 ->
+      case kf p i0 of
+        (# i1, f #) ->
+          case ka p i1 of
+            (# i2, a #) -> (# i2, f a #)
+
+instance Monad (CountBuilder e) where
+  {-# INLINE (>>=) #-}
+  CountBuilder km >>= f =
+    CountBuilder $ \p i0 ->
+      case km p i0 of
+        (# i1, a #) ->
+          case f a of
+            CountBuilder k2 -> k2 p i1
+
+instance Semigroup (CountBuilder e ()) where
+  {-# INLINE (<>) #-}
+  a <> b = a >> b
+
+instance Monoid (CountBuilder e ()) where
+  {-# INLINE mempty #-}
+  mempty = pure ()
+
+instance MonadEmit e (CountBuilder e) where
+  {-# INLINE emit #-}
+  emit !x = CountBuilder $ \p i ->
+    if p x then (# i +# 1#, () #) else (# i, () #)
+
+  {-# INLINE emitWhen #-}
+  emitWhen False _ = mempty
+  emitWhen True  b = b
+
+{-# INLINE runCountBuilder #-}
+runCountBuilder :: (e -> Bool) -> CountBuilder e () -> Int
+runCountBuilder p b =
+  case unCountBuilder b p 0# of
+    (# n#, () #) -> I# n#

@@ -18,6 +18,8 @@ module Chess.Board
   , legalGenMoves
   , legalGenMovesVector
   , legalGenMovesSafeVector
+  , countLegalGenMoves
+  , countLegalGenMovesSafe
   , pseudoLegalMoves
   , pseudoLegalGenMoves
   , captureMoves
@@ -288,6 +290,14 @@ legalGenMovesVector (Board b gs _) = MoveGen.legalGenMoves b gs
 -- | Generate all legal moves as an unboxed vector assuming the king is not in check.
 legalGenMovesSafeVector :: Board -> U.Vector MoveGen.GenMove
 legalGenMovesSafeVector (Board b gs _) = MoveGen.legalGenMovesSafe b gs
+
+-- | Count all legal moves without allocating an array.
+countLegalGenMoves :: Board -> Int
+countLegalGenMoves (Board b gs _) = MoveGen.countLegalGenMoves b gs
+
+-- | Count all legal moves assuming the king is not in check without allocating an array.
+countLegalGenMovesSafe :: Board -> Int
+countLegalGenMovesSafe (Board b gs _) = MoveGen.countLegalGenMovesSafe b gs
 
 -- | Generate all pseudo-legal moves.
 pseudoLegalMoves :: Board -> U.Vector Move

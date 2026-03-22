@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE BangPatterns #-}
@@ -20,7 +21,7 @@ pieceMoves :: Board -> GameState -> PieceType -> U.Vector GenMove
 pieceMoves b gs pt = runBuilder256 $ fillPieceMoves b gs pt
 
 {-# INLINE fillPieceMoves #-}
-fillPieceMoves :: Board -> GameState -> PieceType -> Builder s GenMove ()
+fillPieceMoves :: MonadEmit GenMove m => Board -> GameState -> PieceType -> m ()
 fillPieceMoves b gs pt = do
     let c       = turn gs
         bb      = pieceBitboard b c pt
@@ -51,7 +52,7 @@ pieceCaptures :: Board -> GameState -> PieceType -> U.Vector GenMove
 pieceCaptures b gs pt = runBuilder256 $ fillPieceCaptures b gs pt
 
 {-# INLINE fillPieceCaptures #-}
-fillPieceCaptures :: Board -> GameState -> PieceType -> Builder s GenMove ()
+fillPieceCaptures :: MonadEmit GenMove m => Board -> GameState -> PieceType -> m ()
 fillPieceCaptures b gs pt = do
     let c       = turn gs
         bb      = pieceBitboard b c pt
@@ -100,7 +101,7 @@ fillPieceQuiets b gs pt = do
         _      -> pure ()
 
 {-# INLINE fillKingEvasions #-}
-fillKingEvasions :: Board -> GameState -> Bitboard -> Builder s GenMove ()
+fillKingEvasions :: MonadEmit GenMove m => Board -> GameState -> Bitboard -> m ()
 fillKingEvasions b gs targetMask = do
     let c       = turn gs
         bb      = pieceBitboard b c King
@@ -122,7 +123,7 @@ fillKingEvasions b gs targetMask = do
                     when (isLegal b gs gm) $ emit gm
 
 {-# INLINE fillPieceEvasions #-}
-fillPieceEvasions :: Board -> GameState -> PieceType -> Bitboard -> Builder s GenMove ()
+fillPieceEvasions :: MonadEmit GenMove m => Board -> GameState -> PieceType -> Bitboard -> m ()
 fillPieceEvasions b gs pt targetMask = do
     let c       = turn gs
         bb      = pieceBitboard b c pt
