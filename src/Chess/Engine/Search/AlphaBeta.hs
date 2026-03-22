@@ -9,7 +9,7 @@ module Chess.Engine.Search.AlphaBeta where
 
 import Data.Maybe (fromMaybe, isJust)
 import Data.List (foldl')
-import Data.Bits (popCount, (.&.))
+import Data.Bits ((.&.))
 import Data.IORef (IORef, newIORef, readIORef, modifyIORef', writeIORef)
 import Control.Concurrent (forkIO, newMVar, modifyMVar, newEmptyMVar, putMVar, takeMVar, getNumCapabilities)
 import qualified Data.Vector.Unboxed.Mutable as UM
