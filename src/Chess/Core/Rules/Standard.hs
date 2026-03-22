@@ -23,7 +23,7 @@ import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 import qualified Chess.Board.Fen as Fen
 import qualified Chess.Board as FastBoard
-import Chess.Board (legalGenMovesVector, legalGenMovesSafeVector, applyGenMoveFast) -- Import fast board ops
+import Chess.Board (legalGenMovesVector, legalGenMovesSafeVector, countLegalGenMoves, countLegalGenMovesSafe, applyGenMoveFast) -- Import fast board ops
 import Control.Parallel.Strategies (parMap, rseq)
 import qualified Data.Vector.Unboxed as U
 
@@ -100,8 +100,7 @@ instance ChessVariant 'Standard where
 fastPerft :: Int -> Bool -> FastBoard.Board -> Int
 fastPerft 0 _ _ = 1
 fastPerft 1 isCh b =
-    let moves = if isCh then legalGenMovesVector b else legalGenMovesSafeVector b
-    in U.length moves
+    if isCh then countLegalGenMoves b else countLegalGenMovesSafe b
 fastPerft d isCh b =
     let moves = if isCh then legalGenMovesVector b else legalGenMovesSafeVector b
         evalMove m =

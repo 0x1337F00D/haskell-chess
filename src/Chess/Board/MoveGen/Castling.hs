@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE BangPatterns #-}
@@ -18,7 +19,7 @@ castlingMoves :: Board -> GameState -> U.Vector GenMove
 castlingMoves b gs = runBuilder256 $ fillCastlingMoves b gs
 
 {-# INLINE fillCastlingMoves #-}
-fillCastlingMoves :: Board -> GameState -> Builder s GenMove ()
+fillCastlingMoves :: MonadEmit GenMove m => Board -> GameState -> m ()
 fillCastlingMoves b gs = do
     let c = turn gs
         rank = if c == White then 0 else 7

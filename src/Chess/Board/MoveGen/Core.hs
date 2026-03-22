@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE BangPatterns #-}
@@ -398,3 +399,64 @@ legalGenMovesSafe b gs =
         pinned = pinnedBits b c
         pseudo = pseudoLegalMoves b gs
     in U.filter (isLegalSafe b gs pinned) pseudo
+
+-- | Count all legal moves avoiding array allocations.
+countLegalGenMoves :: Board -> GameState -> Int
+countLegalGenMoves b gs =
+    let c = turn gs
+        occ = occupiedTotal b
+        attackers = if not (hasKing b c) then 0 else
+            let k = kingSquareFast b c
+            in attackersTo b k occ .&. occupiedBy b (oppositeColor c)
+    in if attackers /= 0
+       then runCountBuilder (\_ -> True) $ do
+              let kingSq = if hasKing b c then kingSquareFast b c else Square 0
+              unless (attackers == 0) $ do
+                  fillKingEvasions b gs (complement 0)
+                  let isSingleCheck = (attackers .&. (attackers - 1)) == 0
+                  when isSingleCheck $ do
+                       let attackerSq = Square (fromMaybe 0 (lsb attackers))
+                           r = ray kingSq attackerSq
+                           targetMask = r .|. bbFromSquare attackerSq
+                           ep = epSquare gs
+                           realTargetMask = case ep of
+                                  NoSquare -> targetMask
+                                  Square e ->
+                                       let captureSq = if c == White then Square (e - 8) else Square (e + 8)
+                                       in if captureSq == attackerSq
+                                          then targetMask `setBit` e
+                                          else targetMask
+                       fillPieceEvasions b gs Knight realTargetMask
+                       fillPieceEvasions b gs Bishop realTargetMask
+                       fillPieceEvasions b gs Rook realTargetMask
+                       fillPieceEvasions b gs Queen realTargetMask
+                       fillPawnEvasions b gs realTargetMask
+       else
+           let pinned = pinnedBits b c
+           in runCountBuilder (isLegalSafe b gs pinned) $ do
+                  fillPawnQuiets     b gs
+                  fillPawnCaptures   b gs
+                  fillPawnPromotions b gs
+                  fillPieceMoves     b gs Knight
+                  fillPieceMoves     b gs Bishop
+                  fillPieceMoves     b gs Rook
+                  fillPieceMoves     b gs Queen
+                  fillPieceMoves     b gs King
+                  fillCastlingMoves  b gs
+
+-- | Count all legal moves assuming the king is not in check avoiding array allocations.
+{-# INLINE countLegalGenMovesSafe #-}
+countLegalGenMovesSafe :: Board -> GameState -> Int
+countLegalGenMovesSafe b gs =
+    let c = turn gs
+        pinned = pinnedBits b c
+    in runCountBuilder (isLegalSafe b gs pinned) $ do
+           fillPawnQuiets     b gs
+           fillPawnCaptures   b gs
+           fillPawnPromotions b gs
+           fillPieceMoves     b gs Knight
+           fillPieceMoves     b gs Bishop
+           fillPieceMoves     b gs Rook
+           fillPieceMoves     b gs Queen
+           fillPieceMoves     b gs King
+           fillCastlingMoves  b gs
