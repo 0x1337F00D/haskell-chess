@@ -155,6 +155,7 @@ instance ChessVariant 'FischerRandom where
     in Transition nextAg
 
   executeMove = genericExecuteMove
+  perftExecuteMove = genericPerftExecuteMove
 
 -- Helper to validate 960 castling
 isCastlingValid :: Base.Board -> T.Color -> T.Square -> T.Square -> Bool -> Bool

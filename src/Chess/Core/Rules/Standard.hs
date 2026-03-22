@@ -85,6 +85,7 @@ instance ChessVariant 'Standard where
 
   applyMove = genericApplyMove
   executeMove = genericExecuteMove
+  perftExecuteMove = genericPerftExecuteMove
 
   -- Optimization: Use fast MoveGen directly for perft
   perftVariant depth ag =

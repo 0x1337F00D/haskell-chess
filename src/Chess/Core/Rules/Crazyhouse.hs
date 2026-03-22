@@ -263,3 +263,4 @@ instance ChessVariant 'Crazyhouse where
     in Transition nextAg
 
   executeMove = genericExecuteMove
+  perftExecuteMove = genericPerftExecuteMove

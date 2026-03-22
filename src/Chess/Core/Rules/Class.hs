@@ -31,11 +31,7 @@ class ChessVariant (v :: Variant) where
   -- standard checkmate detection since perft naturally handles 0 legal moves.
   -- Must return Checkmate/Stalemate for variant-specific early terminations.
   perftExecuteMove :: (KnownColor c, KnownColor (Opposite c)) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
-  perftExecuteMove m ag =
-      case applyMove m ag of
-        Transition nextAg ->
-          -- Set the check status to Unchecked since perft will handle it next ply
-          Continue (nextAg { checkStatus = SUnchecked })
+  perftExecuteMove = executeMove
 
   -- | Perft (Performance Test) for this variant.
   -- Returns the number of leaf nodes at the given depth.

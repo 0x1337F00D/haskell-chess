@@ -107,3 +107,27 @@ instance ChessVariant 'Antichess where
            else if opponentStalemated
                 then Checkmate (Winner oppC)
                 else Continue (setStatus SSafe nextAg)
+
+  perftExecuteMove (m :: Move c) (ag :: ActiveGame 'Antichess c s) =
+    case applyMove m ag of
+      Transition nextAg ->
+        let
+            c = colorVal @c
+            oppC = colorVal @(Opposite c)
+            baseBoard = internalBoard nextAg
+
+            -- 1. I win if I have no pieces left
+            myPiecesBB = Base.occupiedBy baseBoard (toColor c)
+            iWin = popCount myPiecesBB == 0
+
+            -- 2. Opponent wins if they are stalemated (no legal moves)
+            oppPseudos = MG.pseudoLegalMovesList baseBoard (toGameState nextAg)
+            oppHasMoves = not (null oppPseudos)
+
+            opponentStalemated = not oppHasMoves
+
+        in if iWin
+           then Checkmate (Winner c)
+           else if opponentStalemated
+                then Checkmate (Winner oppC)
+                else Continue (nextAg { checkStatus = SUnchecked })
