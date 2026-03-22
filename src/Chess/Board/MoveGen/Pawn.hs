@@ -25,7 +25,6 @@ pawnMoves b gs = runBuilder256 $ do
 pawnQuiets :: Board -> GameState -> U.Vector GenMove
 pawnQuiets b gs = runBuilder256 $ fillPawnQuiets b gs
 
-{-# INLINE fillPawnQuiets #-}
 fillPawnQuiets :: Board -> GameState -> Builder s GenMove ()
 fillPawnQuiets b gs = do
     let c = turn gs
@@ -56,7 +55,6 @@ fillPawnQuiets b gs = do
 pawnPromotions :: Board -> GameState -> U.Vector GenMove
 pawnPromotions b gs = runBuilder256 $ fillPawnPromotions b gs
 
-{-# INLINE emitPromotions #-}
 emitPromotions :: Square -> Square -> Builder s GenMove ()
 emitPromotions f t = do
     emit (GenPromotion f t Queen)
@@ -64,7 +62,6 @@ emitPromotions f t = do
     emit (GenPromotion f t Bishop)
     emit (GenPromotion f t Knight)
 
-{-# INLINE emitPromoCaps #-}
 emitPromoCaps :: Square -> Square -> PieceType -> Builder s GenMove ()
 emitPromoCaps f t capPt = do
     emit (GenPromotionCapture f t Queen capPt)
@@ -72,7 +69,6 @@ emitPromoCaps f t capPt = do
     emit (GenPromotionCapture f t Bishop capPt)
     emit (GenPromotionCapture f t Knight capPt)
 
-{-# INLINE fillPawnPromotions #-}
 fillPawnPromotions :: Board -> GameState -> Builder s GenMove ()
 fillPawnPromotions b gs = do
     let c = turn gs
@@ -95,7 +91,6 @@ fillPawnPromotions b gs = do
 pawnCaptures :: Board -> GameState -> U.Vector GenMove
 pawnCaptures b gs = runBuilder256 $ fillPawnCaptures b gs
 
-{-# INLINE fillPawnCaptures #-}
 fillPawnCaptures :: Board -> GameState -> Builder s GenMove ()
 fillPawnCaptures b gs = do
     let c = turn gs
@@ -165,7 +160,6 @@ fillPawnCaptures b gs = do
                                 then emitPromoCaps from dest capPt
                                 else emit (GenCapture from dest Pawn capPt)
 
-{-# INLINE fillPawnEvasionPromotions #-}
 fillPawnEvasionPromotions :: Board -> GameState -> Bitboard -> Builder s GenMove ()
 fillPawnEvasionPromotions b gs targetMask = do
     let c = turn gs
@@ -212,7 +206,6 @@ fillPawnEvasionPromotions b gs targetMask = do
                 when (file /= 0) $ checkCapture (Square (i-9))
 
 
-{-# INLINE fillPawnEvasions #-}
 fillPawnEvasions :: Board -> GameState -> Bitboard -> Builder s GenMove ()
 fillPawnEvasions b gs targetMask = do
     let c = turn gs
