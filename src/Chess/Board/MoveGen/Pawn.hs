@@ -167,7 +167,7 @@ fillPawnCaptures b gs = do
                                 else emit (GenCapture from dest Pawn capPt)
 
 {-# INLINE fillPawnEvasionPromotions #-}
-fillPawnEvasionPromotions :: Board -> GameState -> Bitboard -> Builder s GenMove ()
+fillPawnEvasionPromotions :: MonadEmit GenMove m => Board -> GameState -> Bitboard -> m ()
 fillPawnEvasionPromotions b gs targetMask = do
     let c = turn gs
         pawns = pieceBitboard b c Pawn
