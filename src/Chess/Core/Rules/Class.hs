@@ -13,6 +13,7 @@ import Chess.Core.Game.Internal
 import Chess.Core.Move.Internal
 import Chess.Core.Board.Internal (Color(..), KnownColor(..), sColor, SColor(..))
 import Control.Parallel.Strategies (parMap, rseq)
+import Data.List (foldl')
 
 -- Type-level Opposite Color
 type family Opposite (c :: Color) :: Color where
@@ -30,7 +31,11 @@ class ChessVariant (v :: Variant) where
   -- standard checkmate detection since perft naturally handles 0 legal moves.
   -- Must return Checkmate/Stalemate for variant-specific early terminations.
   perftExecuteMove :: (KnownColor c, KnownColor (Opposite c)) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
-  perftExecuteMove = executeMove
+  perftExecuteMove m ag =
+      case applyMove m ag of
+        Transition nextAg ->
+          -- Set the check status to Unchecked since perft will handle it next ply
+          Continue (nextAg { checkStatus = SUnchecked })
 
   -- | Perft (Performance Test) for this variant.
   -- Returns the number of leaf nodes at the given depth.
@@ -46,7 +51,7 @@ perftWhite depth game
   | depth == 0 = 1
   | depth == 1 = length (generateMoves game)
   | depth >= 3 = sum $ parMap rseq go (generateMoves game)
-  | otherwise = sum $ map go (generateMoves game)
+  | otherwise = foldl' (\acc m -> acc + go m) 0 (generateMoves game)
   where
     go m = case perftExecuteMove m game of
              Continue nextGame -> perftBlack (depth - 1) nextGame
@@ -57,7 +62,7 @@ perftBlack depth game
   | depth == 0 = 1
   | depth == 1 = length (generateMoves game)
   | depth >= 3 = sum $ parMap rseq go (generateMoves game)
-  | otherwise = sum $ map go (generateMoves game)
+  | otherwise = foldl' (\acc m -> acc + go m) 0 (generateMoves game)
   where
     go m = case perftExecuteMove m game of
              Continue nextGame -> perftWhite (depth - 1) nextGame
