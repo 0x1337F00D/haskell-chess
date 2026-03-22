@@ -444,18 +444,16 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                                                 let captures = captureMovesValidated vBoard
                                                 let (goodCaps, badCaps) = partitionSEE vBoard captures
                                                 let sortedGood = Ordering.pickAndSort (filterTT goodCaps) sortingTT
-                                                let countGood = length sortedGood
 
-                                                (score1, flag1, bestM1, found1, alpha1, playedQuiets1) <- searchStage dcBitboard sortedGood (0 :: Int) inCheck staticEval alpha0 beta' depth flag0 score0 bestM0 found0 []
+                                                (score1, flag1, bestM1, found1, alpha1, playedQuiets1, nextIndex1) <- searchStage dcBitboard sortedGood (0 :: Int) inCheck staticEval alpha0 beta' depth flag0 score0 bestM0 found0 []
 
                                                 if score1 >= beta'
                                                 then storeAndReturn score1 bestM1 TTLower
                                                 else do
                                                     let promotions = filter (not . isCapture) (legalPromotionsValidated vBoard)
                                                     let sortedPromotions = Ordering.pickAndSort (filterTT promotions) sortingTT
-                                                    let countProms = length sortedPromotions
 
-                                                    (score2, flag2, bestM2, found2, alpha2, playedQuiets2) <- searchStage dcBitboard sortedPromotions countGood inCheck staticEval alpha1 beta' depth flag1 score1 bestM1 found1 playedQuiets1
+                                                    (score2, flag2, bestM2, found2, alpha2, playedQuiets2, nextIndex2) <- searchStage dcBitboard sortedPromotions nextIndex1 inCheck staticEval alpha1 beta' depth flag1 score1 bestM1 found1 playedQuiets1
 
                                                     if score2 >= beta'
                                                     then storeAndReturn score2 bestM2 TTLower
@@ -464,15 +462,14 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                                                         killers <- getKillers ctx depth
                                                         counterMove <- getCounterMove ctx lastMove
                                                         sortedQuiets <- orderQuiets ctx (filterTT quiets) killers counterMove sortingTT
-                                                        let countQuiets = length sortedQuiets
 
-                                                        (score3, flag3, bestM3, found3, alpha3, playedQuiets3) <- searchStage dcBitboard sortedQuiets (countGood + countProms) inCheck staticEval alpha2 beta' depth flag2 score2 bestM2 found2 playedQuiets2
+                                                        (score3, flag3, bestM3, found3, alpha3, playedQuiets3, nextIndex3) <- searchStage dcBitboard sortedQuiets nextIndex2 inCheck staticEval alpha2 beta' depth flag2 score2 bestM2 found2 playedQuiets2
 
                                                         if score3 >= beta'
                                                         then storeAndReturn score3 bestM3 flag3
                                                         else do
                                                             let sortedBad = Ordering.pickAndSort (filterTT badCaps) sortingTT
-                                                            (score4, flag4, bestM4, found4, _, _) <- searchStage dcBitboard sortedBad (countGood + countProms + countQuiets) inCheck staticEval alpha3 beta' depth flag3 score3 bestM3 found3 playedQuiets3
+                                                            (score4, flag4, bestM4, found4, _, _, _) <- searchStage dcBitboard sortedBad nextIndex3 inCheck staticEval alpha3 beta' depth flag3 score3 bestM3 found3 playedQuiets3
 
                                                             if not found4
                                                             then return $ if inCheck then -mateValue else 0
@@ -493,7 +490,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
             storeTT tt (scAge ctx) hash depth s f m
             return s
 
-    searchStage _ [] _ _ _ a _ _ flag bestScore bestM found playedQuiets = return (bestScore, flag, bestM, found, a, playedQuiets)
+    searchStage _ [] !index _ _ a _ _ flag bestScore bestM found playedQuiets = return (bestScore, flag, bestM, found, a, playedQuiets, index)
     searchStage dcBitboard (lm:lms) !index inCheck staticEval !a !b !d !flag !bestScore !bestM !_found !playedQuiets = do
         let isCap = isCapture lm
         let isProm = isPromotion lm
@@ -592,5 +589,5 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                          -- Penalize previously played quiets that didn't cause a cutoff
                          mapM_ (penaltyHistory ctx d) playedQuiets
                      else return ()
-                     return (score, TTLower, m, True, newAlpha, nextPlayedQuiets)
+                     return (score, TTLower, m, True, newAlpha, nextPlayedQuiets, index + 1)
                 else searchStage dcBitboard lms (index + 1) inCheck staticEval newAlpha b d newFlag newBestScore newBestM True nextPlayedQuiets
