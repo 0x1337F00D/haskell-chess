@@ -334,6 +334,16 @@ executable bench-report
         haskell-chess,
         time
 
+executable bench-san
+    main-is:          BenchSan.hs
+    hs-source-dirs:   bench
+    build-depends:
+        base,
+        criterion,
+        haskell-chess,
+        time
+    default-language: Haskell2010
+
 executable micro-bench
     import:           warnings
     default-language: Haskell2010

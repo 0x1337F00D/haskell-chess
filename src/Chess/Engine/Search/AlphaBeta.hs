@@ -16,6 +16,7 @@ import qualified Data.Vector.Unboxed.Mutable as UM
 import qualified Data.Vector.Unboxed as U
 
 import Chess.Types
+import Chess.Bitboard (moreThan5)
 import Chess.Board (Board(..), applyMove, uci, genMoveToMove
                    , ValidatedBoard, SomeValidatedBoard(..), trustBoard, getBoard, getGenMove, MoveGenerator(..)
                    , applyLegalMoveValidated, isCapture, isPromotion, toGenMove, mkLegalMove)
@@ -359,7 +360,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                                     let canNull = scNullMoveState ctx == NullMoveAllowed
                                     let doNmp = canNull && not inCheck && depth >= r && beta' < mateValue
                                                 && staticEval >= beta'
-                                                && popCount (Base.occupiedTotal (pieces board)) > 5
+                                                && moreThan5 (Base.occupiedTotal (pieces board))
 
                                     nmpResult <- if doNmp
                                                  then do
@@ -513,7 +514,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                                  doLMP = dVal < 8 && dVal >= 3 && index > lmpCount
                                  fpMargin = 120 * dVal
                                  doFutility = index > 6 && dVal < 7 && dVal >= 2 && abs bestScore < mateValue && abs a < mateValue && staticEval + fpMargin <= a
-                                              && popCount (Base.occupiedTotal currentPieces) > 5
+                                              && moreThan5 (Base.occupiedTotal currentPieces)
                              in doLMP || doFutility
                 _ -> False
 
@@ -540,7 +541,7 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                      else do
                          -- givesCheck is already computed.
                          let lmr = if d >= mkDepth 3 && not isCap && not isProm && index >= 2 && not inCheck && not givesCheck
-                                      && popCount (Base.occupiedTotal currentPieces) > 5
+                                      && moreThan5 (Base.occupiedTotal currentPieces)
                                    then
                                        let dIdx = min 63 (unDepth d)
                                            mIdx = min 63 index
