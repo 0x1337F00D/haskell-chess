@@ -84,17 +84,6 @@ discoveryCandidates b c =
             in foldBitboard checkSlider 0 mySliders
 
 -- | Check if three squares are collinear.
-{-# INLINE areCollinear #-}
-areCollinear :: Square -> Square -> Square -> Bool
-areCollinear (Square s1) (Square s2) (Square s3) =
-    let f1 = s1 .&. 7
-        r1 = s1 `shiftR` 3
-        f2 = s2 .&. 7
-        r2 = s2 `shiftR` 3
-        f3 = s3 .&. 7
-        r3 = s3 `shiftR` 3
-    in (f1 - f2) * (r2 - r3) == (f2 - f3) * (r1 - r2)
-
 -- | Context-Aware Legality Check
 {-# INLINE isLegalSafe #-}
 isLegalSafe :: Board -> GameState -> Bitboard -> GenMove -> Bool
@@ -118,7 +107,7 @@ isLegalSafe b gs pinned gm =
     checkPinned from to =
         if not (testBit pinned (unSquare from))
         then True
-        else areCollinear kingSq from to
+        else isCollinear kingSq from to
 
 -- | Iterate over a bitboard in a Builder Monad (or any Monad)
 {-# INLINE forBitboard #-}
