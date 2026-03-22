@@ -144,14 +144,16 @@ getCandidates b gs (Piece c pt) target =
     isEpSquare t = epSquare gs == t
 
 disambiguate :: Square -> [Square] -> String
-disambiguate src candidates
-    | length candidates == 1 = ""
-    | otherwise =
+disambiguate src candidates = case candidates of
+    [_] -> ""
+    _ ->
         let sameFile = filter (\s -> squareFile s == squareFile src) candidates
             sameRank = filter (\s -> squareRank s == squareRank src) candidates
-        in if length sameFile == 1 then [fileChar (squareFile src)]
-           else if length sameRank == 1 then [rankChar (squareRank src)]
-           else [fileChar (squareFile src), rankChar (squareRank src)]
+        in case sameFile of
+            [_] -> [fileChar (squareFile src)]
+            _ -> case sameRank of
+                [_] -> [rankChar (squareRank src)]
+                _ -> [fileChar (squareFile src), rankChar (squareRank src)]
 
 fileChar :: Int -> Char
 fileChar f = fileNames !! f
