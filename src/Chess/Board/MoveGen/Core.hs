@@ -38,7 +38,7 @@ pseudoLegalMoves b gs = runBuilder256 $ do
 
 -- | Generate all legal moves.
 legalMoves :: Board -> GameState -> [Move]
-legalMoves b gs = U.toList $ U.map genMoveToMove $ legalGenMoves b gs
+legalMoves b gs = U.foldr (\gm acc -> genMoveToMove gm : acc) [] (legalGenMoves b gs)
 
 -- | Generate all legal moves returning GenMove.
 legalGenMoves :: Board -> GameState -> U.Vector GenMove
@@ -75,7 +75,7 @@ pseudoLegalCaptures b gs = runBuilder256 $ do
 
 -- | Generate all legal capture moves.
 legalCaptures :: Board -> GameState -> [Move]
-legalCaptures b gs = U.toList $ U.map genMoveToMove $ legalGenCaptures b gs
+legalCaptures b gs = U.foldr (\gm acc -> genMoveToMove gm : acc) [] (legalGenCaptures b gs)
 
 -- | Generate all legal capture moves returning GenMove.
 legalGenCaptures :: Board -> GameState -> U.Vector GenMove
