@@ -11,9 +11,9 @@ module Chess.Internal.Builder
   , Builder
   , runBuilder
   , runBuilder256
-  , SafeBuilder(..)
-  , runSafeBuilder
-  , runSafeBuilder256
+  , SafeBuilder2(..)
+  , runSafeBuilder22
+  , runSafeBuilder22256
   , CountBuilder(..)
   , runCountBuilder
   ) where
@@ -134,49 +134,49 @@ instance Monoid (CountBuilder e ()) where
   {-# INLINE mempty #-}
   mempty = pure ()
 
-newtype SafeBuilder s e a =
-  SafeBuilder { unSafeBuilder :: (e -> Bool) -> M.MVector s e -> Int# -> State# s -> (# State# s, Int#, a #) }
+newtype SafeBuilder2 s e a =
+  SafeBuilder2 { unSafeBuilder2 :: (e -> Bool) -> M.MVector s e -> Int# -> State# s -> (# State# s, Int#, a #) }
 
-instance Functor (SafeBuilder s e) where
+instance Functor (SafeBuilder2 s e) where
   {-# INLINE fmap #-}
-  fmap f (SafeBuilder k) =
-    SafeBuilder $ \p mv i s0 ->
+  fmap f (SafeBuilder2 k) =
+    SafeBuilder2 $ \p mv i s0 ->
       case k p mv i s0 of
         (# s1, i1, a #) -> (# s1, i1, f a #)
 
-instance Applicative (SafeBuilder s e) where
+instance Applicative (SafeBuilder2 s e) where
   {-# INLINE pure #-}
-  pure a = SafeBuilder $ \_ _ i s -> (# s, i, a #)
+  pure a = SafeBuilder2 $ \_ _ i s -> (# s, i, a #)
 
   {-# INLINE (<*>) #-}
-  SafeBuilder kf <*> SafeBuilder ka =
-    SafeBuilder $ \p mv i s0 ->
+  SafeBuilder2 kf <*> SafeBuilder2 ka =
+    SafeBuilder2 $ \p mv i s0 ->
       case kf p mv i s0 of
         (# s1, i1, f #) ->
           case ka p mv i1 s1 of
             (# s2, i2, a #) -> (# s2, i2, f a #)
 
-instance Monad (SafeBuilder s e) where
+instance Monad (SafeBuilder2 s e) where
   {-# INLINE (>>=) #-}
-  SafeBuilder km >>= f =
-    SafeBuilder $ \p mv i s0 ->
+  SafeBuilder2 km >>= f =
+    SafeBuilder2 $ \p mv i s0 ->
       case km p mv i s0 of
         (# s1, i1, a #) ->
           case f a of
-            SafeBuilder k2 -> k2 p mv i1 s1
+            SafeBuilder2 k2 -> k2 p mv i1 s1
 
-instance Semigroup (SafeBuilder s e ()) where
+instance Semigroup (SafeBuilder2 s e ()) where
   {-# INLINE (<>) #-}
   a <> b = a >> b
 
-instance Monoid (SafeBuilder s e ()) where
+instance Monoid (SafeBuilder2 s e ()) where
   {-# INLINE mempty #-}
   mempty = pure ()
 
-instance U.Unbox e => MonadEmit e (SafeBuilder s e) where
+instance U.Unbox e => MonadEmit e (SafeBuilder2 s e) where
   {-# INLINE emit #-}
   emit !x =
-    SafeBuilder $ \p mv i s0 ->
+    SafeBuilder2 $ \p mv i s0 ->
       if p x then
         case M.unsafeWrite mv (I# i) x of
           ST writeST ->
@@ -189,19 +189,19 @@ instance U.Unbox e => MonadEmit e (SafeBuilder s e) where
   emitWhen False _ = mempty
   emitWhen True  b = b
 
-{-# INLINE runSafeBuilder #-}
-runSafeBuilder :: U.Unbox e => Int -> (e -> Bool) -> (forall s. SafeBuilder s e ()) -> U.Vector e
-runSafeBuilder cap p b = U.create $ do
+{-# INLINE runSafeBuilder22 #-}
+runSafeBuilder22 :: U.Unbox e => Int -> (e -> Bool) -> (forall s. SafeBuilder2 s e ()) -> U.Vector e
+runSafeBuilder22 cap p b = U.create $ do
   mv <- M.unsafeNew cap
   let fillST = ST $ \s0 ->
-        case unSafeBuilder b p mv 0# s0 of
+        case unSafeBuilder2 b p mv 0# s0 of
           (# s1, n#, () #) -> (# s1, I# n# #)
   n <- fillST
   pure (M.slice 0 n mv)
 
-{-# INLINE runSafeBuilder256 #-}
-runSafeBuilder256 :: U.Unbox e => (e -> Bool) -> (forall s. SafeBuilder s e ()) -> U.Vector e
-runSafeBuilder256 p b = runSafeBuilder 256 p b
+{-# INLINE runSafeBuilder22256 #-}
+runSafeBuilder22256 :: U.Unbox e => (e -> Bool) -> (forall s. SafeBuilder2 s e ()) -> U.Vector e
+runSafeBuilder22256 p b = runSafeBuilder22 256 p b
 
 instance MonadEmit e (CountBuilder e) where
   {-# INLINE emit #-}

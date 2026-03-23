@@ -64,7 +64,7 @@ legalGenMoves b gs =
        then generateEvasions b gs
        else
            let pinned = pinnedBits b c
-           in runSafeBuilder256 (isLegalSafe b gs pinned) $ do
+           in runSafeBuilder22256 (isLegalSafe b gs pinned) $ do
                   fillPawnQuiets     b gs
                   fillPawnCaptures   b gs
                   fillPawnPromotions b gs
@@ -113,7 +113,7 @@ legalGenCaptures b gs =
        then generateEvasionCaptures b gs
        else
            let pinned = pinnedBits b c
-           in runSafeBuilder256 (isLegalSafe b gs pinned) $ do
+           in runSafeBuilder22256 (isLegalSafe b gs pinned) $ do
                   fillPawnCaptures   b gs
                   fillPieceCaptures  b gs Knight
                   fillPieceCaptures  b gs Bishop
@@ -144,7 +144,7 @@ legalGenQuiets b gs =
        then generateEvasionQuiets b gs
        else
            let pinned = pinnedBits b c
-           in runSafeBuilder256 (isLegalSafe b gs pinned) $ do
+           in runSafeBuilder22256 (isLegalSafe b gs pinned) $ do
                   fillPawnQuiets     b gs
                   fillPieceQuiets    b gs Knight
                   fillPieceQuiets    b gs Bishop
@@ -169,7 +169,7 @@ legalGenPromotions b gs =
        then generateEvasionPromotions b gs
        else
            let pinned = pinnedBits b c
-           in runSafeBuilder256 (isLegalSafe b gs pinned) $ do
+           in runSafeBuilder22256 (isLegalSafe b gs pinned) $ do
                   fillPawnPromotions b gs
 
 -- | Generate only legal moves when the king is in check.
@@ -416,7 +416,7 @@ legalGenMovesSafe :: Board -> GameState -> U.Vector GenMove
 legalGenMovesSafe b gs =
     let c = turn gs
         pinned = pinnedBits b c
-    in runSafeBuilder256 (isLegalSafe b gs pinned) $ do
+    in runSafeBuilder22256 (isLegalSafe b gs pinned) $ do
            fillPawnQuiets     b gs
            fillPawnCaptures   b gs
            fillPawnPromotions b gs
