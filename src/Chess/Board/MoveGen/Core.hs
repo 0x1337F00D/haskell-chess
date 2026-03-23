@@ -64,8 +64,16 @@ legalGenMoves b gs =
        then generateEvasions b gs
        else
            let pinned = pinnedBits b c
-               pseudo = pseudoLegalMoves b gs
-           in U.filter (isLegalSafe b gs pinned) pseudo
+           in runSafeBuilder256 (isLegalSafe b gs pinned) $ do
+                  fillPawnQuiets     b gs
+                  fillPawnCaptures   b gs
+                  fillPawnPromotions b gs
+                  fillPieceMoves     b gs Knight
+                  fillPieceMoves     b gs Bishop
+                  fillPieceMoves     b gs Rook
+                  fillPieceMoves     b gs Queen
+                  fillPieceMoves     b gs King
+                  fillCastlingMoves  b gs
 
 -- | Generate all pseudo-legal capture moves.
 pseudoLegalCaptures :: Board -> GameState -> U.Vector GenMove
@@ -105,8 +113,13 @@ legalGenCaptures b gs =
        then generateEvasionCaptures b gs
        else
            let pinned = pinnedBits b c
-               pseudo = pseudoLegalCaptures b gs
-           in U.filter (isLegalSafe b gs pinned) pseudo
+           in runSafeBuilder256 (isLegalSafe b gs pinned) $ do
+                  fillPawnCaptures   b gs
+                  fillPieceCaptures  b gs Knight
+                  fillPieceCaptures  b gs Bishop
+                  fillPieceCaptures  b gs Rook
+                  fillPieceCaptures  b gs Queen
+                  fillPieceCaptures  b gs King
 
 -- | Generate all pseudo-legal quiet moves.
 pseudoLegalQuiets :: Board -> GameState -> U.Vector GenMove
@@ -131,8 +144,14 @@ legalGenQuiets b gs =
        then generateEvasionQuiets b gs
        else
            let pinned = pinnedBits b c
-               pseudo = pseudoLegalQuiets b gs
-           in U.filter (isLegalSafe b gs pinned) pseudo
+           in runSafeBuilder256 (isLegalSafe b gs pinned) $ do
+                  fillPawnQuiets     b gs
+                  fillPieceQuiets    b gs Knight
+                  fillPieceQuiets    b gs Bishop
+                  fillPieceQuiets    b gs Rook
+                  fillPieceQuiets    b gs Queen
+                  fillPieceQuiets    b gs King
+                  fillCastlingMoves  b gs
 
 -- | Generate all pseudo-legal promotion moves.
 pseudoLegalPromotions :: Board -> GameState -> U.Vector GenMove
@@ -150,8 +169,8 @@ legalGenPromotions b gs =
        then generateEvasionPromotions b gs
        else
            let pinned = pinnedBits b c
-               pseudo = pseudoLegalPromotions b gs
-           in U.filter (isLegalSafe b gs pinned) pseudo
+           in runSafeBuilder256 (isLegalSafe b gs pinned) $ do
+                  fillPawnPromotions b gs
 
 -- | Generate only legal moves when the king is in check.
 generateEvasions :: Board -> GameState -> U.Vector GenMove
@@ -397,8 +416,16 @@ legalGenMovesSafe :: Board -> GameState -> U.Vector GenMove
 legalGenMovesSafe b gs =
     let c = turn gs
         pinned = pinnedBits b c
-        pseudo = pseudoLegalMoves b gs
-    in U.filter (isLegalSafe b gs pinned) pseudo
+    in runSafeBuilder256 (isLegalSafe b gs pinned) $ do
+           fillPawnQuiets     b gs
+           fillPawnCaptures   b gs
+           fillPawnPromotions b gs
+           fillPieceMoves     b gs Knight
+           fillPieceMoves     b gs Bishop
+           fillPieceMoves     b gs Rook
+           fillPieceMoves     b gs Queen
+           fillPieceMoves     b gs King
+           fillCastlingMoves  b gs
 
 -- | Count all legal moves avoiding array allocations.
 countLegalGenMoves :: Board -> GameState -> Int

@@ -79,7 +79,7 @@ pieceQuiets :: Board -> GameState -> PieceType -> U.Vector GenMove
 pieceQuiets b gs pt = runBuilder256 $ fillPieceQuiets b gs pt
 
 {-# INLINE fillPieceQuiets #-}
-fillPieceQuiets :: Board -> GameState -> PieceType -> Builder s GenMove ()
+fillPieceQuiets :: MonadEmit GenMove m => Board -> GameState -> PieceType -> m ()
 fillPieceQuiets b gs pt = do
     let c       = turn gs
         bb      = pieceBitboard b c pt
