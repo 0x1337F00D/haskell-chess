@@ -353,7 +353,7 @@ genericApplyMove m ag =
 genericPerftExecuteMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
 genericPerftExecuteMove m ag =
   case applyMove m ag of
-    Transition nextAg -> Continue (setStatus SUnchecked nextAg)
+    Transition nextAg -> Continue (nextAg { checkStatus = SUnchecked })
 
 -- | Classify post-move position status uniformly.
 classifyPosition :: forall v c s'. (KnownColor c, KnownColor (Opposite c), ChessVariant v)

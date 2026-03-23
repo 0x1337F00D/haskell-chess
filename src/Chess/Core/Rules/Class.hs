@@ -13,6 +13,7 @@ import Chess.Core.Game.Internal
 import Chess.Core.Move.Internal
 import Chess.Core.Board.Internal (Color(..), KnownColor(..), sColor, SColor(..))
 import Control.Parallel.Strategies (parMap, rseq)
+import Data.List (foldl')
 
 -- Type-level Opposite Color
 type family Opposite (c :: Color) :: Color where
@@ -46,7 +47,7 @@ perftWhite depth game
   | depth == 0 = 1
   | depth == 1 = length (generateMoves game)
   | depth >= 3 = sum $ parMap rseq go (generateMoves game)
-  | otherwise = sum $ map go (generateMoves game)
+  | otherwise = foldl' (\acc m -> acc + go m) 0 (generateMoves game)
   where
     go m = case perftExecuteMove m game of
              Continue nextGame -> perftBlack (depth - 1) nextGame
@@ -57,7 +58,7 @@ perftBlack depth game
   | depth == 0 = 1
   | depth == 1 = length (generateMoves game)
   | depth >= 3 = sum $ parMap rseq go (generateMoves game)
-  | otherwise = sum $ map go (generateMoves game)
+  | otherwise = foldl' (\acc m -> acc + go m) 0 (generateMoves game)
   where
     go m = case perftExecuteMove m game of
              Continue nextGame -> perftWhite (depth - 1) nextGame

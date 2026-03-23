@@ -86,3 +86,25 @@ instance ChessVariant 'RacingKings where
                      if bInGoal then Checkmate (Winner Black) else
                      statusToMoveResult @'RacingKings @c nextAg (SafePos replies)
         in result
+
+  perftExecuteMove (m :: Move c) (ag :: ActiveGame 'RacingKings c s) =
+    case applyMove m ag of
+      Transition nextAg ->
+        let
+           c = colorVal @c
+           internalB' = internalBoard nextAg
+
+           wKingSq = if MG.hasKing internalB' T.White then Just (MG.kingSquareFast internalB' T.White) else Nothing
+           bKingSq = if MG.hasKing internalB' T.Black then Just (MG.kingSquareFast internalB' T.Black) else Nothing
+           wInGoal = case wKingSq of Just sq -> T.squareRank sq == 7; _ -> False
+           bInGoal = case bKingSq of Just sq -> T.squareRank sq == 7; _ -> False
+
+        in if c == White
+           then if wInGoal
+                then Continue (nextAg { checkStatus = SUnchecked })
+                else Continue (nextAg { checkStatus = SUnchecked })
+           else
+                if bInGoal && wInGoal then Checkmate Draw else
+                if wInGoal then Checkmate (Winner White) else
+                if bInGoal then Checkmate (Winner Black) else
+                Continue (nextAg { checkStatus = SUnchecked })

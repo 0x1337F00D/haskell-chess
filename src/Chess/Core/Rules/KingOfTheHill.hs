@@ -59,3 +59,32 @@ instance ChessVariant 'KingOfTheHill where
          in if kingInCenter
             then Checkmate (Winner cColor)
             else genericExecuteMove m ag
+
+  perftExecuteMove (m :: Move c) (ag :: ActiveGame 'KingOfTheHill c s) =
+    case applyMove m ag of
+      Transition nextAg ->
+         let
+            cColor = colorVal @c
+            to = case m of
+                       QuietMove _ t _ -> t
+                       CaptureMove _ t _ _ -> t
+                       PromotionMove _ t _ -> t
+                       PromotionCaptureMove _ t _ _ -> t
+                       CastlingMove _ t -> t
+                       EnPassantMove _ t -> t
+                       DropMove _ t -> t
+                       Castling960Move _ _ -> error "Castling960Move invalid in KingOfTheHill"
+
+            isKing = case m of
+                       QuietMove _ _ pt -> pt == King
+                       CaptureMove _ _ pt _ -> pt == King
+                       CastlingMove _ _ -> True
+                       _ -> False
+
+            centerSquares = [ Square FileE Rank4, Square FileD Rank4
+                            , Square FileE Rank5, Square FileD Rank5 ]
+            kingInCenter = isKing && to `elem` centerSquares
+
+         in if kingInCenter
+            then Checkmate (Winner cColor)
+            else Continue (nextAg { checkStatus = SUnchecked })

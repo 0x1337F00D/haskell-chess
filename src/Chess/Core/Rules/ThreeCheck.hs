@@ -99,3 +99,13 @@ instance ChessVariant 'ThreeCheck where
                let checked = case checkStatus nextAg of SChecked -> True; _ -> False
                    status = classifyPosition @'ThreeCheck @c nextAg checked
                in statusToMoveResult @'ThreeCheck @c nextAg status
+
+  perftExecuteMove (m :: Move c) (ag :: ActiveGame 'ThreeCheck c s) =
+    case applyMove m ag of
+      Transition nextAg ->
+         let c = colorVal @c
+             (wChecks, bChecks) = variantState nextAg
+             winByCheck = (if c == White then wChecks else bChecks) >= 3
+         in if winByCheck
+            then Checkmate (Winner c)
+            else Continue (nextAg { checkStatus = SUnchecked })
