@@ -25,6 +25,7 @@ pawnMoves b gs = runBuilder256 $ do
 pawnQuiets :: Board -> GameState -> U.Vector GenMove
 pawnQuiets b gs = runBuilder256 $ fillPawnQuiets b gs
 
+{-# INLINEABLE fillPawnQuiets #-}
 fillPawnQuiets :: Board -> GameState -> Builder s GenMove ()
 fillPawnQuiets b gs = do
     let c = turn gs
@@ -69,6 +70,7 @@ emitPromoCaps f t capPt = do
     emit (GenPromotionCapture f t Bishop capPt)
     emit (GenPromotionCapture f t Knight capPt)
 
+{-# INLINEABLE fillPawnPromotions #-}
 fillPawnPromotions :: Board -> GameState -> Builder s GenMove ()
 fillPawnPromotions b gs = do
     let c = turn gs
@@ -91,6 +93,7 @@ fillPawnPromotions b gs = do
 pawnCaptures :: Board -> GameState -> U.Vector GenMove
 pawnCaptures b gs = runBuilder256 $ fillPawnCaptures b gs
 
+{-# INLINEABLE fillPawnCaptures #-}
 fillPawnCaptures :: Board -> GameState -> Builder s GenMove ()
 fillPawnCaptures b gs = do
     let c = turn gs
@@ -160,6 +163,7 @@ fillPawnCaptures b gs = do
                                 then emitPromoCaps from dest capPt
                                 else emit (GenCapture from dest Pawn capPt)
 
+{-# INLINEABLE fillPawnEvasionPromotions #-}
 fillPawnEvasionPromotions :: Board -> GameState -> Bitboard -> Builder s GenMove ()
 fillPawnEvasionPromotions b gs targetMask = do
     let c = turn gs
@@ -206,6 +210,7 @@ fillPawnEvasionPromotions b gs targetMask = do
                 when (file /= 0) $ checkCapture (Square (i-9))
 
 
+{-# INLINEABLE fillPawnEvasions #-}
 fillPawnEvasions :: Board -> GameState -> Bitboard -> Builder s GenMove ()
 fillPawnEvasions b gs targetMask = do
     let c = turn gs

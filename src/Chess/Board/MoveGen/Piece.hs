@@ -19,6 +19,7 @@ import Chess.Board.MoveGen.KingSafety
 pieceMoves :: Board -> GameState -> PieceType -> U.Vector GenMove
 pieceMoves b gs pt = runBuilder256 $ fillPieceMoves b gs pt
 
+{-# INLINE fillPieceMoves #-}
 fillPieceMoves :: Board -> GameState -> PieceType -> Builder s GenMove ()
 fillPieceMoves b gs pt = do
     let c       = turn gs
@@ -49,6 +50,7 @@ fillPieceMoves b gs pt = do
 pieceCaptures :: Board -> GameState -> PieceType -> U.Vector GenMove
 pieceCaptures b gs pt = runBuilder256 $ fillPieceCaptures b gs pt
 
+{-# INLINE fillPieceCaptures #-}
 fillPieceCaptures :: Board -> GameState -> PieceType -> Builder s GenMove ()
 fillPieceCaptures b gs pt = do
     let c       = turn gs
@@ -75,6 +77,7 @@ fillPieceCaptures b gs pt = do
 pieceQuiets :: Board -> GameState -> PieceType -> U.Vector GenMove
 pieceQuiets b gs pt = runBuilder256 $ fillPieceQuiets b gs pt
 
+{-# INLINE fillPieceQuiets #-}
 fillPieceQuiets :: Board -> GameState -> PieceType -> Builder s GenMove ()
 fillPieceQuiets b gs pt = do
     let c       = turn gs
@@ -117,6 +120,7 @@ fillKingEvasions b gs targetMask = do
                     -- Check legality
                     when (isLegal b gs gm) $ emit gm
 
+{-# INLINE fillPieceEvasions #-}
 fillPieceEvasions :: Board -> GameState -> PieceType -> Bitboard -> Builder s GenMove ()
 fillPieceEvasions b gs pt targetMask = do
     let c       = turn gs
