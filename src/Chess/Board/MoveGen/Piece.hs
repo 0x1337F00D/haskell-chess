@@ -9,6 +9,7 @@ import Control.Monad (when)
 import qualified Data.Vector.Unboxed as U
 
 import Chess.Types
+import Chess.Bitboard ((.&~.))
 import Chess.Bitboard
 import Chess.Board.Base
 import Chess.Board.GameState
@@ -32,7 +33,7 @@ fillPieceMoves b gs pt = do
     let {-# INLINE go #-}
         go attcks = forBitboard bb $ \from -> do
             let att   = attcks from
-                valid = att .&. complement friends
+                valid = att .&~. friends
             forBitboard valid $ \to -> do
                 let toI = unSquare to
                 if testBit enemies toI
@@ -87,7 +88,7 @@ fillPieceQuiets b gs pt = do
     let {-# INLINE go #-}
         go attcks = forBitboard bb $ \from -> do
             let att   = attcks from
-                valid = att .&. complement occ
+                valid = att .&~. occ
             forBitboard valid $ \to -> do
                 emit (GenQuiet from to pt)
 
@@ -110,7 +111,7 @@ fillKingEvasions b gs targetMask = do
 
     forBitboard bb $ \from -> do
             let att = kingAttacks from
-            let valid = att .&. complement friends .&. targetMask
+            let valid = att .&~. friends .&. targetMask
             forBitboard valid $ \to -> do
                     let toI = unSquare to
                     let isCap = testBit enemies toI
@@ -134,7 +135,7 @@ fillPieceEvasions b gs pt targetMask = do
     let {-# INLINE go #-}
         go attcks = forBitboard bb $ \from -> do
             let att = attcks from
-            let valid = att .&. complement friends .&. targetMask
+            let valid = att .&~. friends .&. targetMask
             forBitboard valid $ \to -> do
                     let toI = unSquare to
                     let isCap = testBit enemies toI
