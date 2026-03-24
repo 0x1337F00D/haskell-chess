@@ -16,6 +16,9 @@ module Chess.Internal.Builder
   , runSafeBuilder22256
   , CountBuilder(..)
   , runCountBuilder
+  , SafeBuilder(..)
+  , runSafeBuilder
+  , runSafeBuilder256
   ) where
 
 import qualified Data.Vector.Unboxed as U
@@ -217,3 +220,72 @@ runCountBuilder :: (e -> Bool) -> CountBuilder e () -> Int
 runCountBuilder p b =
   case unCountBuilder b p 0# of
     (# n#, () #) -> I# n#
+
+newtype SafeBuilder s e a =
+  SafeBuilder { unSafeBuilder :: (e -> Bool) -> M.MVector s e -> Int# -> State# s -> (# State# s, Int#, a #) }
+
+instance Functor (SafeBuilder s e) where
+  {-# INLINE fmap #-}
+  fmap f (SafeBuilder k) =
+    SafeBuilder $ \p mv i s0 ->
+      case k p mv i s0 of
+        (# s1, i1, a #) -> (# s1, i1, f a #)
+
+instance Applicative (SafeBuilder s e) where
+  {-# INLINE pure #-}
+  pure a = SafeBuilder $ \_ _ i s -> (# s, i, a #)
+
+  {-# INLINE (<*>) #-}
+  SafeBuilder kf <*> SafeBuilder ka =
+    SafeBuilder $ \p mv i s0 ->
+      case kf p mv i s0 of
+        (# s1, i1, f #) ->
+          case ka p mv i1 s1 of
+            (# s2, i2, a #) -> (# s2, i2, f a #)
+
+instance Monad (SafeBuilder s e) where
+  {-# INLINE (>>=) #-}
+  SafeBuilder km >>= f =
+    SafeBuilder $ \p mv i s0 ->
+      case km p mv i s0 of
+        (# s1, i1, a #) ->
+          case f a of
+            SafeBuilder k2 -> k2 p mv i1 s1
+
+instance Semigroup (SafeBuilder s e ()) where
+  {-# INLINE (<>) #-}
+  a <> b = a >> b
+
+instance Monoid (SafeBuilder s e ()) where
+  {-# INLINE mempty #-}
+  mempty = pure ()
+
+instance U.Unbox e => MonadEmit e (SafeBuilder s e) where
+  {-# INLINE emit #-}
+  emit !x =
+    SafeBuilder $ \p mv i s0 ->
+      if p x then
+        case M.unsafeWrite mv (I# i) x of
+          ST writeST ->
+            case writeST s0 of
+              (# s1, () #) -> (# s1, i +# 1#, () #)
+      else
+        (# s0, i, () #)
+
+  {-# INLINE emitWhen #-}
+  emitWhen False _ = mempty
+  emitWhen True  b = b
+
+{-# INLINE runSafeBuilder #-}
+runSafeBuilder :: U.Unbox e => Int -> (e -> Bool) -> (forall s. SafeBuilder s e ()) -> U.Vector e
+runSafeBuilder cap p b = U.create $ do
+  mv <- M.unsafeNew cap
+  let fillST = ST $ \s0 ->
+        case unSafeBuilder b p mv 0# s0 of
+          (# s1, n#, () #) -> (# s1, I# n# #)
+  n <- fillST
+  pure (M.slice 0 n mv)
+
+{-# INLINE runSafeBuilder256 #-}
+runSafeBuilder256 :: U.Unbox e => (e -> Bool) -> (forall s. SafeBuilder s e ()) -> U.Vector e
+runSafeBuilder256 = runSafeBuilder 256

@@ -232,5 +232,17 @@ instance ChessVariant 'Horde where
                  status = if blackInCheck then CheckedPos replies else SafePos replies
              in statusToMoveResult @'Horde @c nextAg status
 
+  perftExecuteMove (m :: Move c) (ag :: ActiveGame 'Horde c s) =
+    case applyMove m ag of
+      Transition nextAg ->
+        let
+           oppC = colorVal @(Opposite c)
+           baseBoard = internalBoard nextAg
+           whitePiecesCount = popCount (Base.occupiedBy baseBoard T.White)
+           blackWins = whitePiecesCount == 0
+        in if blackWins
+           then Checkmate (Winner Black)
+           else Continue (nextAg { checkStatus = SUnchecked })
+
 getRank :: Square -> Rank
 getRank (Square _ r) = r
