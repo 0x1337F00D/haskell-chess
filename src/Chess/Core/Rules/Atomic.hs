@@ -65,6 +65,8 @@ instance ChessVariant 'Atomic where
 
     in map toCoreMove validMoves
 
+  countMoves (ag :: ActiveGame 'Atomic c s) = length (generateMoves ag)
+
   applyMove (m :: Move c) (ag :: ActiveGame 'Atomic c s) =
     let c = colorVal @c
         internalB = internalBoard ag

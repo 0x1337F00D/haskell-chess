@@ -83,6 +83,15 @@ instance ChessVariant 'Standard where
 
     in map toCoreMove baseMoves
 
+  countMoves (ag :: ActiveGame 'Standard c s) =
+    let baseBoard = internalBoard ag
+        gs = toGameState ag
+    in case checkStatus ag of
+         SChecked ->
+             -- If in check, count explicitly. It relies on the length of pseudos which is unboxed in counting builder
+             length (generateMoves ag)
+         _ -> MG.countLegalGenMovesSafe baseBoard gs
+
   applyMove = genericApplyMove
   executeMove = genericExecuteMove
   perftExecuteMove = genericPerftExecuteMove
