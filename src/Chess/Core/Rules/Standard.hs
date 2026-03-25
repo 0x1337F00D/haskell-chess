@@ -83,6 +83,17 @@ instance ChessVariant 'Standard where
 
     in map toCoreMove baseMoves
 
+  countMoves ag =
+      let b = internalBoard ag
+          gs = toGameState ag
+          isCh = case checkStatus ag of
+                   SChecked -> True
+                   SSafe -> False
+                   SUnchecked -> Val.isCheck b gs
+      in if isCh
+         then countLegalGenMoves (FastBoard.Board b gs [])
+         else countLegalGenMovesSafe (FastBoard.Board b gs [])
+
   applyMove = genericApplyMove
   executeMove = genericExecuteMove
   perftExecuteMove = genericPerftExecuteMove
