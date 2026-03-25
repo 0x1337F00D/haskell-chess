@@ -23,6 +23,12 @@ type family Opposite (c :: Color) :: Color where
 -- | Class for Chess Variants
 class ChessVariant (v :: Variant) where
   generateMoves :: KnownColor c => ActiveGame v c s -> [Move c]
+
+  -- | Optimized move counting. Defaults to length of generateMoves,
+  -- but can be overridden by variants for O(1) or allocation-free counting.
+  countMoves :: KnownColor c => ActiveGame v c s -> Int
+  countMoves = length . generateMoves
+
   applyMove :: (KnownColor c, KnownColor (Opposite c)) => Move c -> ActiveGame v c s -> GameTransition v (Opposite c)
   executeMove :: (KnownColor c, KnownColor (Opposite c)) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
 
@@ -45,7 +51,7 @@ class ChessVariant (v :: Variant) where
 perftWhite :: ChessVariant v => Int -> ActiveGame v 'White s -> Int
 perftWhite depth game
   | depth == 0 = 1
-  | depth == 1 = length (generateMoves game)
+  | depth == 1 = countMoves game
   | depth >= 3 = sum $ parMap rseq go (generateMoves game)
   | otherwise = foldl' (\acc m -> acc + go m) 0 (generateMoves game)
   where
@@ -56,7 +62,7 @@ perftWhite depth game
 perftBlack :: ChessVariant v => Int -> ActiveGame v 'Black s -> Int
 perftBlack depth game
   | depth == 0 = 1
-  | depth == 1 = length (generateMoves game)
+  | depth == 1 = countMoves game
   | depth >= 3 = sum $ parMap rseq go (generateMoves game)
   | otherwise = foldl' (\acc m -> acc + go m) 0 (generateMoves game)
   where
