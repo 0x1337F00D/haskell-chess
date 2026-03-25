@@ -68,8 +68,7 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
             let dcBitboard = KingSafety.discoveryCandidates (pieces board) (GS.turn (state board))
 
             let givesCheckLocal lm =
-                    let b = getBoard vBoard
-                    in KingSafety.givesCheckOptimized (Chess.Board.pieces b) (Chess.Board.state b) dcBitboard (Chess.Board.getGenMove lm)
+                    KingSafety.givesCheckOptimized (pieces board) (state board) dcBitboard (getGenMove lm)
 
             let a = max alpha standPat
             let caps = captureMovesValidated vBoard

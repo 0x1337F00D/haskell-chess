@@ -10,7 +10,7 @@ module Chess.Engine.Search.AlphaBeta where
 import Data.Maybe (fromMaybe, isJust)
 import Data.List (foldl')
 import Data.Bits ((.&.))
-import Data.IORef (IORef, newIORef, readIORef, modifyIORef', writeIORef)
+import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef, modifyIORef', writeIORef)
 import Control.Concurrent (forkIO, newMVar, modifyMVar, newEmptyMVar, putMVar, takeMVar, getNumCapabilities)
 import qualified Data.Vector.Unboxed.Mutable as UM
 import qualified Data.Vector.Unboxed as U
@@ -260,7 +260,9 @@ mapConcurrently f xs = do
 -- | Alpha-Beta Search
 alphaBeta :: forall p s. (Evaluate p, MoveGenerator s) => SearchContext p -> ValidatedBoard s -> TT -> Maybe Move -> Depth -> Int -> Int -> IORef Int -> IORef Bool -> SearchLimits -> IO Int
 alphaBeta ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
-    n <- modifyIORef' nodes (+1) >> readIORef nodes
+    n <- atomicModifyIORef' nodes $ \i ->
+        let j = i + 1
+        in (j, j)
     if (n .&. 2047 == 0)
     then do
         -- Check Stop Flag
@@ -500,10 +502,8 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
         let gm = getGenMove lm
         let m = genMoveToMove gm
 
-        let board = getBoard vBoard
-
         -- Optimized givesCheck
-        let givesCheck = KingSafety.givesCheckOptimized (pieces board) (state board) dcBitboard gm
+        let givesCheck = KingSafety.givesCheckOptimized currentPieces currentState dcBitboard gm
 
         let pruneQuiet = case (scNodeKind ctx, scCheckState ctx) of
                 (NonPV, NotInCheck) | isQuiet && not givesCheck -> -- optimized prune logic knowing NotInCheck
