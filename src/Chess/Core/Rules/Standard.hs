@@ -90,7 +90,11 @@ instance ChessVariant 'Standard where
          SChecked ->
              -- If in check, count explicitly. It relies on the length of pseudos which is unboxed in counting builder
              length (generateMoves ag)
-         _ -> MG.countLegalGenMovesSafe baseBoard gs
+         SSafe -> MG.countLegalGenMovesSafe baseBoard gs
+         SUnchecked ->
+             if Val.isCheck baseBoard gs
+             then length (generateMoves (ag { checkStatus = SChecked } :: ActiveGame 'Standard c 'Checked))
+             else MG.countLegalGenMovesSafe baseBoard gs
 
   applyMove = genericApplyMove
   executeMove = genericExecuteMove
