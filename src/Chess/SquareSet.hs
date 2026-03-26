@@ -3,7 +3,7 @@
 
 module Chess.SquareSet where
 
-import Data.Bits (Bits, (.|.), (.&.), complement, setBit, clearBit, testBit, popCount)
+import Data.Bits (Bits, (.|.), (.&.), setBit, clearBit, testBit, popCount)
 import qualified Data.List as L
 import Chess.Types (Square(..))
 import qualified Chess.Bitboard as BB
@@ -61,7 +61,7 @@ intersection (SquareSet a) (SquareSet b) = SquareSet (a .&. b)
 
 -- | Difference of two sets (elements in first but not in second).
 difference :: SquareSet -> SquareSet -> SquareSet
-difference (SquareSet a) (SquareSet b) = SquareSet (a .&. complement b)
+difference (SquareSet a) (SquareSet b) = SquareSet (a BB..&~. b)
 
 -- | Number of squares in the set.
 size :: SquareSet -> Int

@@ -3,10 +3,10 @@ module Chess.Board.San where
 
 import Data.List (find)
 import Data.Maybe (isJust)
-import Data.Bits ((.&.), complement, (.|.), testBit)
+import Data.Bits ((.&.), (.|.), testBit)
 
 import Chess.Types
-import Chess.Bitboard (bbFromSquare, pattern BB_A1, pattern BB_H1, pattern BB_A8, pattern BB_H8, scanForward, pawnAttacks)
+import Chess.Bitboard ((.&~.), bbFromSquare, pattern BB_A1, pattern BB_H1, pattern BB_A8, pattern BB_H8, scanForward, pawnAttacks)
 import Chess.Board.Base
 import Chess.Board.GameState
 import Chess.Board.MoveGen (isLegal, applyMoveBoard, pattern GenQuiet, pattern GenCapture, pattern GenEnPassant, pattern GenCastling, pattern GenPromotion, pattern GenPromotionCapture)
@@ -59,14 +59,14 @@ applyMove b gs m@(Move from to _ ) =
         cr1 = case p of
             Just (Piece _ King) ->
                  let mask = if c == White then (BB_A1 .|. BB_H1) else (BB_A8 .|. BB_H8)
-                 in cr .&. complement mask
+                 in cr .&~. mask
             Just (Piece _ Rook) ->
-                 cr .&. complement (bbFromSquare from)
+                 cr .&~. (bbFromSquare from)
             _ -> cr
 
         captured = pieceAt b to
         cr2 = case captured of
-            Just (Piece _ Rook) -> cr1 .&. complement (bbFromSquare to)
+            Just (Piece _ Rook) -> cr1 .&~. (bbFromSquare to)
             _ -> cr1
 
         ep = if isDoublePush b from to

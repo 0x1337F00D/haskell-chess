@@ -24,9 +24,8 @@ type family Opposite (c :: Color) :: Color where
 class ChessVariant (v :: Variant) where
   generateMoves :: KnownColor c => ActiveGame v c s -> [Move c]
 
-  -- | Count the number of legal moves for the current position.
-  -- Defaults to generating all moves and taking the length, but can be optimized
-  -- by variants to count directly without allocating the full list of moves.
+  -- | Optimized move counting. Defaults to length of generateMoves,
+  -- but can be overridden by variants for O(1) or allocation-free counting.
   countMoves :: KnownColor c => ActiveGame v c s -> Int
   countMoves = length . generateMoves
 

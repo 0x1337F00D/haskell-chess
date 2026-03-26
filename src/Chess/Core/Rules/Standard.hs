@@ -83,18 +83,16 @@ instance ChessVariant 'Standard where
 
     in map toCoreMove baseMoves
 
-  countMoves (ag :: ActiveGame 'Standard c s) =
-    let baseBoard = internalBoard ag
-        gs = toGameState ag
-    in case checkStatus ag of
-         SChecked ->
-             -- If in check, count explicitly. It relies on the length of pseudos which is unboxed in counting builder
-             length (generateMoves ag)
-         SSafe -> MG.countLegalGenMovesSafe baseBoard gs
-         SUnchecked ->
-             if Val.isCheck baseBoard gs
-             then length (generateMoves (ag { checkStatus = SChecked } :: ActiveGame 'Standard c 'Checked))
-             else MG.countLegalGenMovesSafe baseBoard gs
+  countMoves ag =
+      let b = internalBoard ag
+          gs = toGameState ag
+          isCh = case checkStatus ag of
+                   SChecked -> True
+                   SSafe -> False
+                   SUnchecked -> Val.isCheck b gs
+      in if isCh
+         then countLegalGenMoves (FastBoard.Board b gs [])
+         else countLegalGenMovesSafe (FastBoard.Board b gs [])
 
   applyMove = genericApplyMove
   executeMove = genericExecuteMove

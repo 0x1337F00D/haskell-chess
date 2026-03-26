@@ -169,8 +169,8 @@ canCastleStandardQueenside (GameStatePacked p _) c =
 -- | Remove castling rights for a color (e.g. king moved).
 {-# INLINE removeColorCastlingRights #-}
 removeColorCastlingRights :: GameState -> Color -> GameState
-removeColorCastlingRights (GameStatePacked p z) White = GameStatePacked (p .&. complement (0xFF `shiftL` 1)) z -- Clear White slots (8 bits at 1)
-removeColorCastlingRights (GameStatePacked p z) Black = GameStatePacked (p .&. complement (0xFF `shiftL` 9)) z -- Clear Black slots (8 bits at 9)
+removeColorCastlingRights (GameStatePacked p z) White = GameStatePacked (p .&~. (0xFF `shiftL` 1)) z -- Clear White slots (8 bits at 1)
+removeColorCastlingRights (GameStatePacked p z) Black = GameStatePacked (p .&~. (0xFF `shiftL` 9)) z -- Clear Black slots (8 bits at 9)
 
 -- | Remove castling rights for a specific rook square (e.g. rook moved or captured).
 {-# INLINE removeCastlingRight #-}

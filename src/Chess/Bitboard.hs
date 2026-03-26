@@ -22,6 +22,12 @@ type Bitboard = Word64
 pattern BB_EMPTY :: Bitboard
 pattern BB_EMPTY = 0x0000000000000000
 
+-- | Bitwise AND NOT.
+(.&~.) :: Bitboard -> Bitboard -> Bitboard
+{-# INLINE (.&~.) #-}
+x .&~. y = x .&. complement y
+infixl 7 .&~.
+
 pattern BB_ALL :: Bitboard
 pattern BB_ALL = 0xffffffffffffffff
 
@@ -314,12 +320,12 @@ shiftDown bb     = bb `shiftR` 8
 shift2Down bb    = bb `shiftR` 16
 shiftUp bb       = (bb `shiftL` 8) .&. BB_ALL
 shift2Up bb      = (bb `shiftL` 16) .&. BB_ALL
-shiftLeft bb     = (bb `shiftL` 1) .&. complement bbFileA
-shiftRight bb    = (bb `shiftR` 1) .&. complement bbFileH
-shiftDownLeft bb = shiftDown bb .&. complement bbFileH
-shiftDownRight bb= shiftDown bb .&. complement bbFileA
-shiftUpLeft bb   = shiftUp bb   .&. complement bbFileH
-shiftUpRight bb  = shiftUp bb   .&. complement bbFileA
+shiftLeft bb     = (bb `shiftL` 1) .&~. bbFileA
+shiftRight bb    = (bb `shiftR` 1) .&~. bbFileH
+shiftDownLeft bb = shiftDown bb .&~. bbFileH
+shiftDownRight bb= shiftDown bb .&~. bbFileA
+shiftUpLeft bb   = shiftUp bb   .&~. bbFileH
+shiftUpRight bb  = shiftUp bb   .&~. bbFileA
 
 -- Helpers -------------------------------------------------------------------
 
@@ -600,13 +606,13 @@ initMagics verbose = do
 
     let getBishopMask sq =
           let att = getRayAttacksSlow sq 4 0 .|. getRayAttacksSlow sq 5 0 .|. getRayAttacksSlow sq 6 0 .|. getRayAttacksSlow sq 7 0
-          in att .&. complement (bbFileA .|. bbFileH .|. bbRank1 .|. bbRank8)
+          in att .&~. (bbFileA .|. bbFileH .|. bbRank1 .|. bbRank8)
 
     let getRookMask sq =
             let r = unSquare sq `div` 8
                 f = unSquare sq `mod` 8
-                maskRank = (bbRank1 `shiftL` (r*8)) .&. complement (bbFileA .|. bbFileH)
-                maskFile = (bbFileA `shiftL` f) .&. complement (bbRank1 .|. bbRank8)
+                maskRank = (bbRank1 `shiftL` (r*8)) .&~. (bbFileA .|. bbFileH)
+                maskFile = (bbFileA `shiftL` f) .&~. (bbRank1 .|. bbRank8)
             in maskRank .|. maskFile
 
     let solve isRook = do
