@@ -165,7 +165,7 @@ generateEvasions b gs = runBuilder256 $ do
         -- Bolt: isSingleCheck is faster than popCount > 1. attackers is guaranteed > 0 here.
         let isSingleCheck = (attackers .&. (attackers - 1)) == 0
         when isSingleCheck $ do
-             let attackerSq = Square (fromMaybe 0 (lsb attackers))
+             let attackerSq = Square (lsbTotal attackers)
                  r = ray kingSq attackerSq
                  -- Target mask: capture attacker or block ray
                  targetMask = r .|. bbFromSquare attackerSq
@@ -198,7 +198,7 @@ generateEvasionCaptures b gs = runBuilder256 $ do
         -- Bolt: isSingleCheck is faster than popCount > 1. attackers is guaranteed > 0 here.
         let isSingleCheck = (attackers .&. (attackers - 1)) == 0
         when isSingleCheck $ do
-            let attackerSq = Square (fromMaybe 0 (lsb attackers))
+            let attackerSq = Square (lsbTotal attackers)
                 targetMask = bbFromSquare attackerSq
                 ep = epSquare gs
                 realTargetMask = case ep of
@@ -228,7 +228,7 @@ generateEvasionQuiets b gs = runBuilder256 $ do
         -- Bolt: isSingleCheck is faster than popCount > 1. attackers is guaranteed > 0 here.
         let isSingleCheck = (attackers .&. (attackers - 1)) == 0
         when isSingleCheck $ do
-            let attackerSq = Square (fromMaybe 0 (lsb attackers))
+            let attackerSq = Square (lsbTotal attackers)
                 r = ray kingSq attackerSq
                 targetMask = r
 
@@ -251,7 +251,7 @@ generateEvasionPromotions b gs = runBuilder256 $ do
          -- Bolt: isSingleCheck is faster than popCount > 1. attackers is guaranteed > 0 here.
          let isSingleCheck = (attackers .&. (attackers - 1)) == 0
          when isSingleCheck $ do
-             let attackerSq = Square (fromMaybe 0 (lsb attackers))
+             let attackerSq = Square (lsbTotal attackers)
                  r = ray kingSq attackerSq
                  targetMask = if r == 0 then bbFromSquare attackerSq else r
              fillPawnEvasionPromotions b gs targetMask
@@ -374,7 +374,7 @@ countLegalGenMoves b gs =
                   fillKingEvasions b gs (complement 0)
                   let isSingleCheck = (attackers .&. (attackers - 1)) == 0
                   when isSingleCheck $ do
-                       let attackerSq = Square (fromMaybe 0 (lsb attackers))
+                       let attackerSq = Square (lsbTotal attackers)
                            r = ray kingSq attackerSq
                            targetMask = r .|. bbFromSquare attackerSq
                            ep = epSquare gs
