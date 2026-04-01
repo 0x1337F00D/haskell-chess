@@ -188,6 +188,12 @@ lsb :: Bitboard -> Maybe Int
 lsb 0 = Nothing
 lsb bb = Just (countTrailingZeros bb)
 
+-- | Total version of lsb. Assumes the bitboard is not 0.
+-- Avoids Maybe allocation and branching.
+{-# INLINE lsbTotal #-}
+lsbTotal :: Bitboard -> Int
+lsbTotal = countTrailingZeros
+
 -- | Indices of bits in ascending order.
 scanForward :: Bitboard -> [Int]
 scanForward bb
