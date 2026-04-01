@@ -27,7 +27,7 @@ class ChessVariant (v :: Variant) where
   -- | Optimized move counting. Defaults to length of generateMoves,
   -- but can be overridden by variants for O(1) or allocation-free counting.
   countMoves :: KnownColor c => ActiveGame v c s -> Int
-  countMoves = length . generateMoves
+  countMoves ag = length (generateMoves ag)
 
   applyMove :: (KnownColor c, KnownColor (Opposite c)) => Move c -> ActiveGame v c s -> GameTransition v (Opposite c)
   executeMove :: (KnownColor c, KnownColor (Opposite c)) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
