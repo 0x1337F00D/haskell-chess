@@ -99,10 +99,10 @@ castlingBlackQueenSide = 0x8
 -- The Active Game State
 -- Indexed by the current turn, check status, and variant.
 data ActiveGame (v :: Variant) (turn :: Color) (status :: CheckStatus) = ActiveGame
-  { internalBoard :: Base.Board
-  , gameState :: GS.GameState
-  , variantState :: VariantState v
-  , checkStatus :: SCheckStatus status
+  { internalBoard :: {-# UNPACK #-} !Base.Board
+  , gameState :: {-# UNPACK #-} !GS.GameState
+  , variantState :: !(VariantState v)
+  , checkStatus :: !(SCheckStatus status)
   }
 
 deriving instance Show (VariantState v) => Show (ActiveGame v turn status)
@@ -111,13 +111,13 @@ deriving instance Eq (VariantState v) => Eq (ActiveGame v turn status)
 -- The Game Container
 data Game (v :: Variant) (p :: Phase) where
   -- Setup Phase: Allows arbitrary placement of pieces
-  SetupGame :: Board -> Game v 'Setup
+  SetupGame :: !Board -> Game v 'Setup
 
   -- Active Phase: The only phase where makeMove is callable
-  InProgressGame :: KnownColor turn => ActiveGame v turn status -> Game v 'Active
+  InProgressGame :: KnownColor turn => !(ActiveGame v turn status) -> Game v 'Active
 
   -- Finished Phase: Contains the result
-  FinishedGame :: Outcome -> Game v 'Finished
+  FinishedGame :: !Outcome -> Game v 'Finished
 
 deriving instance Show (VariantState v) => Show (Game v p)
 
