@@ -111,9 +111,6 @@ isLegalSafe b gs pinned gm =
         else isCollinear kingSq from to
 
 -- | Iterate over a bitboard in a Builder Monad (or any Monad)
-{-# INLINE forBitboard #-}
-forBitboard :: Monad m => Bitboard -> (Square -> m ()) -> m ()
-forBitboard bb f = foldBitboardM (\_ sq -> f sq) () bb
 
 -- | Check if a move is legal.
 isLegal :: Board -> GameState -> GenMove -> Bool

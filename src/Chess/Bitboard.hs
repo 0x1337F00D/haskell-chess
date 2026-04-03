@@ -188,6 +188,11 @@ lsb :: Bitboard -> Maybe Int
 lsb 0 = Nothing
 lsb bb = Just (countTrailingZeros bb)
 
+-- | Index of least significant 1 bit. Assumes the bitboard is non-zero.
+lsbTotal :: Bitboard -> Int
+{-# INLINE lsbTotal #-}
+lsbTotal = countTrailingZeros
+
 -- | Indices of bits in ascending order.
 scanForward :: Bitboard -> [Int]
 scanForward bb
@@ -243,10 +248,27 @@ foldBitboardM f z bb = go z bb
         acc' <- f acc (Square i)
         go acc' b'
 
+-- | Execute a monadic action for each set bit.
+forBitboard :: Monad m => Bitboard -> (Square -> m ()) -> m ()
+{-# INLINE forBitboard #-}
+forBitboard bb f = go bb
+  where
+    go 0 = return ()
+    go b = do
+        let i = lsbTotal b
+            b' = clearBit b i
+        f (Square i)
+        go b'
+
 -- | Index of most significant 1 bit, if any.
 msb :: Bitboard -> Maybe Int
 msb 0 = Nothing
 msb bb = Just (63 - countLeadingZeros bb)
+
+-- | Index of most significant 1 bit. Assumes the bitboard is non-zero.
+msbTotal :: Bitboard -> Int
+{-# INLINE msbTotal #-}
+msbTotal bb = 63 - countLeadingZeros bb
 
 -- | Indices of bits in descending order.
 scanReversed :: Bitboard -> [Int]
@@ -466,8 +488,8 @@ getRayAttacksSlow (Square sq) dirIdx occ =
     in if blockers == 0
        then mask
        else let b = if dirIdx `elem` [0, 2, 4, 5] -- Positive directions (N, E, NE, NW)
-                    then countTrailingZeros blockers -- lsb
-                    else 63 - countLeadingZeros blockers -- msb
+                    then lsbTotal blockers -- lsb
+                    else msbTotal blockers -- msb
                 blockerMask = bbRays `U.unsafeIndex` (b * 8 + dirIdx)
             in mask `xor` blockerMask
 
