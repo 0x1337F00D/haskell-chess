@@ -188,6 +188,11 @@ lsb :: Bitboard -> Maybe Int
 lsb 0 = Nothing
 lsb bb = Just (countTrailingZeros bb)
 
+-- | Index of least significant 1 bit. Total function, caller must ensure non-zero input.
+lsbTotal :: Bitboard -> Int
+{-# INLINE lsbTotal #-}
+lsbTotal = countTrailingZeros
+
 -- | Indices of bits in ascending order.
 scanForward :: Bitboard -> [Int]
 scanForward bb
@@ -247,6 +252,11 @@ foldBitboardM f z bb = go z bb
 msb :: Bitboard -> Maybe Int
 msb 0 = Nothing
 msb bb = Just (63 - countLeadingZeros bb)
+
+-- | Index of most significant 1 bit. Total function, caller must ensure non-zero input.
+msbTotal :: Bitboard -> Int
+{-# INLINE msbTotal #-}
+msbTotal bb = 63 - countLeadingZeros bb
 
 -- | Indices of bits in descending order.
 scanReversed :: Bitboard -> [Int]
