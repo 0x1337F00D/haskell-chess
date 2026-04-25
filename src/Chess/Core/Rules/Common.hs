@@ -299,12 +299,12 @@ setStatus s ag = ActiveGame
   }
 
 genericApplyMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> GameTransition v (Opposite c)
-genericApplyMove m ag =
+genericApplyMove m@(Move gm) ag =
     let
         c = colorVal @c
         internalB = internalBoard ag
-        internalB' = applyMoveBase m internalB
         gs = gameState ag
+        internalB' = MG.applyMoveBoardFast internalB gs gm
         gs3 = updateCastlingRights gs m
 
         isPawn = case m of
