@@ -21,6 +21,7 @@ import qualified Chess.Board.Base as Base
 import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
+import Chess.Board.MoveGen.KingSafety (applyMoveBoardFast)
 import qualified Chess.Bitboard as BB
 import Data.Bits (setBit, (.&.), (.|.), complement)
 import qualified Data.Map as Map
@@ -216,76 +217,8 @@ updateCastlingRights gs m =
      else gs2
 
 -- Apply Move Helper (Base Board update)
-applyMoveBase :: forall c. KnownColor c => Move c -> Base.Board -> Base.Board
-applyMoveBase m b =
-    case m of
-       QuietMove f t pt ->
-          let c = toColor (colorVal @c)
-          in Base.unsafeMovePiece b (toSquare f) (toSquare t) c (toPieceType pt)
-
-       CaptureMove f t pt cap ->
-          let c = toColor (colorVal @c)
-              oppC = Base.oppositeColor c
-              b1 = Base.unsafeRemovePiece b (toSquare t) oppC (toPieceType cap)
-          in Base.unsafeMovePiece b1 (toSquare f) (toSquare t) c (toPieceType pt)
-
-       PromotionMove f t promo ->
-          let c = toColor (colorVal @c)
-              b1 = Base.unsafeRemovePiece b (toSquare f) c T.Pawn
-              promoPiece = T.Piece c (toPieceType promo)
-          in Base.unsafePutPiece b1 (toSquare t) promoPiece
-
-       PromotionCaptureMove f t promo cap ->
-          let c = toColor (colorVal @c)
-              oppC = Base.oppositeColor c
-              b1 = Base.unsafeRemovePiece b (toSquare f) c T.Pawn
-              b2 = Base.unsafeRemovePiece b1 (toSquare t) oppC (toPieceType cap)
-              promoPiece = T.Piece c (toPieceType promo)
-          in Base.unsafePutPiece b2 (toSquare t) promoPiece
-
-       CastlingMove f t ->
-          let c = toColor (colorVal @c)
-              b1 = Base.unsafeMovePiece b (toSquare f) (toSquare t) c T.King
-              (rf, rt) = getCastlingRookMove f t
-          in Base.unsafeMovePiece b1 (toSquare rf) (toSquare rt) c T.Rook
-
-       EnPassantMove f t ->
-          let c = toColor (colorVal @c)
-              oppC = Base.oppositeColor c
-              capSq = getEpCapturedSquare f t
-              b1 = Base.unsafeRemovePiece b (toSquare capSq) oppC T.Pawn
-          in Base.unsafeMovePiece b1 (toSquare f) (toSquare t) c T.Pawn
-
-       DropMove p t ->
-          let dropPiece = T.Piece (toColor (colorVal @c)) (toPieceType p)
-          in Base.putPiece b (toSquare t) dropPiece
-
-       Castling960Move k r ->
-          let
-              (Square kf kr) = k
-              (Square rf _) = r
-              isKingSide = fromEnum rf > fromEnum kf
-              rank = kr
-
-              -- Target Files
-              -- King Side: King -> G (FileG = 6), Rook -> F (FileF = 5)
-              -- Queen Side: King -> C (FileC = 2), Rook -> D (FileD = 3)
-              kTarget = if isKingSide then Square FileG rank else Square FileC rank
-              rTarget = if isKingSide then Square FileF rank else Square FileD rank
-
-              kPiece = Base.pieceAt b (toSquare k)
-              rPiece = Base.pieceAt b (toSquare r)
-
-              b1 = Base.removePieceAt b (toSquare k)
-              b2 = Base.removePieceAt b1 (toSquare r)
-
-              b3 = case kPiece of
-                     Just p -> Base.putPiece b2 (toSquare kTarget) p
-                     Nothing -> b2
-              b4 = case rPiece of
-                     Just p -> Base.putPiece b3 (toSquare rTarget) p
-                     Nothing -> b3
-          in b4
+applyMoveBase :: forall c. KnownColor c => Move c -> GS.GameState -> Base.Board -> Base.Board
+applyMoveBase (Move m) gs b = applyMoveBoardFast b gs m
 
 -- Apply Move
 -- Apply Move Helpers
@@ -303,7 +236,7 @@ genericApplyMove m ag =
     let
         c = colorVal @c
         internalB = internalBoard ag
-        internalB' = applyMoveBase m internalB
+        internalB' = applyMoveBase m (toGameState ag) internalB
         gs = gameState ag
         gs3 = updateCastlingRights gs m
 

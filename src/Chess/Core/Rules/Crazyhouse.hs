@@ -86,7 +86,7 @@ crazyhouseGameFromFEN s = do
                    , genDrops Queen (pocketQueens pocket)
                    ]
 
-               safe m = not (Val.isCheck (applyMoveBase m baseBoard) gs)
+               safe m = not (Val.isCheck (applyMoveBase m gs baseBoard) gs)
            in filter safe drops
 
       hasMoves :: forall col. KnownColor col => Bool
@@ -135,7 +135,7 @@ instance ChessVariant 'Crazyhouse where
            ]
 
         isSafeDrop m =
-           let nextBase = applyMoveBase m baseBoard
+           let nextBase = applyMoveBase m gs baseBoard
            in not (Val.isCheck nextBase gs)
 
         validDropMoves = filter isSafeDrop dropMoves
@@ -147,7 +147,7 @@ instance ChessVariant 'Crazyhouse where
         c = colorVal @c
         oppC = colorVal @(Opposite c)
         internalB = internalBoard ag
-        internalB' = applyMoveBase m internalB
+        internalB' = applyMoveBase m (toGameState ag) internalB
 
         (CrazyhouseState wPocket bPocket promotedState) = variantState ag
 

@@ -33,7 +33,7 @@ instance ChessVariant 'RacingKings where
         oppC = opposite c
 
         noGiveCheck m =
-            let baseNext = applyMoveBase m baseBoard
+            let baseNext = applyMoveBase m gs baseBoard
             in not (Val.isCheck baseNext (dummyGameState oppC))
           where
             dummyGameState col = GS.initialGameState { GS.turn = toColor col }

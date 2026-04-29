@@ -35,7 +35,7 @@ instance ChessVariant 'ThreeCheck where
         c = colorVal @c
         oppC = colorVal @(Opposite c)
         internalB = internalBoard ag
-        internalB' = applyMoveBase m internalB
+        internalB' = applyMoveBase m (toGameState ag) internalB
 
         gs = gameState ag
         gsUpdated = updateCastlingRights gs m

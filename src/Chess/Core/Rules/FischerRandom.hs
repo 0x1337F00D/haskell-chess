@@ -110,7 +110,7 @@ instance ChessVariant 'FischerRandom where
     let
         c = colorVal @c
         internalB = internalBoard ag
-        internalB' = applyMoveBase m internalB
+        internalB' = applyMoveBase m (toGameState ag) internalB
 
         gs = gameState ag
         gsUpdated = updateCastlingRights gs m

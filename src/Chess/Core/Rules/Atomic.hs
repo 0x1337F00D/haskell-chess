@@ -71,7 +71,7 @@ instance ChessVariant 'Atomic where
     let c = colorVal @c
         internalB = internalBoard ag
 
-        bBasic = applyMoveBase m internalB
+        bBasic = applyMoveBase m (toGameState ag) internalB
 
         isCaptureCenter = case m of
                       CaptureMove _ t _ _ -> Just t

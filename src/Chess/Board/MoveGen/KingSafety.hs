@@ -265,7 +265,31 @@ applyMoveBoardFast b gs gm =
                 b2 = unsafeRemovePiece b1 to (oppositeColor c) capPt
             in unsafePutPiece b2 to (Piece c pt)
 
-          | otherwise -> b -- Unsupported move type (e.g. GenDrop)
+          | t == tagCastling960 ->
+            let kf = from
+                rf = to -- to is rook source
+                isKingSide = unSquare rf > unSquare kf
+                rank = unSquare kf `div` 8
+                kTarget = Square (if isKingSide then 6 + rank * 8 else 2 + rank * 8)
+                rTarget = Square (if isKingSide then 5 + rank * 8 else 3 + rank * 8)
+
+                kPiece = pieceAt b kf
+                rPiece = pieceAt b rf
+
+                b1 = removePieceAt b kf
+                b2 = removePieceAt b1 rf
+
+                b3 = case kPiece of
+                       Just p -> putPiece b2 kTarget p
+                       Nothing -> b2
+                b4 = case rPiece of
+                       Just p -> putPiece b3 rTarget p
+                       Nothing -> b3
+            in b4
+
+          | t == tagDrop ->
+            putPiece b to (Piece c pt)
+          | otherwise -> b
 
 movePieceFast :: Board -> Square -> Square -> Color -> PieceType -> Board
 movePieceFast = unsafeMovePiece
