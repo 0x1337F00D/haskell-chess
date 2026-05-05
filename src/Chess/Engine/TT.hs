@@ -35,6 +35,7 @@ clearTT (TT v _) = UM.set v 0
 
 -- | Pack Data into 64 bits.
 -- Move (16) | Score (16) | Depth (8) | Flag (2) | Age (8) | Unused (14)
+{-# INLINE packData #-}
 packData :: Move -> Int -> Depth -> TTFlag -> Int -> Word64
 packData m score depth flag age =
     let mW = fromIntegral (coerce m :: Word16) :: Word64
@@ -48,6 +49,7 @@ packData m score depth flag age =
        (fW `shiftL` 40) .|.
        (aW `shiftL` 42)
 
+{-# INLINE unpackData #-}
 unpackData :: Word64 -> (Move, Int, Depth, TTFlag, Int)
 unpackData w =
     let m = coerce (fromIntegral (w .&. 0xFFFF) :: Word16) :: Move
@@ -60,6 +62,7 @@ unpackData w =
 -- | Probe the TT.
 -- Performance: Fold the upper 32 bits into the lower 32 bits before masking
 -- to reduce hash collisions when the TT mask discards high-entropy upper bits.
+{-# INLINE probeTT #-}
 probeTT :: TT -> Word64 -> IO (Maybe (Move, Int, Depth, TTFlag))
 probeTT (TT v mask) key = do
     let k1 = fromIntegral key :: Int
@@ -77,6 +80,7 @@ probeTT (TT v mask) key = do
 -- Replacement strategy: Always replace if age differs.
 -- Otherwise, depth-preferred or always replace for exact matches.
 -- Performance: Fold the upper 32 bits into the lower 32 bits before masking.
+{-# INLINE storeTT #-}
 storeTT :: TT -> Int -> Word64 -> Depth -> Int -> TTFlag -> Move -> IO ()
 storeTT (TT v mask) age key depth score flag move = do
     let k1 = fromIntegral key :: Int
