@@ -2,3 +2,7 @@
 **Learning:** `perftWhite` and `perftBlack` functions in `Chess.Core.Rules.Class` were evaluating `length (generateMoves game)` for leaf nodes at `depth == 1`. In Standard chess variant, `generateMoves` constructs the full list of moves before computing its length, causing an $O(N)$ allocation of list nodes and boxed moves.
 **Action:** Introduced a `countMoves` method to the `ChessVariant` typeclass to bypass generating the full list where possible. Implemented `countMoves` for `Standard` variant to directly return the number of legal moves using `countLegalGenMovesSafe` (or `countLegalGenMoves` when in check), bypassing list allocation entirely for depth 1 leaf node counting.
 **Impact:** Minor allocation reduction. On `bench-core` KiwiPete Depth 4: NPS increased slightly.
+
+## 2024-05-24 – [Inline and Strictness in TT Packing/Unpacking]
+**Learning:** `packData` and `unpackData` in `Chess.Engine.TT` are heavily used during Transposition Table (TT) stores and probes in the search hot loop. By default, GHC might not inline these or might create intermediate boxed thunks for the bitwise shifting and masking. Applying `{-# INLINE #-}` and strict bang patterns `!mW = ...` ensures the bitwise calculations happen entirely unboxed in registers.
+**Action:** When working with struct-like bit-packing operations in Haskell, consistently apply `{-# INLINE #-}` pragmas and use strict let bindings (`let !x = ...`) to ensure the compiler generates unboxed, alloc-free operations and prevents GC-heavy thunk buildups of intermediate bitwise calculations.
