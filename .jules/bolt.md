@@ -2,3 +2,7 @@
 **Learning:** `perftWhite` and `perftBlack` functions in `Chess.Core.Rules.Class` were evaluating `length (generateMoves game)` for leaf nodes at `depth == 1`. In Standard chess variant, `generateMoves` constructs the full list of moves before computing its length, causing an $O(N)$ allocation of list nodes and boxed moves.
 **Action:** Introduced a `countMoves` method to the `ChessVariant` typeclass to bypass generating the full list where possible. Implemented `countMoves` for `Standard` variant to directly return the number of legal moves using `countLegalGenMovesSafe` (or `countLegalGenMoves` when in check), bypassing list allocation entirely for depth 1 leaf node counting.
 **Impact:** Minor allocation reduction. On `bench-core` KiwiPete Depth 4: NPS increased slightly.
+## 2024-05-24 – [Search History Update Consolidation]
+**Learning:** During alpha-beta search, the best move and penalized quiets were updated separately in `updateHistory` and `penaltyHistory`. This required repeatedly looking up the `SearchContext` resources and re-calculating the depth-dependent history modifier `min 400 (d * d)` for every single quiet move played, adding up to thousands of redundant operations in deep searches.
+**Action:** Created `updateHistoryFull` in `Chess.Engine.Search.Ordering` which takes both the best move and the list of penalized quiets, computing the depth modifier exactly once and executing the array writes in a single, tighter pass.
+**Impact:** Search allocation rate slightly decreased; minor NPS improvement on deeper bounds.

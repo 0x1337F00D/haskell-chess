@@ -165,27 +165,29 @@ getKillers ctx depth = do
         return $ filter (/= nullMove) [k1, k2]
     else return []
 
-updateHistory :: forall p. SearchContext p -> Depth -> Move -> IO ()
-updateHistory ctx depth (Move f t _) = do
+updateHistoryFull :: forall p. SearchContext p -> Depth -> Move -> [Move] -> IO ()
+updateHistoryFull ctx depth bestMove playedQuiets = do
     let res = scResources ctx
-    let idx = (unSquare f) * 64 + (unSquare t)
     let d = unDepth depth
-    let bonus = min 400 (d * d)
-    v <- UM.unsafeRead (resHistory res) idx
-    let scaledV = v - v * bonus `div` 16384
-    UM.unsafeWrite (resHistory res) idx (scaledV + bonus)
-updateHistory _ _ _ = return ()
+    let modifier = min 400 (d * d)
 
-penaltyHistory :: forall p. SearchContext p -> Depth -> Move -> IO ()
-penaltyHistory ctx depth (Move f t _) = do
-    let res = scResources ctx
-    let idx = (unSquare f) * 64 + (unSquare t)
-    let d = unDepth depth
-    let penalty = min 400 (d * d)
-    v <- UM.unsafeRead (resHistory res) idx
-    let scaledV = v - v * penalty `div` 16384
-    UM.unsafeWrite (resHistory res) idx (scaledV - penalty)
-penaltyHistory _ _ _ = return ()
+    -- Update best move (bonus)
+    case bestMove of
+        Move f t _ -> do
+            let idx = (unSquare f) * 64 + (unSquare t)
+            v <- UM.unsafeRead (resHistory res) idx
+            let scaledV = v - v * modifier `div` 16384
+            UM.unsafeWrite (resHistory res) idx (scaledV + modifier)
+        _ -> return ()
+
+    -- Update played quiets (penalty)
+    mapM_ (\m -> case m of
+        Move f t _ -> do
+            let idx = (unSquare f) * 64 + (unSquare t)
+            v <- UM.unsafeRead (resHistory res) idx
+            let scaledV = v - v * modifier `div` 16384
+            UM.unsafeWrite (resHistory res) idx (scaledV - modifier)
+        _ -> return ()) playedQuiets
 
 updateCounterMove :: forall p. SearchContext p -> Maybe Move -> Move -> IO ()
 updateCounterMove _ Nothing _ = return ()

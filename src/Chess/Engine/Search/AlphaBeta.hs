@@ -584,10 +584,8 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                      if not isCap && not isProm
                      then do
                          updateKillers ctx d m
-                         updateHistory ctx d m
+                         updateHistoryFull ctx d m playedQuiets
                          updateCounterMove ctx lastMove m
-                         -- Penalize previously played quiets that didn't cause a cutoff
-                         mapM_ (penaltyHistory ctx d) playedQuiets
                      else return ()
                      return (score, TTLower, m, True, newAlpha, nextPlayedQuiets, index + 1)
                 else searchStage dcBitboard lms (index + 1) inCheck staticEval newAlpha b d newFlag newBestScore newBestM True nextPlayedQuiets
