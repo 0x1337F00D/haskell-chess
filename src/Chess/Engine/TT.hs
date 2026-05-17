@@ -35,6 +35,7 @@ clearTT (TT v _) = UM.set v 0
 
 -- | Pack Data into 64 bits.
 -- Move (16) | Score (16) | Depth (8) | Flag (2) | Age (8) | Unused (14)
+{-# INLINE packData #-}
 packData :: Move -> Int -> Depth -> TTFlag -> Int -> Word64
 packData m score depth flag age =
     let mW = fromIntegral (coerce m :: Word16) :: Word64
@@ -48,6 +49,7 @@ packData m score depth flag age =
        (fW `shiftL` 40) .|.
        (aW `shiftL` 42)
 
+{-# INLINE unpackData #-}
 unpackData :: Word64 -> (Move, Int, Depth, TTFlag, Int)
 unpackData w =
     let m = coerce (fromIntegral (w .&. 0xFFFF) :: Word16) :: Move
@@ -72,6 +74,22 @@ probeTT (TT v mask) key = do
         let (m, s, d, f, _) = unpackData entryData
         return $ Just (m, s, d, f)
     else return Nothing
+
+-- | Probe the TT without unpacking into a Maybe tuple to avoid allocations.
+-- Returns an unboxed Word64 containing the packed data if found, or 0 if not found.
+-- The caller should handle the 0 case (meaning not found or empty entry).
+{-# INLINE probeTTFast #-}
+probeTTFast :: TT -> Word64 -> IO Word64
+probeTTFast (TT v mask) key = do
+    let k1 = fromIntegral key :: Int
+        k2 = fromIntegral (key `shiftR` 32) :: Int
+        idx = ((k1 `xor` k2) .&. mask) * 2
+    entryKey <- UM.unsafeRead v idx
+    if entryKey == key
+    then do
+        entryData <- UM.unsafeRead v (idx + 1)
+        return entryData
+    else return 0
 
 -- | Store in TT.
 -- Replacement strategy: Always replace if age differs.
