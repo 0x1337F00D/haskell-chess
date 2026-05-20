@@ -48,6 +48,7 @@ packData m score depth flag age =
        (fW `shiftL` 40) .|.
        (aW `shiftL` 42)
 
+{-# INLINE unpackData #-}
 unpackData :: Word64 -> (Move, Int, Depth, TTFlag, Int)
 unpackData w =
     let m = coerce (fromIntegral (w .&. 0xFFFF) :: Word16) :: Move
@@ -57,9 +58,25 @@ unpackData w =
         a = fromIntegral ((w `shiftR` 42) .&. 0xFF)
     in (m, s, d, f, a)
 
+-- | Probe the TT without allocating a Maybe tuple.
+-- Returns entryData if matched and key != 0, else 0.
+-- In our packData, a valid entry always has depth/flag/etc, so data is never 0 if a real entry exists.
+-- Thus 0 safely acts as a sentinel for "not found".
+probeTTFast :: TT -> Word64 -> IO Word64
+{-# INLINE probeTTFast #-}
+probeTTFast (TT v mask) key = do
+    let k1 = fromIntegral key :: Int
+        k2 = fromIntegral (key `shiftR` 32) :: Int
+        idx = ((k1 `xor` k2) .&. mask) * 2
+    entryKey <- UM.unsafeRead v idx
+    if entryKey == key && key /= 0
+    then UM.unsafeRead v (idx + 1)
+    else return 0
+
 -- | Probe the TT.
 -- Performance: Fold the upper 32 bits into the lower 32 bits before masking
 -- to reduce hash collisions when the TT mask discards high-entropy upper bits.
+{-# INLINE probeTT #-}
 probeTT :: TT -> Word64 -> IO (Maybe (Move, Int, Depth, TTFlag))
 probeTT (TT v mask) key = do
     let k1 = fromIntegral key :: Int
