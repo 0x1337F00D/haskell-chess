@@ -58,20 +58,31 @@ unpackData w =
     in (m, s, d, f, a)
 
 -- | Probe the TT.
--- Performance: Fold the upper 32 bits into the lower 32 bits before masking
--- to reduce hash collisions when the TT mask discards high-entropy upper bits.
-probeTT :: TT -> Word64 -> IO (Maybe (Move, Int, Depth, TTFlag))
-probeTT (TT v mask) key = do
+-- | Fast Probe TT using maxBound as miss sentinel.
+-- Returns an unboxed Word64 containing the packData.
+-- Caller must check if the returned value is maxBound to detect a miss.
+{-# INLINE probeTTFast #-}
+probeTTFast :: TT -> Word64 -> IO Word64
+probeTTFast (TT v mask) key = do
     let k1 = fromIntegral key :: Int
         k2 = fromIntegral (key `shiftR` 32) :: Int
         idx = ((k1 `xor` k2) .&. mask) * 2
     entryKey <- UM.unsafeRead v idx
     if entryKey == key
-    then do
-        entryData <- UM.unsafeRead v (idx + 1)
-        let (m, s, d, f, _) = unpackData entryData
+    then UM.unsafeRead v (idx + 1)
+    else return maxBound
+
+-- | Probe the TT (Legacy/slow version, for backwards compatibility if needed)
+-- Performance: Fold the upper 32 bits into the lower 32 bits before masking
+-- to reduce hash collisions when the TT mask discards high-entropy upper bits.
+probeTT :: TT -> Word64 -> IO (Maybe (Move, Int, Depth, TTFlag))
+probeTT tt key = do
+    w <- probeTTFast tt key
+    if w == maxBound
+    then return Nothing
+    else do
+        let (m, s, d, f, _) = unpackData w
         return $ Just (m, s, d, f)
-    else return Nothing
 
 -- | Store in TT.
 -- Replacement strategy: Always replace if age differs.
