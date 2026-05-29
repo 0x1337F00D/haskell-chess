@@ -48,30 +48,38 @@ packData m score depth flag age =
        (fW `shiftL` 40) .|.
        (aW `shiftL` 42)
 
-unpackData :: Word64 -> (Move, Int, Depth, TTFlag, Int)
-unpackData w =
-    let m = coerce (fromIntegral (w .&. 0xFFFF) :: Word16) :: Move
-        s = fromIntegral ((w `shiftR` 16) .&. 0xFFFF) - 32768
-        d = Depth (fromIntegral ((w `shiftR` 32) .&. 0xFF))
-        f = toEnum (fromIntegral ((w `shiftR` 40) .&. 0x3))
-        a = fromIntegral ((w `shiftR` 42) .&. 0xFF)
-    in (m, s, d, f, a)
+{-# INLINE unpackTTMove #-}
+unpackTTMove :: Word64 -> Move
+unpackTTMove w = coerce (fromIntegral (w .&. 0xFFFF) :: Word16)
 
--- | Probe the TT.
--- Performance: Fold the upper 32 bits into the lower 32 bits before masking
--- to reduce hash collisions when the TT mask discards high-entropy upper bits.
-probeTT :: TT -> Word64 -> IO (Maybe (Move, Int, Depth, TTFlag))
-probeTT (TT v mask) key = do
+{-# INLINE unpackScore #-}
+unpackScore :: Word64 -> Int
+unpackScore w = fromIntegral ((w `shiftR` 16) .&. 0xFFFF) - 32768
+
+{-# INLINE unpackDepth #-}
+unpackDepth :: Word64 -> Depth
+unpackDepth w = Depth (fromIntegral ((w `shiftR` 32) .&. 0xFF))
+
+{-# INLINE unpackFlag #-}
+unpackFlag :: Word64 -> TTFlag
+unpackFlag w = toEnum (fromIntegral ((w `shiftR` 40) .&. 0x3))
+
+{-# INLINE unpackAge #-}
+unpackAge :: Word64 -> Int
+unpackAge w = fromIntegral ((w `shiftR` 42) .&. 0xFF)
+
+-- | Probe the TT (Fast version avoiding Maybe allocations).
+-- Returns maxBound on miss.
+{-# INLINE probeTTFast #-}
+probeTTFast :: TT -> Word64 -> IO Word64
+probeTTFast (TT v mask) key = do
     let k1 = fromIntegral key :: Int
         k2 = fromIntegral (key `shiftR` 32) :: Int
         idx = ((k1 `xor` k2) .&. mask) * 2
     entryKey <- UM.unsafeRead v idx
     if entryKey == key
-    then do
-        entryData <- UM.unsafeRead v (idx + 1)
-        let (m, s, d, f, _) = unpackData entryData
-        return $ Just (m, s, d, f)
-    else return Nothing
+    then UM.unsafeRead v (idx + 1)
+    else return maxBound
 
 -- | Store in TT.
 -- Replacement strategy: Always replace if age differs.
@@ -85,7 +93,9 @@ storeTT (TT v mask) age key depth score flag move = do
     -- Read old entry to decide replacement
     oldKey <- UM.unsafeRead v idx
     oldData <- UM.unsafeRead v (idx + 1)
-    let (_, _, oldDepth, _, oldAge) = unpackData oldData
+
+    let oldDepth = unpackDepth oldData
+    let oldAge = unpackAge oldData
 
     -- Replace if:
     -- 1. Empty (oldKey == 0)

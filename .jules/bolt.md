@@ -2,3 +2,7 @@
 **Learning:** `perftWhite` and `perftBlack` functions in `Chess.Core.Rules.Class` were evaluating `length (generateMoves game)` for leaf nodes at `depth == 1`. In Standard chess variant, `generateMoves` constructs the full list of moves before computing its length, causing an $O(N)$ allocation of list nodes and boxed moves.
 **Action:** Introduced a `countMoves` method to the `ChessVariant` typeclass to bypass generating the full list where possible. Implemented `countMoves` for `Standard` variant to directly return the number of legal moves using `countLegalGenMovesSafe` (or `countLegalGenMoves` when in check), bypassing list allocation entirely for depth 1 leaf node counting.
 **Impact:** Minor allocation reduction. On `bench-core` KiwiPete Depth 4: NPS increased slightly.
+
+## 2024-05-29 – [Transposition Table Unboxed Probing]
+**Learning:** Returning `Maybe (Move, Int, Depth, TTFlag)` from `probeTT` was forcing heap allocations for both the `Maybe` wrapper and the embedded tuple on every cache hit. This created significant garbage collection overhead and memory pressure during the core search loop (`AlphaBeta` and `Quiescence`), which frequently probes the TT.
+**Action:** Replaced `probeTT` with `probeTTFast`, returning a raw `Word64` and utilizing `maxBound` as a Sentinel for cache misses. Introduced explicit unboxing functions (`unpackTTMove`, `unpackScore`, etc.) to decode the packed data only when directly needed in the search loops. This bypasses tuple boxing entirely, increasing nodes-per-second and reducing total heap allocation.
