@@ -9,7 +9,7 @@ import Chess.Types (Depth(..), unDepth, decDepth, depthZero, CheckStatus(..))
 import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, pieces, applyLegalMoveValidated, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated, getGenMove, MoveGenerator(..))
 import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
 import Chess.Board.Phase (Position(..))
-import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
+import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..), probeTTFast, unpackData)
 import Chess.Engine.Search.Types (mateValue, SearchContext(..))
 import Chess.Engine.Search.Ordering (orderGenMoves, orderQSMoves, partitionSEE)
 import Chess.Types (nullMove)
@@ -24,7 +24,8 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
 
     -- Check for cached evaluation in TT
     let hash = GS.zobristHash (state board)
-    ttEntry <- probeTT tt hash
+    ttEntryData <- probeTTFast tt hash
+    let ttHit = ttEntryData /= maxBound
 
     -- Use CheckState from context
     let inCheck = case scCheckState ctx of
@@ -38,7 +39,8 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
         if null evasions
         then return (-mateValue)
         else do
-            let sortedMoves = orderGenMoves vBoard evasions Nothing
+            let ttMove = if ttHit then let (m, _, _, _, _) = unpackData ttEntryData in Just m else Nothing
+            let sortedMoves = orderGenMoves vBoard evasions ttMove
 
             -- Precalculate DC for Evasions? No, Evasions are few.
             -- But standard loop does calls to givesCheck for next recursion.
@@ -49,9 +51,10 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
     else do
         -- Not in check: Standard QSearch
         -- Use cached eval if available
-        let staticEval = case ttEntry of
-                Just (_, s, _, TTEval) -> Just s
-                _ -> Nothing
+        let staticEval = if ttHit
+                then let (_, s, _, f, _) = unpackData ttEntryData in
+                    if f == TTEval then Just s else Nothing
+                else Nothing
 
         standPat <- case staticEval of
             Just s -> return s

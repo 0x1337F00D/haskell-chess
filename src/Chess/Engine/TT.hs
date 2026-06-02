@@ -73,6 +73,19 @@ probeTT (TT v mask) key = do
         return $ Just (m, s, d, f)
     else return Nothing
 
+{-# INLINE probeTTFast #-}
+-- | Probes the transposition table without allocating a `Maybe` or a tuple,
+-- using `maxBound` as the cache miss sentinel value.
+probeTTFast :: TT -> Word64 -> IO Word64
+probeTTFast (TT v mask) key = do
+    let k1 = fromIntegral key :: Int
+        k2 = fromIntegral (key `shiftR` 32) :: Int
+        idx = ((k1 `xor` k2) .&. mask) * 2
+    entryKey <- UM.unsafeRead v idx
+    if entryKey == key
+    then UM.unsafeRead v (idx + 1)
+    else return maxBound
+
 -- | Store in TT.
 -- Replacement strategy: Always replace if age differs.
 -- Otherwise, depth-preferred or always replace for exact matches.
