@@ -299,7 +299,7 @@ setStatus s ag = ActiveGame
   }
 
 genericApplyMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> GameTransition v (Opposite c)
-genericApplyMove m ag =
+genericApplyMove m@(Move gm) ag =
     let
         c = colorVal @c
         internalB = internalBoard ag
@@ -340,20 +340,28 @@ genericApplyMove m ag =
           , GS.zobristHash = 0 -- Reset hash as we don't track it incrementally yet
           }
 
-        nextAg = ActiveGame
-          { internalBoard = internalB'
-          , gameState = newGS
-          , variantState = variantState ag
-          , checkStatus = SUnchecked
-          }
-    in Transition nextAg
+        givesCheck = MG.givesCheck internalB gs gm
+
+    in if givesCheck
+       then Transition (ActiveGame
+            { internalBoard = internalB'
+            , gameState = newGS
+            , variantState = variantState ag
+            , checkStatus = SChecked
+            })
+       else Transition (ActiveGame
+            { internalBoard = internalB'
+            , gameState = newGS
+            , variantState = variantState ag
+            , checkStatus = SSafe
+            })
 
 -- | Optimized generic execute Move for perft. Bypasses the expensive check for legal moves
 -- because perft naturally handles 0 legal moves by returning an empty list at the next depth.
 genericPerftExecuteMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
 genericPerftExecuteMove m ag =
   case applyMove m ag of
-    Transition nextAg -> Continue (nextAg { checkStatus = SUnchecked })
+    Transition nextAg -> Continue nextAg
 
 -- | Classify post-move position status uniformly.
 classifyPosition :: forall v c s'. (KnownColor c, KnownColor (Opposite c), ChessVariant v)
@@ -376,11 +384,13 @@ statusToMoveResult nextAg status = case status of
     SafePos NoReplies     -> Stalemate
 
 genericExecuteMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
-genericExecuteMove m@(Move gm) ag =
+genericExecuteMove m ag =
   case applyMove m ag of
     Transition nextAg ->
       let
-         checked = MG.givesCheck (internalBoard ag) (toGameState ag) gm
+         checked = case checkStatus nextAg of
+                     SChecked -> True
+                     _ -> False
 
          -- Use fast validation for standard chess
          -- Variants using genericExecuteMove might override generateMoves but not necessarily Val.hasLegalMoves.
