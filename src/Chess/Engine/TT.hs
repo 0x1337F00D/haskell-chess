@@ -48,6 +48,7 @@ packData m score depth flag age =
        (fW `shiftL` 40) .|.
        (aW `shiftL` 42)
 
+{-# INLINE unpackData #-}
 unpackData :: Word64 -> (Move, Int, Depth, TTFlag, Int)
 unpackData w =
     let m = coerce (fromIntegral (w .&. 0xFFFF) :: Word16) :: Move
@@ -60,6 +61,17 @@ unpackData w =
 -- | Probe the TT.
 -- Performance: Fold the upper 32 bits into the lower 32 bits before masking
 -- to reduce hash collisions when the TT mask discards high-entropy upper bits.
+{-# INLINE probeTTFast #-}
+probeTTFast :: TT -> Word64 -> IO Word64
+probeTTFast (TT v mask) key = do
+    let k1 = fromIntegral key :: Int
+        k2 = fromIntegral (key `shiftR` 32) :: Int
+        idx = ((k1 `xor` k2) .&. mask) * 2
+    entryKey <- UM.unsafeRead v idx
+    if entryKey == key
+    then UM.unsafeRead v (idx + 1)
+    else return maxBound
+
 probeTT :: TT -> Word64 -> IO (Maybe (Move, Int, Depth, TTFlag))
 probeTT (TT v mask) key = do
     let k1 = fromIntegral key :: Int
