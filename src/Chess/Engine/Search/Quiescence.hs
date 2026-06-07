@@ -9,7 +9,7 @@ import Chess.Types (Depth(..), unDepth, decDepth, depthZero, CheckStatus(..))
 import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, pieces, applyLegalMoveValidated, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated, getGenMove, MoveGenerator(..))
 import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
 import Chess.Board.Phase (Position(..))
-import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
+import Chess.Engine.TT (TT, probeTTFast, unpackData, storeTT, TTFlag(..))
 import Chess.Engine.Search.Types (mateValue, SearchContext(..))
 import Chess.Engine.Search.Ordering (orderGenMoves, orderQSMoves, partitionSEE)
 import Chess.Types (nullMove)
@@ -24,7 +24,10 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
 
     -- Check for cached evaluation in TT
     let hash = GS.zobristHash (state board)
-    ttEntry <- probeTT tt hash
+    ttEntryData <- probeTTFast tt hash
+    let ttEntry = if ttEntryData /= maxBound
+                  then let (m, s, d, f, _) = unpackData ttEntryData in Just (m, s, d, f)
+                  else Nothing
 
     -- Use CheckState from context
     let inCheck = case scCheckState ctx of

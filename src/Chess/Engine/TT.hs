@@ -1,5 +1,14 @@
 {-# LANGUAGE BangPatterns #-}
-module Chess.Engine.TT where
+module Chess.Engine.TT (
+    TTFlag(..),
+    TT,
+    newTT,
+    clearTT,
+    packData,
+    unpackData,
+    probeTTFast,
+    storeTT
+) where
 
 import Data.Word
 import Data.Bits
@@ -60,18 +69,15 @@ unpackData w =
 -- | Probe the TT.
 -- Performance: Fold the upper 32 bits into the lower 32 bits before masking
 -- to reduce hash collisions when the TT mask discards high-entropy upper bits.
-probeTT :: TT -> Word64 -> IO (Maybe (Move, Int, Depth, TTFlag))
-probeTT (TT v mask) key = do
+probeTTFast :: TT -> Word64 -> IO Word64
+probeTTFast (TT v mask) key = do
     let k1 = fromIntegral key :: Int
         k2 = fromIntegral (key `shiftR` 32) :: Int
         idx = ((k1 `xor` k2) .&. mask) * 2
     entryKey <- UM.unsafeRead v idx
     if entryKey == key
-    then do
-        entryData <- UM.unsafeRead v (idx + 1)
-        let (m, s, d, f, _) = unpackData entryData
-        return $ Just (m, s, d, f)
-    else return Nothing
+    then UM.unsafeRead v (idx + 1)
+    else return maxBound
 
 -- | Store in TT.
 -- Replacement strategy: Always replace if age differs.
