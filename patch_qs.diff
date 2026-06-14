@@ -1,0 +1,29 @@
+--- src/Chess/Engine/Search/Quiescence.hs
++++ src/Chess/Engine/Search/Quiescence.hs
+@@ -9,10 +9,10 @@
+ import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, pieces, applyLegalMoveValidated, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated, getGenMove, MoveGenerator(..))
+ import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
+ import Chess.Board.Phase (Position(..))
+-import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
++import Chess.Engine.TT (TT, probeTTFast, unpackDataFast, storeTT, TTFlag(..))
+ import Chess.Engine.Search.Types (mateValue, SearchContext(..))
+ import Chess.Engine.Search.Ordering (orderGenMoves, orderQSMoves, partitionSEE)
+-import Chess.Types (nullMove)
++import Chess.Types (nullMove, mkDepth)
+ import qualified Chess.Board.GameState as GS
+ import qualified Chess.Board.MoveGen.KingSafety as KingSafety
+
+@@ -24,7 +24,12 @@
+
+     -- Check for cached evaluation in TT
+     let hash = GS.zobristHash (state board)
+-    ttEntry <- probeTT tt hash
++    (entryKey, entryData) <- probeTTFast tt hash
++    let ttHit = entryKey == hash
++    let (ttMove, ttScore, ttDepth, ttFlag) = if ttHit
++            then let (m, s, d, f) = unpackDataFast entryData in (Just m, s, d, f)
++            else (Nothing, 0, mkDepth (-1), TTExact)
++    let ttEntry = if ttHit then Just (ttMove, ttScore, ttDepth, ttFlag) else Nothing
+
+     -- Use CheckState from context
+     let inCheck = case scCheckState ctx of

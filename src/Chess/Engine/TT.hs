@@ -48,6 +48,7 @@ packData m score depth flag age =
        (fW `shiftL` 40) .|.
        (aW `shiftL` 42)
 
+{-# INLINE unpackData #-}
 unpackData :: Word64 -> (Move, Int, Depth, TTFlag, Int)
 unpackData w =
     let m = coerce (fromIntegral (w .&. 0xFFFF) :: Word16) :: Move
@@ -72,6 +73,26 @@ probeTT (TT v mask) key = do
         let (m, s, d, f, _) = unpackData entryData
         return $ Just (m, s, d, f)
     else return Nothing
+
+-- | Probe the TT returning unboxed components to avoid Maybe and tuple allocation.
+{-# INLINE probeTTFast #-}
+probeTTFast :: TT -> Word64 -> IO (Word64, Word64)
+probeTTFast (TT v mask) key = do
+    let k1 = fromIntegral key :: Int
+        k2 = fromIntegral (key `shiftR` 32) :: Int
+        idx = ((k1 `xor` k2) .&. mask) * 2
+    entryKey <- UM.unsafeRead v idx
+    entryData <- UM.unsafeRead v (idx + 1)
+    return (entryKey, entryData)
+
+{-# INLINE unpackDataFast #-}
+unpackDataFast :: Word64 -> (Move, Int, Depth, TTFlag)
+unpackDataFast w =
+    let m = coerce (fromIntegral (w .&. 0xFFFF) :: Word16) :: Move
+        s = fromIntegral ((w `shiftR` 16) .&. 0xFFFF) - 32768
+        d = Depth (fromIntegral ((w `shiftR` 32) .&. 0xFF))
+        f = toEnum (fromIntegral ((w `shiftR` 40) .&. 0x3))
+    in (m, s, d, f)
 
 -- | Store in TT.
 -- Replacement strategy: Always replace if age differs.
