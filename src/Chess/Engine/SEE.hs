@@ -70,16 +70,18 @@ runSeeStart b from to c valAttacker valTarget =
 
 runSEERec :: Board -> Square -> Color -> Bitboard -> Bitboard -> Int -> Int
 runSEERec b sq side occ atts valVictim =
-    case getLeastValuableAttacker b side atts of
-        Nothing -> 0
-        Just (from, pt) ->
-            let valAttacker = pieceValue pt
+    let lva = getLeastValuableAttackerFast b side atts
+    in if lva == -1 then 0
+       else
+            let valAttacker = lva `shiftR` 6
+                fromI = lva .&. 0x3F
+                from = Square fromI
 
                 -- Remove piece from occ
-                newOcc = occ `clearBit` (unSquare from)
+                newOcc = occ `clearBit` fromI
 
                 -- Update attackers (X-ray)
-                newAtts = (atts `clearBit` (unSquare from)) .|. getXRayAttacker b sq from newOcc
+                newAtts = (atts `clearBit` fromI) .|. getXRayAttacker b sq from newOcc
 
                 nextSide = oppositeColor side
 
@@ -88,29 +90,32 @@ runSEERec b sq side occ atts valVictim =
 
             in max 0 (valVictim - scoreNext)
 
-getLeastValuableAttacker :: Board -> Color -> Bitboard -> Maybe (Square, PieceType)
-getLeastValuableAttacker b side atts =
+-- Returns -1 for Nothing.
+-- Else returns (pieceValue pt << 6) | unSquare sq
+{-# INLINE getLeastValuableAttackerFast #-}
+getLeastValuableAttackerFast :: Board -> Color -> Bitboard -> Int
+getLeastValuableAttackerFast b side atts =
     let myAtts = atts .&. occupiedBy b side
-    in if myAtts == 0 then Nothing
+    in if myAtts == 0 then -1
        else
          let pawns = myAtts .&. pieceBitboard b side Pawn
-         in if pawns /= 0 then Just (Square (countTrailingZeros pawns), Pawn)
+         in if pawns /= 0 then (100 `shiftL` 6) .|. countTrailingZeros pawns
          else
            let knights = myAtts .&. pieceBitboard b side Knight
-           in if knights /= 0 then Just (Square (countTrailingZeros knights), Knight)
+           in if knights /= 0 then (320 `shiftL` 6) .|. countTrailingZeros knights
            else
              let bishops = myAtts .&. pieceBitboard b side Bishop
-             in if bishops /= 0 then Just (Square (countTrailingZeros bishops), Bishop)
+             in if bishops /= 0 then (330 `shiftL` 6) .|. countTrailingZeros bishops
              else
                let rooks = myAtts .&. pieceBitboard b side Rook
-               in if rooks /= 0 then Just (Square (countTrailingZeros rooks), Rook)
+               in if rooks /= 0 then (500 `shiftL` 6) .|. countTrailingZeros rooks
                else
                  let queens = myAtts .&. pieceBitboard b side Queen
-                 in if queens /= 0 then Just (Square (countTrailingZeros queens), Queen)
+                 in if queens /= 0 then (900 `shiftL` 6) .|. countTrailingZeros queens
                  else
                    let kings = myAtts .&. pieceBitboard b side King
-                   in if kings /= 0 then Just (Square (countTrailingZeros kings), King)
-                   else Nothing
+                   in if kings /= 0 then (20000 `shiftL` 6) .|. countTrailingZeros kings
+                   else -1
 
 unsafePieceAt :: Board -> Square -> Piece
 unsafePieceAt b sq = case pieceAt b sq of

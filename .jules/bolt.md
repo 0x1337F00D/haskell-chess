@@ -2,3 +2,7 @@
 **Learning:** `perftWhite` and `perftBlack` functions in `Chess.Core.Rules.Class` were evaluating `length (generateMoves game)` for leaf nodes at `depth == 1`. In Standard chess variant, `generateMoves` constructs the full list of moves before computing its length, causing an $O(N)$ allocation of list nodes and boxed moves.
 **Action:** Introduced a `countMoves` method to the `ChessVariant` typeclass to bypass generating the full list where possible. Implemented `countMoves` for `Standard` variant to directly return the number of legal moves using `countLegalGenMovesSafe` (or `countLegalGenMoves` when in check), bypassing list allocation entirely for depth 1 leaf node counting.
 **Impact:** Minor allocation reduction. On `bench-core` KiwiPete Depth 4: NPS increased slightly.
+
+## 2026-03-26 - Optimized Static Exchange Evaluation (SEE) using unboxed bitwise packing
+**Learning:** `getLeastValuableAttacker` inside the hot SEE evaluation function (`runSEERec`) was returning a `Maybe (Square, PieceType)`. This forced GHC to allocate a `Maybe` and a boxed tuple for every piece scanned during capture sequences, leading to high garbage collection pressure in Quiescence search and Alpha-Beta. By manually bit-packing the `PieceType`'s material value and the `Square` index into a single unboxed `Int` (and returning `-1` for `Nothing`), we eliminate these allocations entirely.
+**Action:** In search or evaluation hot loops, replace nested ADT returns (like `Maybe (A, B)`) with bit-packed `Int` or `Word` values to prevent heap allocations.
