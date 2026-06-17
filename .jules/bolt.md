@@ -1,4 +1,3 @@
-## 2024-05-24 – [Perft Leaf Node Move Counting Optimization]
-**Learning:** `perftWhite` and `perftBlack` functions in `Chess.Core.Rules.Class` were evaluating `length (generateMoves game)` for leaf nodes at `depth == 1`. In Standard chess variant, `generateMoves` constructs the full list of moves before computing its length, causing an $O(N)$ allocation of list nodes and boxed moves.
-**Action:** Introduced a `countMoves` method to the `ChessVariant` typeclass to bypass generating the full list where possible. Implemented `countMoves` for `Standard` variant to directly return the number of legal moves using `countLegalGenMovesSafe` (or `countLegalGenMoves` when in check), bypassing list allocation entirely for depth 1 leaf node counting.
-**Impact:** Minor allocation reduction. On `bench-core` KiwiPete Depth 4: NPS increased slightly.
+## 2024-05-25 – [Transposition Table INLINE Unboxing]
+**Learning:** `probeTT` was unconditionally allocating a boxed `Maybe` tuple on TT hits, despite callers only using a subset of the fields. GHC's CPR (Constructed Product Result) analysis can often eliminate this boxing if it sees the function body, but it was hidden across module boundaries without an INLINE pragma.
+**Action:** Added `{-# INLINE probeTT #-}` and `{-# INLINE unpackData #-}` to `src/Chess/Engine/TT.hs`. This allows GHC to inline the TT array lookups directly into the hot search paths, exposing the tuple construction to worker/wrapper transformations and eliminating the Maybe allocation entirely on the fast path without duplicating logic.
