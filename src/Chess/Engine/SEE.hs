@@ -70,16 +70,19 @@ runSeeStart b from to c valAttacker valTarget =
 
 runSEERec :: Board -> Square -> Color -> Bitboard -> Bitboard -> Int -> Int
 runSEERec b sq side occ atts valVictim =
-    case getLeastValuableAttacker b side atts of
-        Nothing -> 0
-        Just (from, pt) ->
-            let valAttacker = pieceValue pt
+    let lva = getLeastValuableAttackerPacked b side atts
+    in if lva == noAttacker
+       then 0
+       else
+            let valAttacker = lva `shiftR` 6
+                fromI = lva .&. 0x3F
+                from = Square fromI
 
                 -- Remove piece from occ
-                newOcc = occ `clearBit` (unSquare from)
+                newOcc = occ `clearBit` fromI
 
                 -- Update attackers (X-ray)
-                newAtts = (atts `clearBit` (unSquare from)) .|. getXRayAttacker b sq from newOcc
+                newAtts = (atts `clearBit` fromI) .|. getXRayAttacker b sq from newOcc
 
                 nextSide = oppositeColor side
 
@@ -88,29 +91,38 @@ runSEERec b sq side occ atts valVictim =
 
             in max 0 (valVictim - scoreNext)
 
-getLeastValuableAttacker :: Board -> Color -> Bitboard -> Maybe (Square, PieceType)
-getLeastValuableAttacker b side atts =
+noAttacker :: Int
+noAttacker = -1
+
+packAttacker :: Int -> Bitboard -> Int
+packAttacker value bb = (value `shiftL` 6) .|. countTrailingZeros bb
+
+-- | Pack the least valuable attacker as (piece value << 6) | square.
+-- Returns noAttacker when there is no attacker for the side.
+{-# INLINE getLeastValuableAttackerPacked #-}
+getLeastValuableAttackerPacked :: Board -> Color -> Bitboard -> Int
+getLeastValuableAttackerPacked b side atts =
     let myAtts = atts .&. occupiedBy b side
-    in if myAtts == 0 then Nothing
+    in if myAtts == 0 then noAttacker
        else
          let pawns = myAtts .&. pieceBitboard b side Pawn
-         in if pawns /= 0 then Just (Square (countTrailingZeros pawns), Pawn)
+         in if pawns /= 0 then packAttacker 100 pawns
          else
            let knights = myAtts .&. pieceBitboard b side Knight
-           in if knights /= 0 then Just (Square (countTrailingZeros knights), Knight)
+           in if knights /= 0 then packAttacker 320 knights
            else
              let bishops = myAtts .&. pieceBitboard b side Bishop
-             in if bishops /= 0 then Just (Square (countTrailingZeros bishops), Bishop)
+             in if bishops /= 0 then packAttacker 330 bishops
              else
                let rooks = myAtts .&. pieceBitboard b side Rook
-               in if rooks /= 0 then Just (Square (countTrailingZeros rooks), Rook)
+               in if rooks /= 0 then packAttacker 500 rooks
                else
                  let queens = myAtts .&. pieceBitboard b side Queen
-                 in if queens /= 0 then Just (Square (countTrailingZeros queens), Queen)
+                 in if queens /= 0 then packAttacker 900 queens
                  else
                    let kings = myAtts .&. pieceBitboard b side King
-                   in if kings /= 0 then Just (Square (countTrailingZeros kings), King)
-                   else Nothing
+                   in if kings /= 0 then packAttacker 20000 kings
+                   else noAttacker
 
 unsafePieceAt :: Board -> Square -> Piece
 unsafePieceAt b sq = case pieceAt b sq of
