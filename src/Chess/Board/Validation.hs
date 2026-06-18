@@ -72,15 +72,13 @@ hasInsufficientMaterial b =
       sameColorBishops board =
           let wB = whiteBishops board
               bB = blackBishops board
-              wBSq = lsb wB
-              bBSq = lsb bB
-          in case (wBSq, bBSq) of
-              (Just ws, Just bs) ->
-                  -- Same color if (rank+file) parity matches
-                  let c1 = (ws `div` 8) + (ws `mod` 8)
-                      c2 = (bs `div` 8) + (bs `mod` 8)
-                  in even c1 == even c2
-              _ -> False -- Should not happen if we counted them
+          in if wB == 0 || bB == 0 then False else
+             let ws = lsbUnsafe wB
+                 bs = lsbUnsafe bB
+                 -- Same color if (rank+file) parity matches.
+                 c1 = (ws `div` 8) + (ws `mod` 8)
+                 c2 = (bs `div` 8) + (bs `mod` 8)
+             in even c1 == even c2
 
 -- | Check if the current position has occurred at least 3 times.
 isThreefoldRepetition :: Board -> GameState -> [Word64] -> Bool

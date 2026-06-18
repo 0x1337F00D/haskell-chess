@@ -188,6 +188,12 @@ lsb :: Bitboard -> Maybe Int
 lsb 0 = Nothing
 lsb bb = Just (countTrailingZeros bb)
 
+-- | Index of the least significant 1 bit.
+-- Caller must guarantee the bitboard is non-zero.
+lsbUnsafe :: Bitboard -> Int
+{-# INLINE lsbUnsafe #-}
+lsbUnsafe = countTrailingZeros
+
 -- | Indices of bits in ascending order.
 scanForward :: Bitboard -> [Int]
 scanForward bb
