@@ -24,7 +24,7 @@ jobs:
           key: ${{ runner.os }}-cabal-${{ hashFiles('haskell-chess.cabal') }}
           restore-keys: ${{ runner.os }}-cabal-
       - run: cabal update
-      - name: Build all declared components
+      - name: Build all declared components with O2
         run: |
           cabal build \
             lib:haskell-chess \
@@ -44,5 +44,6 @@ jobs:
             exe:bench-eval \
             exe:bench-evasions \
             exe:bench-pseudo-legal-moves \
-            --ghc-options="-O0 +RTS -M4G -RTS"
-      - run: cabal test haskell-chess-test --ghc-options="-O0 +RTS -M4G -RTS"
+            --jobs=1 \
+            --ghc-options="-O2 +RTS -M4G -RTS"
+      - run: cabal test haskell-chess-test --jobs=1 --ghc-options="-O2 +RTS -M4G -RTS"
