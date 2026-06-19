@@ -38,9 +38,12 @@ crazyhouseGameFromFEN s = do
             T.Black -> Black
 
       -- Parse pockets
-      pocketStr = case filter (\x -> not (null x) && head x == '[') extra of
+      pocketStr = case filter startsPocket extra of
                     (p:_) -> p
                     [] -> "[]"
+        where
+          startsPocket ('[' : _) = True
+          startsPocket _ = False
 
       -- Helper to add to pocket
       addToPockets p pt = case pt of

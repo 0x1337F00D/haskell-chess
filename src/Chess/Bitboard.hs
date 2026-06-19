@@ -6,7 +6,7 @@ module Chess.Bitboard where
 
 import Data.Bits
 import Data.Word (Word64)
-import Data.List (foldl')
+import qualified Data.List as List
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Unboxed.Mutable as UM
 import qualified Data.Vector.Generic as G
@@ -135,25 +135,25 @@ bbCenter :: Bitboard
 bbCenter = BB_D4 .|. BB_E4 .|. BB_D5 .|. BB_E5
 
 bbLightSquares :: Bitboard
-bbLightSquares = foldl' (.|.) 0
+bbLightSquares = List.foldl' (.|.) 0
   [bb | (i, bb) <- zip ([0..] :: [Int]) bbSquares, even ((i `div` 8) + (i `mod` 8))]
 
 bbDarkSquares :: Bitboard
-bbDarkSquares = foldl' (.|.) 0
+bbDarkSquares = List.foldl' (.|.) 0
   [bb | (i, bb) <- zip ([0..] :: [Int]) bbSquares, odd ((i `div` 8) + (i `mod` 8))]
 
 -- File and rank masks --------------------------------------------------------
 
 bbFileA, bbFileB, bbFileC, bbFileD,
   bbFileE, bbFileF, bbFileG, bbFileH :: Bitboard
-bbFileA = foldl' (.|.) 0 [bbSquares !! (0 + 8*r) | r <- [0..7]]
-bbFileB = foldl' (.|.) 0 [bbSquares !! (1 + 8*r) | r <- [0..7]]
-bbFileC = foldl' (.|.) 0 [bbSquares !! (2 + 8*r) | r <- [0..7]]
-bbFileD = foldl' (.|.) 0 [bbSquares !! (3 + 8*r) | r <- [0..7]]
-bbFileE = foldl' (.|.) 0 [bbSquares !! (4 + 8*r) | r <- [0..7]]
-bbFileF = foldl' (.|.) 0 [bbSquares !! (5 + 8*r) | r <- [0..7]]
-bbFileG = foldl' (.|.) 0 [bbSquares !! (6 + 8*r) | r <- [0..7]]
-bbFileH = foldl' (.|.) 0 [bbSquares !! (7 + 8*r) | r <- [0..7]]
+bbFileA = List.foldl' (.|.) 0 [bbSquares !! (0 + 8*r) | r <- [0..7]]
+bbFileB = List.foldl' (.|.) 0 [bbSquares !! (1 + 8*r) | r <- [0..7]]
+bbFileC = List.foldl' (.|.) 0 [bbSquares !! (2 + 8*r) | r <- [0..7]]
+bbFileD = List.foldl' (.|.) 0 [bbSquares !! (3 + 8*r) | r <- [0..7]]
+bbFileE = List.foldl' (.|.) 0 [bbSquares !! (4 + 8*r) | r <- [0..7]]
+bbFileF = List.foldl' (.|.) 0 [bbSquares !! (5 + 8*r) | r <- [0..7]]
+bbFileG = List.foldl' (.|.) 0 [bbSquares !! (6 + 8*r) | r <- [0..7]]
+bbFileH = List.foldl' (.|.) 0 [bbSquares !! (7 + 8*r) | r <- [0..7]]
 
 bbFiles :: [Bitboard]
 bbFiles =
@@ -163,14 +163,14 @@ bbFiles =
 
 bbRank1, bbRank2, bbRank3, bbRank4,
   bbRank5, bbRank6, bbRank7, bbRank8 :: Bitboard
-bbRank1 = foldl' (.|.) 0 [bbSquares !! (8*0 + f) | f <- [0..7]]
-bbRank2 = foldl' (.|.) 0 [bbSquares !! (8*1 + f) | f <- [0..7]]
-bbRank3 = foldl' (.|.) 0 [bbSquares !! (8*2 + f) | f <- [0..7]]
-bbRank4 = foldl' (.|.) 0 [bbSquares !! (8*3 + f) | f <- [0..7]]
-bbRank5 = foldl' (.|.) 0 [bbSquares !! (8*4 + f) | f <- [0..7]]
-bbRank6 = foldl' (.|.) 0 [bbSquares !! (8*5 + f) | f <- [0..7]]
-bbRank7 = foldl' (.|.) 0 [bbSquares !! (8*6 + f) | f <- [0..7]]
-bbRank8 = foldl' (.|.) 0 [bbSquares !! (8*7 + f) | f <- [0..7]]
+bbRank1 = List.foldl' (.|.) 0 [bbSquares !! (8*0 + f) | f <- [0..7]]
+bbRank2 = List.foldl' (.|.) 0 [bbSquares !! (8*1 + f) | f <- [0..7]]
+bbRank3 = List.foldl' (.|.) 0 [bbSquares !! (8*2 + f) | f <- [0..7]]
+bbRank4 = List.foldl' (.|.) 0 [bbSquares !! (8*3 + f) | f <- [0..7]]
+bbRank5 = List.foldl' (.|.) 0 [bbSquares !! (8*4 + f) | f <- [0..7]]
+bbRank6 = List.foldl' (.|.) 0 [bbSquares !! (8*5 + f) | f <- [0..7]]
+bbRank7 = List.foldl' (.|.) 0 [bbSquares !! (8*6 + f) | f <- [0..7]]
+bbRank8 = List.foldl' (.|.) 0 [bbSquares !! (8*7 + f) | f <- [0..7]]
 
 bbRanks :: [Bitboard]
 bbRanks =
@@ -282,7 +282,7 @@ moreThan5 x =
 
 -- | Flip the board vertically (swap ranks).
 flipVertical :: Bitboard -> Bitboard
-flipVertical bb = foldl' setBitIf 0 [0..63]
+flipVertical bb = List.foldl' setBitIf 0 [0..63]
   where
     setBitIf acc i = if testBit bb i
                         then setBit acc ((7 - (i `div` 8)) * 8 + (i `mod` 8))
@@ -290,7 +290,7 @@ flipVertical bb = foldl' setBitIf 0 [0..63]
 
 -- | Flip the board horizontally (swap files).
 flipHorizontal :: Bitboard -> Bitboard
-flipHorizontal bb = foldl' setBitIf 0 [0..63]
+flipHorizontal bb = List.foldl' setBitIf 0 [0..63]
   where
     setBitIf acc i = if testBit bb i
                         then setBit acc ((i `div` 8) * 8 + (7 - (i `mod` 8)))
@@ -298,7 +298,7 @@ flipHorizontal bb = foldl' setBitIf 0 [0..63]
 
 -- | Flip the board along the main diagonal.
 flipDiagonal :: Bitboard -> Bitboard
-flipDiagonal bb = foldl' setBitIf 0 [0..63]
+flipDiagonal bb = List.foldl' setBitIf 0 [0..63]
   where
     setBitIf acc i = if testBit bb i
                         then let r = i `div` 8
@@ -308,7 +308,7 @@ flipDiagonal bb = foldl' setBitIf 0 [0..63]
 
 -- | Flip the board along the anti-diagonal.
 flipAntiDiagonal :: Bitboard -> Bitboard
-flipAntiDiagonal bb = foldl' setBitIf 0 [0..63]
+flipAntiDiagonal bb = List.foldl' setBitIf 0 [0..63]
   where
     setBitIf acc i = if testBit bb i
                         then let r = i `div` 8
@@ -350,7 +350,7 @@ knightAttacksFrom (Square n)
 knightAttacksArray :: U.Vector Bitboard
 knightAttacksArray = U.generate 64 gen
   where
-    gen n = foldl' (.|.) 0 [ bbFromSquare (Square idx)
+    gen n = List.foldl' (.|.) 0 [ bbFromSquare (Square idx)
                            | (df,dr) <- deltas
                            , let f = (n `mod` 8) + df
                                  r = (n `div` 8) + dr
@@ -361,7 +361,7 @@ knightAttacksArray = U.generate 64 gen
 
 -- | Generate king attacks from a square.
 kingAttacksFrom :: Square -> Bitboard
-kingAttacksFrom (Square n) = foldl' (.|.) 0 [ bbFromSquare (Square idx)
+kingAttacksFrom (Square n) = List.foldl' (.|.) 0 [ bbFromSquare (Square idx)
                                              | (df,dr) <- deltas
                                              , let f = file + df
                                                    r = rank + dr
@@ -376,7 +376,7 @@ kingAttacksFrom (Square n) = foldl' (.|.) 0 [ bbFromSquare (Square idx)
 
 -- | Generate pawn attacks given a color from a square.
 pawnAttacksFrom :: Color -> Square -> Bitboard
-pawnAttacksFrom col (Square n) = foldl' (.|.) 0 [ bbFromSquare (Square idx)
+pawnAttacksFrom col (Square n) = List.foldl' (.|.) 0 [ bbFromSquare (Square idx)
                                                  | (df,dr) <- deltas
                                                  , let f = file + df
                                                        r = rank + dr
@@ -642,10 +642,10 @@ initMagics verbose = do
         (rookMagicsList, rookTables) = unzip rookRes
 
     let startOffset = 0
-    let (bishopMagics, nextOffset, allBishopTables) = foldl' (\(ms, off, tabs) (m, t) ->
+    let (bishopMagics, nextOffset, allBishopTables) = List.foldl' (\(ms, off, tabs) (m, t) ->
             (ms ++ [m { mOffset = off }], off + U.length t, tabs ++ [t])) ([], startOffset, []) (zip bishopMagicsList bishopTables)
 
-    let (rookMagics, _, allRookTables) = foldl' (\(ms, off, tabs) (m, t) ->
+    let (rookMagics, _, allRookTables) = List.foldl' (\(ms, off, tabs) (m, t) ->
             (ms ++ [m { mOffset = off }], off + U.length t, tabs ++ [t])) ([], nextOffset, []) (zip rookMagicsList rookTables)
 
     let hugeTable = U.concat (allBishopTables ++ allRookTables)

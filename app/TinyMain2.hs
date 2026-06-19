@@ -1,13 +1,9 @@
 module Main where
 
-import Chess.Board.Base
 import Chess.NNUE.Flat
-import Chess.NNUE.Types
 import Chess.NNUE.Feature
 import Chess.NNUE.Accumulator
 import Chess.NNUE.Eval
-import Data.Int
-import Data.Primitive.ByteArray
 import Chess.Board.Fen
 
 main :: IO ()

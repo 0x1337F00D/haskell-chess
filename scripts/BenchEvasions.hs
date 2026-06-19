@@ -7,7 +7,7 @@ module Main where
 
 import Control.Monad (foldM)
 import Data.Time.Clock (getCurrentTime, diffUTCTime)
-import Chess.Board (parseFen, trustBoard, legalMovesValidated, captureMovesValidated, legalQuietsValidated, legalPromotionsValidated, ValidatedBoard, SomeValidatedBoard(..))
+import Chess.Board (parseFen, trustBoard, captureMovesValidated, legalQuietsValidated, legalPromotionsValidated, ValidatedBoard, SomeValidatedBoard(..))
 import Chess.Types (CheckStatus(..))
 
 checkFens :: [String]
@@ -33,7 +33,7 @@ runBenchForFen fen = do
 
 runBench :: ValidatedBoard 'InCheck -> IO ()
 runBench vb = do
-    let n = 200000
+    let n = 200000 :: Int
     start <- getCurrentTime
 
     total <- foldM (\acc _ -> do

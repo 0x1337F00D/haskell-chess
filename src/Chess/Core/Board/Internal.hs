@@ -12,9 +12,8 @@ module Chess.Core.Board.Internal where
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Bits (countTrailingZeros, popCount, clearBit)
-import Data.Char (toLower)
 import qualified Data.ByteString.Builder as B
-import Data.List (foldl')
+import qualified Data.List as List
 
 import qualified Chess.Board.Fen as Fen
 import qualified Chess.Board.Base as Base
@@ -73,8 +72,7 @@ data Square = Square File Rank
 
 -- UCI Helpers
 showFile :: File -> String
-showFile f = [toLower (head (show f))] -- "FileA" -> "a" roughly. Actually show FileA is "FileA".
-                                       -- We want "a", "b", ...
+showFile = fileToString
 
 -- Explicit implementation is safer
 fileToString :: File -> String
@@ -150,7 +148,7 @@ deriving instance Show (Piece c)
 deriving instance Eq (Piece c)
 
 -- Helper for non-king, non-pawn pieces (Major/Minor pieces)
--- This corresponds to "NonKingPiece" in ARCHITECTURE.md, assuming Pawns are handled separately in PawnMap.
+-- This corresponds to "NonKingPiece" in docs/ARCHITECTURE.md, assuming Pawns are handled separately in PawnMap.
 data MajorMinorPiece (c :: Color) where
   MQueen  :: MajorMinorPiece c
   MRook   :: MajorMinorPiece c
@@ -255,7 +253,7 @@ collectPieces bb c =
         knights = if c == White then Base.whiteKnights bb else Base.blackKnights bb
 
         insertPieces pt pieces m =
-            foldl' (\acc sq -> Map.insert (fromBaseSquare sq) pt acc) m (rawBitboardToSquares pieces)
+            List.foldl' (\acc sq -> Map.insert (fromBaseSquare sq) pt acc) m (rawBitboardToSquares pieces)
 
         m1 = insertPieces MQueen queens Map.empty
         m2 = insertPieces MRook rooks m1

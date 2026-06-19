@@ -8,9 +8,9 @@
 module Chess.Engine.Search.AlphaBeta where
 
 import Data.Maybe (fromMaybe, isJust)
-import Data.List (foldl')
 import Data.Bits ((.&.))
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef, modifyIORef', writeIORef)
+import qualified Data.List as List
 import Control.Concurrent (newMVar, modifyMVar, getNumCapabilities)
 import Control.Concurrent.Async (mapConcurrently)
 import qualified Data.Vector.Unboxed.Mutable as UM
@@ -233,7 +233,7 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
 
                     results <- mapConcurrently worker [1..caps]
 
-                    let (finalM, finalS) = foldl' merge (bestMove, bestScore) (map fst results)
+                    let (finalM, finalS) = List.foldl' merge (bestMove, bestScore) (map fst results)
                     let totalNodes = sum (map snd results)
                     modifyIORef' nodes (+ totalNodes)
                     return (finalM, finalS)
