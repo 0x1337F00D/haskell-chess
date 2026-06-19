@@ -48,6 +48,15 @@ spec = do
                 Pgn.gameToUci g `shouldBe` Right ["e7e5", "g1f3"]
             Right _ -> expectationFailure "Expected 1 game"
 
+    it "rejects invalid FEN tags during game validation" $ do
+        let pgn = "[FEN \"not a fen\"]\n1. e4 1-0"
+        case parsePgn pgn of
+            Left e -> expectationFailure e
+            Right [g] -> do
+                Pgn.gameToUci g `shouldBe` Left "Invalid FEN tag: not a fen"
+                Pgn.buildGameTree g `shouldBe` Left "Invalid FEN tag: not a fen"
+            Right _ -> expectationFailure "Expected 1 game"
+
     it "parses complex PGN with NAGs, comments and variations" $ do
         let pgn = unlines
                 [ "[Event \"Complex\"]"

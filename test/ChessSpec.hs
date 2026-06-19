@@ -2,6 +2,8 @@ module ChessSpec (spec) where
 
 import Test.Hspec
 import Chess
+import qualified Chess.Board.GameState as GS
+import qualified Chess.Board.Zobrist as Zobrist
 import Data.Maybe (isJust, fromJust)
 
 spec :: Spec
@@ -48,6 +50,19 @@ spec = describe "Chess (High-Level API)" $ do
       -- FEN should show fullmove 2
       let fenStr = fen b2
       last (words fenStr) `shouldBe` "2"
+
+    it "applyMove handles null moves as an engine pass" $ do
+      let b' = applyMove initialBoard NullMove
+      fen b' `shouldBe` "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 1 1"
+      GS.zobristHash (state b') `shouldBe` Zobrist.computeHash (pieces b') (state b')
+
+    it "applyMove clears en passant and advances fullmove on black null move" $ do
+      let b0 = initialBoard
+      let m1 = fromJust $ parseSan b0 "e4"
+      let b1 = applyMove b0 m1
+      let b2 = applyMove b1 NullMove
+      fen b2 `shouldBe` "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 1 2"
+      GS.zobristHash (state b2) `shouldBe` Zobrist.computeHash (pieces b2) (state b2)
 
     it "handles checkmate" $ do
       -- Fool's mate

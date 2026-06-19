@@ -11,7 +11,8 @@ import Data.Maybe (fromMaybe, isJust)
 import Data.List (foldl')
 import Data.Bits ((.&.))
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef, modifyIORef', writeIORef)
-import Control.Concurrent (forkIO, newMVar, modifyMVar, newEmptyMVar, putMVar, takeMVar, getNumCapabilities)
+import Control.Concurrent (newMVar, modifyMVar, getNumCapabilities)
+import Control.Concurrent.Async (mapConcurrently)
 import qualified Data.Vector.Unboxed.Mutable as UM
 import qualified Data.Vector.Unboxed as U
 
@@ -26,7 +27,7 @@ import qualified Chess.Board.MoveGen as MoveGen
 import qualified Chess.Board.MoveGen.KingSafety as KingSafety
 import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
 import Chess.Board.Phase (Position(..))
-import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
+import Chess.Engine.TT (TT, cloneTT, probeTT, storeTT, TTFlag(..))
 import Chess.Engine.Search.Types
 import Chess.Engine.Search.Pruning (lmrTable)
 import Chess.Engine.Search.Ordering
@@ -50,10 +51,7 @@ searchPhase (Position vBoard) tt limits stopFlag = do
             (lm:_) -> genMoveToMove (getGenMove lm)
 
     -- Initialize Search Resources
-    killers <- UM.replicate 256 nullMove
-    historyVec <- UM.replicate 4096 0
-    counterMove <- UM.replicate 4096 nullMove
-    let resources = SearchResources killers historyVec counterMove 128
+    resources <- newSearchResources 128
 
     -- Check Status Value (for context)
     let checkStatus = case trustBoard board of InCheckBoard _ -> InCheck; NotInCheckBoard _ -> NotInCheck
@@ -186,6 +184,9 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
 
                     let worker _ = do
                             localNodes <- newIORef 0
+                            localResources <- cloneSearchResources (scResources ctx)
+                            localTT <- cloneTT tt
+                            let workerBaseCtx = ctx { scResources = localResources } :: SearchContext p
 
                             -- Precalculate Discovery Candidates for optimization
                             -- This is per-worker but computed once per search call effectively.
@@ -214,12 +215,12 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
                                                 do
                                                     searchScore <- case applyLegalMoveValidated vBoard lmWorker givesCheckWorker of
                                                         InCheckBoard newVBWorker -> do
-                                                            let workerCtx = ctx { scNodeKind = PV, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                                                            s <- alphaBeta workerCtx newVBWorker tt (Just mWorker) (decDepth depth) (-infinity) (-bestScore) localNodes stopFlag limits
+                                                            let workerCtx = workerBaseCtx { scNodeKind = PV, scCheckState = InCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+                                                            s <- alphaBeta workerCtx newVBWorker localTT (Just mWorker) (decDepth depth) (-infinity) (-bestScore) localNodes stopFlag limits
                                                             return (stepScore s)
                                                         NotInCheckBoard newVBWorker -> do
-                                                            let workerCtx = ctx { scNodeKind = PV, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
-                                                            s <- alphaBeta workerCtx newVBWorker tt (Just mWorker) (decDepth depth) (-infinity) (-bestScore) localNodes stopFlag limits
+                                                            let workerCtx = workerBaseCtx { scNodeKind = PV, scCheckState = NotInCheck, scPly = scPly ctx + 1, scNullMoveState = NullMoveAllowed } :: SearchContext p
+                                                            s <- alphaBeta workerCtx newVBWorker localTT (Just mWorker) (decDepth depth) (-infinity) (-bestScore) localNodes stopFlag limits
                                                             return (stepScore s)
 
                                                     let newBestRes = case bestRes of
@@ -247,15 +248,19 @@ formatScore score
     | abs score > 10000 = "mate " ++ show ((if score > 0 then mateValue - score + 1 else -mateValue - score) `div` 2)
     | otherwise = "cp " ++ show score
 
-mapConcurrently :: (a -> IO b) -> [a] -> IO [b]
-mapConcurrently f xs = do
-    vars <- mapM (\x -> do
-        v <- newEmptyMVar
-        _ <- forkIO $ do
-            res <- f x
-            putMVar v res
-        return v) xs
-    mapM takeMVar vars
+newSearchResources :: Int -> IO SearchResources
+newSearchResources maxDepth = do
+    killers <- UM.replicate (maxDepth * 2) nullMove
+    historyVec <- UM.replicate 4096 0
+    counterMove <- UM.replicate 4096 nullMove
+    return $ SearchResources killers historyVec counterMove maxDepth
+
+cloneSearchResources :: SearchResources -> IO SearchResources
+cloneSearchResources (SearchResources killers historyVec counterMove maxDepth) = do
+    killers' <- UM.clone killers
+    historyVec' <- UM.clone historyVec
+    counterMove' <- UM.clone counterMove
+    return $ SearchResources killers' historyVec' counterMove' maxDepth
 
 -- | Alpha-Beta Search
 alphaBeta :: forall p s. (Evaluate p, MoveGenerator s) => SearchContext p -> ValidatedBoard s -> TT -> Maybe Move -> Depth -> Int -> Int -> IORef Int -> IORef Bool -> SearchLimits -> IO Int

@@ -21,8 +21,28 @@ jobs:
           path: |
             ~/.cabal/store
             dist-newstyle
-          key: ${{ runner.os }}-cabal-${{ hashFiles('cabal.project.freeze') }}
+          key: ${{ runner.os }}-cabal-${{ hashFiles('haskell-chess.cabal') }}
           restore-keys: ${{ runner.os }}-cabal-
       - run: cabal update
-      - run: cabal build lib:haskell-chess exe:haskell-chess test:haskell-chess-test --ghc-options="-O0 +RTS -M4G -RTS"
+      - name: Build all declared components
+        run: |
+          cabal build \
+            lib:haskell-chess \
+            exe:haskell-chess \
+            exe:tiny-main2 \
+            exe:create-tiny \
+            exe:convert-nnue \
+            exe:bench-magic \
+            test:haskell-chess-test \
+            exe:bench-search \
+            exe:bench-core \
+            exe:bench-elo \
+            exe:bench-tactics \
+            exe:bench-report \
+            exe:bench-san \
+            exe:micro-bench \
+            exe:bench-eval \
+            exe:bench-evasions \
+            exe:bench-pseudo-legal-moves \
+            --ghc-options="-O0 +RTS -M4G -RTS"
       - run: cabal test haskell-chess-test --ghc-options="-O0 +RTS -M4G -RTS"

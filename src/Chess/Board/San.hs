@@ -3,7 +3,7 @@ module Chess.Board.San where
 
 import Data.List (find)
 import Data.Maybe (isJust)
-import Data.Bits ((.&.), (.|.), testBit)
+import Data.Bits ((.|.), testBit)
 
 import Chess.Types
 import Chess.Bitboard ((.&~.), bbFromSquare, pattern BB_A1, pattern BB_H1, pattern BB_A8, pattern BB_H8, scanForward, pawnAttacks)
@@ -217,9 +217,11 @@ parseSan b gs str =
             in findMatch [m]
         _ ->
             let (baseStr, promoStr) = break (== '=') cleanStr
-                -- Handle promotion
-                promo = if null promoStr then Nothing
-                        else charToPieceType (head (tail promoStr))
+                -- Handle promotion. Malformed suffixes fail instead of throwing.
+                promo = case promoStr of
+                    "" -> Just Nothing
+                    ['=', ch] -> Just (charToPieceType ch)
+                    _ -> Nothing
 
                 (pt, targetStr) =
                      case baseStr of
@@ -231,10 +233,10 @@ parseSan b gs str =
                      then snd (splitAt (length targetStr - 2) targetStr)
                      else targetStr
 
-            in case (pt, parseSquare targetS) of
-                (Just pType, Just target) ->
+            in case (pt, promo, parseSquare targetS) of
+                (Just pType, Just promoPiece, Just target) ->
                     let candidates = getCandidates b gs (Piece c pType) target
-                        moves = map (\from -> Move from target promo) candidates
+                        moves = map (\from -> Move from target promoPiece) candidates
                     in findMatch moves
 
                 _ -> Nothing

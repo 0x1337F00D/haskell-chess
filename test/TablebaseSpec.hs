@@ -32,3 +32,8 @@ spec = do
          let output = "Some garbage output"
          a <- probeLocalWith (\_ _ _ -> return output) "tool" "path" "fen"
          wait a `shouldReturn` Left ("No Probe line found in output: " ++ output)
+
+      it "rejects unknown WDL categories" $ do
+         let output = "Probe: Mystery DTZ: 0"
+         a <- probeLocalWith (\_ _ _ -> return output) "tool" "path" "fen"
+         wait a `shouldReturn` Left "Failed to parse Probe line: Probe: Mystery DTZ: 0"

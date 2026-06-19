@@ -91,7 +91,9 @@ parseFathomLine = do
     _ <- string "DTZ:"
     skipSpaces
     dtz <- parseInt
-    return $ SyzygyResult (parseCategory wdlStr) dtz 0
+    case parseCategory wdlStr of
+        Just wdl -> return $ SyzygyResult wdl dtz 0
+        Nothing -> pfail
 
 mapSpace :: String -> String
 mapSpace [] = []
@@ -117,7 +119,9 @@ parseJson = do
 
     case (lookupField "dtz", lookupField "dtm", lookupField "category") of
         (Just (IntVal dtz), Just (IntVal dtm), Just (StringVal cat)) ->
-            return $ SyzygyResult (parseCategory cat) dtz dtm
+            case parseCategory cat of
+                Just wdl -> return $ SyzygyResult wdl dtz dtm
+                Nothing -> pfail
         _ -> pfail
 
 data JsonValue = IntVal Int | StringVal String | BoolVal Bool | NullVal | ListVal | ObjVal
@@ -184,11 +188,11 @@ skipBalance = do
     _ <- char '}'
     return ()
 
-parseCategory :: String -> WDL
+parseCategory :: String -> Maybe WDL
 parseCategory s = case map toLower s of
-    "win" -> Win
-    "loss" -> Loss
-    "draw" -> Draw
-    "cursed-win" -> CursedWin
-    "blessed-loss" -> BlessedLoss
-    _ -> Draw -- Fallback
+    "win" -> Just Win
+    "loss" -> Just Loss
+    "draw" -> Just Draw
+    "cursed-win" -> Just CursedWin
+    "blessed-loss" -> Just BlessedLoss
+    _ -> Nothing
