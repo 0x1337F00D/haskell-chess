@@ -100,15 +100,22 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for a deep dive into the design.
 
 ## Running Tests
 
-The project uses `cabal` and `hspec` for testing. From the repository root:
+The project uses `cabal` and `hspec` for CI. From the repository root:
 
 ```bash
 cabal test
 ```
 
-A GitHub Actions workflow runs this command automatically for each push and pull request.
+For a reproducible local Stack build, use the checked-in snapshot:
 
-> **Note**: The full perft suite (`PerftSpec`) is currently disabled by default to avoid high memory usage in CI environments. To run it, uncomment the relevant line in `test/Main.hs`.
+```bash
+stack test
+stack build --test --bench --no-run-benchmarks
+```
+
+A GitHub Actions workflow builds the library, executable, test suite, and benchmark/tool components, then runs the test suite on each push and pull request.
+
+> **Note**: The perft suite (`PerftSpec`) is enabled by default and verifies the bundled EPD positions up to depth 3.
 
 ## PyChess Congruency
 

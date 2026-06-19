@@ -244,11 +244,7 @@ isResult s = s `elem` ["1-0", "0-1", "1/2-1/2", "*"]
 -- | Builds a proper game tree from a parsed Game, validating all moves and variations.
 buildGameTree :: Game -> Either String GameTree
 buildGameTree game = do
-    let initialPos = case lookup "FEN" (tags game) of
-            Just fenStr -> case Board.parseFen fenStr of
-                Just b -> b
-                Nothing -> Board.initialBoard
-            Nothing -> Board.initialBoard
+    initialPos <- initialPosition game
 
     nodes <- buildNodes initialPos (forest game)
     return $ GameTree initialPos nodes
@@ -289,13 +285,17 @@ parseMove b sanStr =
 -- | Converts a Game into a list of Moves by simulating the game (main line).
 readGameMoves :: Game -> Either String [Move]
 readGameMoves game = do
-    let initialPos = case lookup "FEN" (tags game) of
-            Just fenStr -> case Board.parseFen fenStr of
-                Just b -> b
-                Nothing -> Board.initialBoard
-            Nothing -> Board.initialBoard
+    initialPos <- initialPosition game
 
     playMoves initialPos (moves game)
+
+initialPosition :: Game -> Either String Board.Board
+initialPosition game =
+    case lookup "FEN" (tags game) of
+        Nothing -> Right Board.initialBoard
+        Just fenStr -> case Board.parseFen fenStr of
+            Just b -> Right b
+            Nothing -> Left $ "Invalid FEN tag: " ++ fenStr
 
 playMoves :: Board.Board -> [String] -> Either String [Move]
 playMoves _ [] = Right []

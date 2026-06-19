@@ -93,3 +93,10 @@ spec = do
        Just (b, gs) <- pure $ Fen.parseFen fenStr
        San.parseSan b gs "O-O" `shouldBe` Just (Move E1 G1 Nothing)
        San.parseSan b gs "O-O-O" `shouldBe` Just (Move E1 C1 Nothing)
+
+    it "rejects malformed promotion SAN without throwing" $ do
+       let fenStr = "8/P6k/8/8/8/8/8/4K3 w - - 0 1"
+       Just (b, gs) <- pure $ Fen.parseFen fenStr
+       San.parseSan b gs "a8=Q" `shouldBe` Just (Move A7 A8 (Just Queen))
+       San.parseSan b gs "a8=" `shouldBe` Nothing
+       San.parseSan b gs "a8=Z" `shouldBe` Nothing

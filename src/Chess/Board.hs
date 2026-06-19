@@ -136,8 +136,26 @@ applyMove board@(Board b gs _) (Move from to promo) =
                           else MoveGen.GenQuiet from to pt
 
         in applyMoveHelper board gm
-applyMove b NullMove = b
+applyMove b NullMove = applyNullMove b
 applyMove b _ = b
+
+-- | Apply an engine null move: pass the turn without moving pieces.
+{-# INLINE applyNullMove #-}
+applyNullMove :: Board -> Board
+applyNullMove (Board b gs hist) =
+    let c = GS.turn gs
+        gsNew = gs
+          { GS.turn = Base.oppositeColor c
+          , GS.epSquare = NoSquare
+          , GS.halfmoveClock = GS.halfmoveClock gs + 1
+          , GS.fullmoveNumber =
+              if c == Black then GS.fullmoveNumber gs + 1 else GS.fullmoveNumber gs
+          }
+        hFinal = GS.zobristHash gs
+             `xor` Zobrist.zobristEp (GS.epSquare gs)
+             `xor` Zobrist.zobristBlackMove
+        hist' = GS.zobristHash gs : hist
+    in Board b (gsNew { GS.zobristHash = hFinal }) hist'
 
 -- | Apply a move using GenMove info (skipping piece lookup).
 applyGenMove :: Board -> MoveGen.GenMove -> Board

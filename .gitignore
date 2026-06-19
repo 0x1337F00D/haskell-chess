@@ -16,5 +16,10 @@ cabal.project.local
 *.chs.h
 *.log
 *.txt
+*.orig
+*.restored
+*.rej
+*.diff
+*.patch
 chess-new
 install_ghcup.sh

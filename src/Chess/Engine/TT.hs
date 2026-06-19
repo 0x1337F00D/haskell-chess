@@ -33,6 +33,12 @@ newTT sizeBits = do
 clearTT :: TT -> IO ()
 clearTT (TT v _) = UM.set v 0
 
+-- | Clone a transposition table for an isolated worker search.
+cloneTT :: TT -> IO TT
+cloneTT (TT v mask) = do
+    v' <- UM.clone v
+    return $ TT v' mask
+
 -- | Pack Data into 64 bits.
 -- Move (16) | Score (16) | Depth (8) | Flag (2) | Age (8) | Unused (14)
 {-# INLINE packData #-}
