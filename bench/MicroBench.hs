@@ -7,7 +7,6 @@ import Control.Monad (replicateM_)
 import Data.Time.Clock (getCurrentTime, diffUTCTime)
 import Data.Word
 import Data.Bits
-import System.Environment (getArgs)
 
 import Chess.Board (parseFen, trustBoard, legalMovesValidated, ValidatedBoard, SomeValidatedBoard(..), MoveGenerator)
 import Chess.Engine.Search.Ordering (orderGenMoves)

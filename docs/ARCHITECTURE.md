@@ -61,4 +61,4 @@ Chess.Board (Domain Layer)
 
 ## Future Roadmap
 
-See `proposal.md` or the project roadmap for upcoming architectural phases.
+See [ROADMAP.md](ROADMAP.md) for upcoming architectural phases and engine-strength work.

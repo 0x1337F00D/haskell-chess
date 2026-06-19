@@ -4,11 +4,10 @@ import Control.Monad (forM)
 import Text.Printf (printf)
 import System.IO (hFlush, stdout)
 
-import Chess.Board (parseFen, uci, Board)
+import Chess.Board (parseFen, uci)
 import Chess.Engine.Search (search)
 import Chess.Engine.Search.Types (SearchLimits(..), defaultLimits)
 import Chess.Engine.TT (TT, newTT)
-import Chess.Types (Move)
 
 data TestCase = TestCase
     { tcName :: String

@@ -78,7 +78,7 @@ Comparison of variants supported by PyChess vs haskell-chess:
 ## Architecture
 
 This project utilizes a **Hybrid Architecture** that combines a high-performance Bitboard Engine with a Type-Safe Core. It leverages Haskell's advanced type system features like GADTs and DataKinds to ensure correctness by construction while maintaining competitive engine performance.
-See [ARCHITECTURE.md](ARCHITECTURE.md) for a deep dive into the design.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a deep dive into the design, and [docs/ROADMAP.md](docs/ROADMAP.md) for current performance work.
 
 ## Module Overview
 

@@ -6,7 +6,7 @@ import Chess.Types
 import Chess.Bitboard
 import Chess.Board.Base
 import Chess.Board.GameState
-import Chess.Board.MoveGen (pseudoLegalMoves, isLegal, hasKing, kingSquareFast, hasLegalMove)
+import Chess.Board.MoveGen (hasKing, kingSquareFast, hasLegalMove)
 
 -- | Check if the side to move is in check.
 isCheck :: Board -> GameState -> Bool

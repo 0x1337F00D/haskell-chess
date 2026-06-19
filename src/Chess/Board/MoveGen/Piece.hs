@@ -10,7 +10,6 @@ import Control.Monad (when)
 import qualified Data.Vector.Unboxed as U
 
 import Chess.Types
-import Chess.Bitboard ((.&~.))
 import Chess.Bitboard
 import Chess.Board.Base
 import Chess.Board.GameState

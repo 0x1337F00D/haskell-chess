@@ -1,6 +1,6 @@
-# Construction Sites for haskell-chess vs Stockfish
+# Roadmap for haskell-chess
 
-To become competitive with Stockfish and achieve similar performance, the `haskell-chess` engine needs to implement a variety of advanced search heuristics and evaluation improvements. This document outlines the key construction sites, expected effort, implementation ideas, and expected Elo gains based on the structure of modern chess engines like Stockfish.
+This document tracks current engine-strength and performance work. It replaces older root-level planning notes that referenced proposal files no longer present in the repository.
 
 ## 1. Advanced Search Heuristics (Alpha-Beta Search)
 

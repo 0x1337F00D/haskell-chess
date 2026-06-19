@@ -11,7 +11,6 @@ module Main where
 import Chess.Core.Game
 import Chess.Core.Game.Internal
 import Chess.Core.Rules
-import Chess.Core.Rules.Class (Opposite)
 import Chess.Core.Rules.Atomic ()
 import Chess.Core.Perft
 import qualified Chess.Core.Board.Internal as CoreBoard

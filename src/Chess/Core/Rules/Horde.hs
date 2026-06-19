@@ -236,7 +236,6 @@ instance ChessVariant 'Horde where
     case applyMove m ag of
       Transition nextAg ->
         let
-           oppC = colorVal @(Opposite c)
            baseBoard = internalBoard nextAg
            whitePiecesCount = popCount (Base.occupiedBy baseBoard T.White)
            blackWins = whitePiecesCount == 0

@@ -37,7 +37,9 @@ parseThreeCheckFen s = do
 parseThreeCheckExtra :: String -> Maybe (Int, Int)
 parseThreeCheckExtra s = do
   -- Format: +W+B or W+B
-  let s' = if not (null s) && head s == '+' then tail s else s
+  let s' = case s of
+        '+' : rest -> rest
+        _ -> s
   let (wStr, rest) = break (== '+') s'
   rest2 <- stripPrefix "+" rest
   w <- readMaybe wStr

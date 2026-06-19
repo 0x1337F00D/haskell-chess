@@ -2,7 +2,7 @@ module Chess.Board.Fen where
 
 import Control.Monad (foldM)
 import Data.Char (isDigit, ord, chr, toLower)
-import Data.List (foldl', intercalate)
+import Data.List (intercalate)
 import Data.Bits ((.|.), testBit)
 import Text.Read (readMaybe)
 

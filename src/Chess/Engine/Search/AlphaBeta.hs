@@ -8,7 +8,6 @@
 module Chess.Engine.Search.AlphaBeta where
 
 import Data.Maybe (fromMaybe, isJust)
-import Data.List (foldl')
 import Data.Bits ((.&.))
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef, modifyIORef', writeIORef)
 import Control.Concurrent (newMVar, modifyMVar, getNumCapabilities)

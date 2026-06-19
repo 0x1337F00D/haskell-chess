@@ -12,9 +12,7 @@ module Chess.Core.Board.Internal where
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Bits (countTrailingZeros, popCount, clearBit)
-import Data.Char (toLower)
 import qualified Data.ByteString.Builder as B
-import Data.List (foldl')
 
 import qualified Chess.Board.Fen as Fen
 import qualified Chess.Board.Base as Base
@@ -73,8 +71,7 @@ data Square = Square File Rank
 
 -- UCI Helpers
 showFile :: File -> String
-showFile f = [toLower (head (show f))] -- "FileA" -> "a" roughly. Actually show FileA is "FileA".
-                                       -- We want "a", "b", ...
+showFile = fileToString
 
 -- Explicit implementation is safer
 fileToString :: File -> String
@@ -150,7 +147,7 @@ deriving instance Show (Piece c)
 deriving instance Eq (Piece c)
 
 -- Helper for non-king, non-pawn pieces (Major/Minor pieces)
--- This corresponds to "NonKingPiece" in ARCHITECTURE.md, assuming Pawns are handled separately in PawnMap.
+-- This corresponds to "NonKingPiece" in docs/ARCHITECTURE.md, assuming Pawns are handled separately in PawnMap.
 data MajorMinorPiece (c :: Color) where
   MQueen  :: MajorMinorPiece c
   MRook   :: MajorMinorPiece c

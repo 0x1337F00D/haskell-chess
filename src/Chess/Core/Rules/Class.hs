@@ -13,7 +13,6 @@ import Chess.Core.Game.Internal
 import Chess.Core.Move.Internal
 import Chess.Core.Board.Internal (Color(..), KnownColor(..), sColor, SColor(..))
 import Control.Parallel.Strategies (parMap, rseq)
-import Data.List (foldl')
 
 -- Type-level Opposite Color
 type family Opposite (c :: Color) :: Color where
