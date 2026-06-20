@@ -1,5 +1,17 @@
 {-# LANGUAGE BangPatterns #-}
-module Chess.Engine.TT where
+module Chess.Engine.TT
+  ( TTFlag(..)
+  , TT(..)
+  , newTT
+  , clearTT
+  , cloneTT
+  , packData
+  , unpackData
+  , ttIndex
+  , probeTT
+  , probeTTFast
+  , storeTT
+  ) where
 
 import Data.Word
 import Data.Bits
@@ -83,6 +95,15 @@ probeTT (TT v mask) !key = do
         let (!m, !s, !d, !f, _) = unpackData entryData
         return $ Just (m, s, d, f)
     else return Nothing
+
+-- | Probe the TT returning raw values to avoid allocating Maybe.
+{-# INLINE probeTTFast #-}
+probeTTFast :: TT -> Word64 -> IO (Word64, Word64)
+probeTTFast (TT v mask) !key = do
+    let !idx = ttIndex mask key
+    !entryKey <- UM.unsafeRead v idx
+    !entryData <- UM.unsafeRead v (idx + 1)
+    return (entryKey, entryData)
 
 -- | Store in TT.
 -- Replacement strategy: Always replace if age differs.
