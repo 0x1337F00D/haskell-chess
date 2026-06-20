@@ -148,7 +148,7 @@ isCheck b c = Val.isCheck (toBaseBoard b) (dummyGameState c)
     dummyGameState col = GS.initialGameState { GS.turn = toColor col }
 
 -- Generate Legal Moves
-generateLegalMoves :: forall v c s. (KnownColor c, ChessVariant v) => ActiveGame v c s -> [Move c]
+generateLegalMoves :: forall v c s. (KnownColor c, VariantMoveGen v) => ActiveGame v c s -> [Move c]
 generateLegalMoves = generateMoves
 
 toCoreMove :: MG.GenMove -> Move c
@@ -291,7 +291,7 @@ setStatus s ag = ActiveGame
   , checkStatus = s
   }
 
-genericApplyMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> GameTransition v (Opposite c)
+genericApplyMove :: forall v c s. (KnownColor c, KnownColor (Opposite c)) => Move c -> ActiveGame v c s -> GameTransition v (Opposite c)
 genericApplyMove m ag =
     let
         c = colorVal @c
@@ -343,13 +343,13 @@ genericApplyMove m ag =
 
 -- | Optimized generic execute Move for perft. Bypasses the expensive check for legal moves
 -- because perft naturally handles 0 legal moves by returning an empty list at the next depth.
-genericPerftExecuteMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
+genericPerftExecuteMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), VariantMoveApply v) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
 genericPerftExecuteMove m ag =
   case applyMove m ag of
     Transition nextAg -> Continue (nextAg { checkStatus = SUnchecked })
 
 -- | Classify post-move position status uniformly.
-classifyPosition :: forall v c s'. (KnownColor c, KnownColor (Opposite c), ChessVariant v)
+classifyPosition :: forall v c s'. (KnownColor c, KnownColor (Opposite c), VariantMoveGen v)
                  => ActiveGame v (Opposite c) s' -> Bool -> PositionStatus
 classifyPosition nextAg checked =
     let hasMoves = if checked
@@ -360,7 +360,7 @@ classifyPosition nextAg checked =
 
 -- | Convert a PositionStatus into a standard MoveResult.
 -- c represents the color of the player who made the move, so Opposite c is the next player.
-statusToMoveResult :: forall v c s'. (KnownColor c, KnownColor (Opposite c), ChessVariant v)
+statusToMoveResult :: forall v c s'. KnownColor c
                    => ActiveGame v (Opposite c) s' -> PositionStatus -> MoveResult v (Opposite c)
 statusToMoveResult nextAg status = case status of
     CheckedPos HasReplies -> Continue (setStatus SChecked nextAg)
@@ -368,7 +368,7 @@ statusToMoveResult nextAg status = case status of
     SafePos HasReplies    -> Continue (setStatus SSafe nextAg)
     SafePos NoReplies     -> Stalemate
 
-genericExecuteMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), ChessVariant v) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
+genericExecuteMove :: forall v c s. (KnownColor c, KnownColor (Opposite c), VariantMoveApply v) => Move c -> ActiveGame v c s -> MoveResult v (Opposite c)
 genericExecuteMove m@(Move gm) ag =
   case applyMove m ag of
     Transition nextAg ->

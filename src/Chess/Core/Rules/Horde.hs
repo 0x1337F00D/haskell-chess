@@ -93,7 +93,7 @@ hordeInitialGame =
 
   in InProgressGame ag
 
-instance ChessVariant 'Horde where
+instance VariantMoveGen 'Horde where
   generateMoves (ag :: ActiveGame 'Horde c s) =
     let baseBoard = internalBoard ag
         gs = toGameState ag
@@ -134,6 +134,7 @@ instance ChessVariant 'Horde where
 
     in map toCoreMove allMoves
 
+instance VariantMoveApply 'Horde where
   applyMove (m :: Move c) (ag :: ActiveGame 'Horde c s) =
     let
         c = colorVal @c
@@ -186,6 +187,7 @@ instance ChessVariant 'Horde where
 
     in Transition nextAg
 
+instance VariantMoveExecute 'Horde where
   executeMove (m :: Move c) (ag :: ActiveGame 'Horde c s) =
     case applyMove m ag of
       Transition nextAg ->
@@ -242,6 +244,10 @@ instance ChessVariant 'Horde where
         in if blackWins
            then Checkmate (Winner Black)
            else Continue (nextAg { checkStatus = SUnchecked })
+
+instance VariantPerft 'Horde
+
+instance ChessVariant 'Horde
 
 getRank :: Square -> Rank
 getRank (Square _ r) = r

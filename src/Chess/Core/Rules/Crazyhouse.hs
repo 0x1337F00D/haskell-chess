@@ -107,7 +107,7 @@ crazyhouseGameFromFEN s = do
                     else return $ InProgressGame (ActiveGame baseBoard gs vs SSafe    :: ActiveGame 'Crazyhouse 'Black 'Safe)
                else Nothing
 
-instance ChessVariant 'Crazyhouse where
+instance VariantMoveGen 'Crazyhouse where
   generateMoves (ag :: ActiveGame 'Crazyhouse c s) =
     let baseBoard = internalBoard ag
         gs = toGameState ag
@@ -145,6 +145,7 @@ instance ChessVariant 'Crazyhouse where
 
     in standardMoves ++ validDropMoves
 
+instance VariantMoveApply 'Crazyhouse where
   applyMove (m :: Move c) (ag :: ActiveGame 'Crazyhouse c s) =
     let
         c = colorVal @c
@@ -265,5 +266,10 @@ instance ChessVariant 'Crazyhouse where
 
     in Transition nextAg
 
+instance VariantMoveExecute 'Crazyhouse where
   executeMove = genericExecuteMove
   perftExecuteMove = genericPerftExecuteMove
+
+instance VariantPerft 'Crazyhouse
+
+instance ChessVariant 'Crazyhouse

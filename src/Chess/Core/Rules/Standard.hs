@@ -61,7 +61,7 @@ gameFromFEN s = do
                else return $ InProgressGame (ActiveGame baseBoard gs () SSafe    :: ActiveGame 'Standard 'Black 'Safe)
     else Nothing
 
-instance ChessVariant 'Standard where
+instance VariantMoveGen 'Standard where
   generateMoves (ag :: ActiveGame 'Standard c s) =
     let baseBoard = internalBoard ag
         gs = toGameState ag
@@ -94,10 +94,14 @@ instance ChessVariant 'Standard where
          then countLegalGenMoves (FastBoard.Board b gs [])
          else countLegalGenMovesSafe (FastBoard.Board b gs [])
 
+instance VariantMoveApply 'Standard where
   applyMove = genericApplyMove
+
+instance VariantMoveExecute 'Standard where
   executeMove = genericExecuteMove
   perftExecuteMove = genericPerftExecuteMove
 
+instance VariantPerft 'Standard where
   -- Optimization: Use fast MoveGen directly for perft
   perftVariant depth ag =
       let b = internalBoard ag
@@ -108,6 +112,8 @@ instance ChessVariant 'Standard where
                    SSafe -> False
                    SUnchecked -> Val.isCheck b gs
       in fastPerft depth isCh board
+
+instance ChessVariant 'Standard
 
 fastPerft :: Int -> Bool -> FastBoard.Board -> Int
 fastPerft 0 _ _ = 1

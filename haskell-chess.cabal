@@ -94,6 +94,11 @@ library
                     , Chess.Core.Perft
                     , Chess.Core.Rules
                     , Chess.Core.Rules.Class
+                    , Chess.Core.Rules.Color
+                    , Chess.Core.Rules.Generation
+                    , Chess.Core.Rules.Application
+                    , Chess.Core.Rules.Execution
+                    , Chess.Core.Rules.Perft
                     , Chess.Core.Rules.Common
                     , Chess.Core.Rules.Standard
                     , Chess.Core.Rules.ThreeCheck

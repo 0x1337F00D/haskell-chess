@@ -36,7 +36,7 @@ antichessInitialGame =
            } :: ActiveGame 'Antichess 'White 'Safe
   in InProgressGame ag
 
-instance ChessVariant 'Antichess where
+instance VariantMoveGen 'Antichess where
   generateMoves (ag :: ActiveGame 'Antichess c s) =
     let baseBoard = internalBoard ag
         gs = toGameState ag
@@ -79,8 +79,10 @@ instance ChessVariant 'Antichess where
 
     in map toCoreMove validMoves
 
+instance VariantMoveApply 'Antichess where
   applyMove = genericApplyMove
 
+instance VariantMoveExecute 'Antichess where
   executeMove (m :: Move c) (ag :: ActiveGame 'Antichess c s) =
     case applyMove m ag of
       Transition nextAg ->
@@ -131,3 +133,7 @@ instance ChessVariant 'Antichess where
            else if opponentStalemated
                 then Checkmate (Winner oppC)
                 else Continue (nextAg { checkStatus = SUnchecked })
+
+instance VariantPerft 'Antichess
+
+instance ChessVariant 'Antichess

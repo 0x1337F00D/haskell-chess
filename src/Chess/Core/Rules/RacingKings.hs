@@ -23,7 +23,7 @@ import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 
-instance ChessVariant 'RacingKings where
+instance VariantMoveGen 'RacingKings where
   generateMoves (ag :: ActiveGame 'RacingKings c s) =
     let baseBoard = internalBoard ag
         gs = toGameState ag
@@ -40,8 +40,10 @@ instance ChessVariant 'RacingKings where
 
     in filter noGiveCheck coreMoves
 
+instance VariantMoveApply 'RacingKings where
   applyMove = genericApplyMove
 
+instance VariantMoveExecute 'RacingKings where
   executeMove (m :: Move c) (ag :: ActiveGame 'RacingKings c s) =
     case applyMove m ag of
       Transition nextAg ->
@@ -108,3 +110,7 @@ instance ChessVariant 'RacingKings where
                 if wInGoal then Checkmate (Winner White) else
                 if bInGoal then Checkmate (Winner Black) else
                 Continue (nextAg { checkStatus = SUnchecked })
+
+instance VariantPerft 'RacingKings
+
+instance ChessVariant 'RacingKings

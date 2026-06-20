@@ -26,7 +26,7 @@ import qualified Chess.Board.Validation as Val
 import qualified Chess.Bitboard as BB
 import Data.Bits ((.&.), complement)
 
-instance ChessVariant 'Atomic where
+instance VariantMoveGen 'Atomic where
   generateMoves (ag :: ActiveGame 'Atomic c s) =
     let baseBoard = internalBoard ag
         gs = toGameState ag
@@ -67,6 +67,7 @@ instance ChessVariant 'Atomic where
 
   countMoves (ag :: ActiveGame 'Atomic c s) = length (generateMoves ag)
 
+instance VariantMoveApply 'Atomic where
   applyMove (m :: Move c) (ag :: ActiveGame 'Atomic c s) =
     let c = colorVal @c
         internalB = internalBoard ag
@@ -159,6 +160,7 @@ instance ChessVariant 'Atomic where
 
     in Transition nextAg
 
+instance VariantMoveExecute 'Atomic where
   perftExecuteMove (m :: Move c) (ag :: ActiveGame 'Atomic c s) =
     case applyMove m ag of
       Transition nextAg ->
@@ -185,3 +187,7 @@ instance ChessVariant 'Atomic where
                 let checked = Val.isCheck baseBoard (toGameState nextAg)
                     status = classifyPosition @'Atomic @c nextAg checked
                 in statusToMoveResult @'Atomic @c nextAg status
+
+instance VariantPerft 'Atomic
+
+instance ChessVariant 'Atomic
