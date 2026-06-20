@@ -23,13 +23,14 @@ import qualified Chess.Board.GameState as GS
 import qualified Chess.Board.MoveGen as MG
 import qualified Chess.Board.Validation as Val
 
-instance ChessVariant 'ThreeCheck where
+instance VariantMoveGen 'ThreeCheck where
   generateMoves (ag :: ActiveGame 'ThreeCheck c s) =
     let baseBoard = internalBoard ag
         gs = toGameState ag
         baseMoves = MG.legalGenMovesList baseBoard gs
     in map toCoreMove baseMoves
 
+instance VariantMoveApply 'ThreeCheck where
   applyMove (m :: Move c) (ag :: ActiveGame 'ThreeCheck c s) =
     let
         c = colorVal @c
@@ -87,6 +88,7 @@ instance ChessVariant 'ThreeCheck where
        then Transition (ActiveGame internalB' nextTurnGS newVariantState SChecked)
        else Transition (ActiveGame internalB' nextTurnGS newVariantState SSafe)
 
+instance VariantMoveExecute 'ThreeCheck where
   executeMove (m :: Move c) (ag :: ActiveGame 'ThreeCheck c s) =
     case applyMove m ag of
       Transition nextAg ->
@@ -109,3 +111,7 @@ instance ChessVariant 'ThreeCheck where
          in if winByCheck
             then Checkmate (Winner c)
             else Continue (nextAg { checkStatus = SUnchecked })
+
+instance VariantPerft 'ThreeCheck
+
+instance ChessVariant 'ThreeCheck

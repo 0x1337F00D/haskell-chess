@@ -20,15 +20,17 @@ import Chess.Core.Move.Internal
 
 import qualified Chess.Board.MoveGen as MG
 
-instance ChessVariant 'KingOfTheHill where
+instance VariantMoveGen 'KingOfTheHill where
   generateMoves (ag :: ActiveGame 'KingOfTheHill c s) =
     let baseBoard = internalBoard ag
         gs = toGameState ag
         baseMoves = MG.legalGenMovesList baseBoard gs
     in map toCoreMove baseMoves
 
+instance VariantMoveApply 'KingOfTheHill where
   applyMove = genericApplyMove
 
+instance VariantMoveExecute 'KingOfTheHill where
   executeMove (m :: Move c) (ag :: ActiveGame 'KingOfTheHill c s) =
     case applyMove m ag of
       Transition _nextAg ->
@@ -88,3 +90,7 @@ instance ChessVariant 'KingOfTheHill where
          in if kingInCenter
             then Checkmate (Winner cColor)
             else Continue (nextAg { checkStatus = SUnchecked })
+
+instance VariantPerft 'KingOfTheHill
+
+instance ChessVariant 'KingOfTheHill

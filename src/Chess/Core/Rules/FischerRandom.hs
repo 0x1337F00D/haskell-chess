@@ -61,7 +61,7 @@ fischerRandomGameFromFEN s = do
                else return $ InProgressGame (ActiveGame baseBoard gs frState SSafe    :: ActiveGame 'FischerRandom 'Black 'Safe)
     else Nothing
 
-instance ChessVariant 'FischerRandom where
+instance VariantMoveGen 'FischerRandom where
   generateMoves (ag :: ActiveGame 'FischerRandom c s) =
     let baseBoard = internalBoard ag
         gs = toGameState ag
@@ -106,6 +106,7 @@ instance ChessVariant 'FischerRandom where
 
     in nonCastlingMoves ++ castling960Moves
 
+instance VariantMoveApply 'FischerRandom where
   applyMove (m :: Move c) (ag :: ActiveGame 'FischerRandom c s) =
     let
         c = colorVal @c
@@ -154,8 +155,13 @@ instance ChessVariant 'FischerRandom where
 
     in Transition nextAg
 
+instance VariantMoveExecute 'FischerRandom where
   executeMove = genericExecuteMove
   perftExecuteMove = genericPerftExecuteMove
+
+instance VariantPerft 'FischerRandom
+
+instance ChessVariant 'FischerRandom
 
 -- Helper to validate 960 castling
 isCastlingValid :: Base.Board -> T.Color -> T.Square -> T.Square -> Bool -> Bool
@@ -198,4 +204,3 @@ isCastlingValid b c kSq rSq isKSide =
         pathROk = loop startR endR checkPred
 
     in path1Ok && pathROk && pathKOk
-
