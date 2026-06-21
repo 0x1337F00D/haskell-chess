@@ -27,7 +27,7 @@ import qualified Chess.Board.MoveGen as MoveGen
 import qualified Chess.Board.MoveGen.KingSafety as KingSafety
 import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
 import Chess.Board.Phase (Position(..))
-import Chess.Engine.TT (TT, cloneTT, probeTT, storeTT, TTFlag(..))
+import Chess.Engine.TT (TT, cloneTT, probeTT, storeTT, TTFlag(..), probeTTFast, unpackDataFast)
 import Chess.Engine.Search.Types
 import Chess.Engine.Search.Pruning (lmrTable)
 import Chess.Engine.Search.Ordering
@@ -102,10 +102,11 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
     let moves = legalMovesValidated vBoard
     let board = getBoard vBoard
     let hash = GS.zobristHash (state board)
-    ttEntry <- probeTT tt hash
-    let ttMove = case ttEntry of Just (m, _, _, _) -> Just m; Nothing -> Nothing
+    (ttKey, ttData) <- probeTTFast tt hash
+    let ttHit = ttKey == hash
+    let (!ttMove, _, _, _) = if ttHit then unpackDataFast ttData else (nullMove, 0, mkDepth (-1), TTExact)
 
-    let sortedMoves = Ordering.orderGenMoves vBoard moves ttMove
+    let sortedMoves = Ordering.orderGenMoves vBoard moves (if ttHit then Just ttMove else Nothing)
 
     -- Helper to find first legal move
     let inCheck = case scCheckState ctx of InCheck -> True; NotInCheck -> False
@@ -305,12 +306,11 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
         else do
 
 
-                    ttEntry <- probeTT tt hash
-                    let (ttMove, ttScore, ttDepth, ttFlag) = case ttEntry of
-                            Just (m, s, d, f) -> (Just m, s, d, f)
-                            Nothing -> (Nothing, 0, mkDepth (-1), TTExact)
+                    (ttKey, ttData) <- probeTTFast tt hash
+                    let entryHit = ttKey == hash
+                    let (!ttMove, !ttScore, !ttDepth, !ttFlag) = if entryHit then unpackDataFast ttData else (nullMove, 0, mkDepth (-1), TTExact)
 
-                    let ttHit = isJust ttEntry && ttDepth >= depth
+                    let ttHit = entryHit && ttDepth >= depth
                     let ttCutoff = if ttHit
                                    then case ttFlag of
                                        TTExact -> True
@@ -400,8 +400,8 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
                                     case nmpResult of
                                         Just cutoff -> return cutoff
                                         Nothing -> do
-                                            let hasTT = isJust ttMove
-                                            let ttM = fromMaybe nullMove ttMove
+                                            let hasTT = not (isNullMove ttMove)
+                                            let ttM = ttMove
 
                                             -- Precalculate Discovery Candidates for optimized givesCheck
                                             -- We only do this if we are likely to search moves.
