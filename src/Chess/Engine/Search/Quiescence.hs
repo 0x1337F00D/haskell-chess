@@ -9,7 +9,7 @@ import Chess.Types (Depth(..), unDepth, decDepth, depthZero, CheckStatus(..))
 import Chess.Board (ValidatedBoard, SomeValidatedBoard(..), getBoard, state, pieces, applyLegalMoveValidated, captureMovesValidated, legalPromotionsValidated, legalQuietsValidated, legalMovesValidated, getGenMove, MoveGenerator(..))
 import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
 import Chess.Board.Phase (Position(..))
-import Chess.Engine.TT (TT, probeTT, storeTT, TTFlag(..))
+import Chess.Engine.TT (TT, probeTTFast, unpackDataFast, storeTT, TTFlag(..))
 import Chess.Engine.Search.Types (mateValue, SearchContext(..))
 import Chess.Engine.Search.Ordering (orderGenMoves, orderQSMoves, partitionSEE)
 import Chess.Types (nullMove)
@@ -24,7 +24,11 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
 
     -- Check for cached evaluation in TT
     let hash = GS.zobristHash (state board)
-    ttEntry <- probeTT tt hash
+    (!entryKey, !entryData) <- probeTTFast tt hash
+    let (ttHit, _, ttScore, _, ttFlag) = if entryKey == hash
+            then let (!m, !s, !td, !f) = unpackDataFast entryData
+                 in (True, Just m, s, td, f)
+            else (False, Nothing, 0, depthZero, TTExact)
 
     -- Use CheckState from context
     let inCheck = case scCheckState ctx of
@@ -49,9 +53,9 @@ quiescence ctx vBoard tt alpha beta nodes depth = do
     else do
         -- Not in check: Standard QSearch
         -- Use cached eval if available
-        let staticEval = case ttEntry of
-                Just (_, s, _, TTEval) -> Just s
-                _ -> Nothing
+        let staticEval = if ttHit && ttFlag == TTEval
+                then Just ttScore
+                else Nothing
 
         standPat <- case staticEval of
             Just s -> return s
