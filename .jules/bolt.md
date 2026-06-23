@@ -1,4 +1,11 @@
-## 2024-05-24 – [Perft Leaf Node Move Counting Optimization]
-**Learning:** `perftWhite` and `perftBlack` functions in `Chess.Core.Rules.Class` were evaluating `length (generateMoves game)` for leaf nodes at `depth == 1`. In Standard chess variant, `generateMoves` constructs the full list of moves before computing its length, causing an $O(N)$ allocation of list nodes and boxed moves.
-**Action:** Introduced a `countMoves` method to the `ChessVariant` typeclass to bypass generating the full list where possible. Implemented `countMoves` for `Standard` variant to directly return the number of legal moves using `countLegalGenMovesSafe` (or `countLegalGenMoves` when in check), bypassing list allocation entirely for depth 1 leaf node counting.
-**Impact:** Minor allocation reduction. On `bench-core` KiwiPete Depth 4: NPS increased slightly.
+## 2024-05-19 - Test Entry
+**Learning:** Checking journal creation.
+**Action:** Proceed with finding bottleneck.
+
+## 2024-05-19 - Removed Maybe and tuple allocations in probeTT
+**Learning:** Returning a boxed `Maybe (Move, Int, Depth, TTFlag)` from `probeTT` forces heap allocation in the critical path. GHC couldn't unbox this effectively across module boundaries even with `INLINE`.
+**Action:** Replaced `probeTT` with `probeTTFast`, returning an unboxed-like tuple `(Word64, Word64)` containing the raw TT entry key and data. This allows the caller to perform the hit check and unpack only on a hit, drastically reducing GC pressure without relying on explicit unboxed tuples.
+
+## 2024-05-19 - Removed Maybe and tuple allocations in probeTT
+**Learning:** Returning a boxed `Maybe (Move, Int, Depth, TTFlag)` from `probeTT` forces heap allocation in the critical path. GHC couldn't unbox this effectively across module boundaries even with `INLINE`.
+**Action:** Replaced `probeTT` with `probeTTFast`, returning an unboxed-like tuple `(Word64, Word64)` containing the raw TT entry key and data. This allows the caller to perform the hit check and unpack only on a hit, drastically reducing GC pressure without relying on explicit unboxed tuples.
