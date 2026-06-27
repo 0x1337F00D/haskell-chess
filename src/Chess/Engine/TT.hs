@@ -72,17 +72,15 @@ ttIndex mask key = (fromIntegral (key `xor` (key `shiftR` 32)) .&. mask) * 2
 -- | Probe the TT.
 -- Performance: Fold the upper 32 bits into the lower 32 bits before masking
 -- to reduce hash collisions when the TT mask discards high-entropy upper bits.
-{-# INLINE probeTT #-}
-probeTT :: TT -> Word64 -> IO (Maybe (Move, Int, Depth, TTFlag))
-probeTT (TT v mask) !key = do
+-- We return an inlined tuple of (entryKey, entryData) to avoid 'Maybe' allocation.
+-- The caller checks 'entryKey == key' to determine a hit and unpacks manually.
+{-# INLINE probeTTFast #-}
+probeTTFast :: TT -> Word64 -> IO (Word64, Word64)
+probeTTFast (TT v mask) !key = do
     let !idx = ttIndex mask key
     !entryKey <- UM.unsafeRead v idx
-    if entryKey == key
-    then do
-        !entryData <- UM.unsafeRead v (idx + 1)
-        let (!m, !s, !d, !f, _) = unpackData entryData
-        return $ Just (m, s, d, f)
-    else return Nothing
+    !entryData <- UM.unsafeRead v (idx + 1)
+    return (entryKey, entryData)
 
 -- | Store in TT.
 -- Replacement strategy: Always replace if age differs.
