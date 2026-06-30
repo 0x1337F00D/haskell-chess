@@ -69,6 +69,20 @@ unpackData !w =
 ttIndex :: Int -> Word64 -> Int
 ttIndex mask key = (fromIntegral (key `xor` (key `shiftR` 32)) .&. mask) * 2
 
+{-# INLINE probeTTFast #-}
+probeTTFast :: TT -> Word64 -> IO (Word64, Word64)
+probeTTFast (TT v mask) !key = do
+    let !idx = ttIndex mask key
+    !entryKey <- UM.unsafeRead v idx
+    !entryData <- UM.unsafeRead v (idx + 1)
+    return (entryKey, entryData)
+
+{-# INLINE unpackDataFast #-}
+unpackDataFast :: Word64 -> (Move, Int, Depth, TTFlag)
+unpackDataFast !w =
+    let (!m, !s, !d, !f, _) = unpackData w
+    in (m, s, d, f)
+
 -- | Probe the TT.
 -- Performance: Fold the upper 32 bits into the lower 32 bits before masking
 -- to reduce hash collisions when the TT mask discards high-entropy upper bits.
