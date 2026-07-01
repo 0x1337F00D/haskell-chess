@@ -72,17 +72,6 @@ ttIndex mask key = (fromIntegral (key `xor` (key `shiftR` 32)) .&. mask) * 2
 -- | Probe the TT.
 -- Performance: Fold the upper 32 bits into the lower 32 bits before masking
 -- to reduce hash collisions when the TT mask discards high-entropy upper bits.
-{-# INLINE probeTT #-}
-probeTT :: TT -> Word64 -> IO (Maybe (Move, Int, Depth, TTFlag))
-probeTT (TT v mask) !key = do
-    let !idx = ttIndex mask key
-    !entryKey <- UM.unsafeRead v idx
-    if entryKey == key
-    then do
-        !entryData <- UM.unsafeRead v (idx + 1)
-        let (!m, !s, !d, !f, _) = unpackData entryData
-        return $ Just (m, s, d, f)
-    else return Nothing
 
 -- | Store in TT.
 -- Replacement strategy: Always replace if age differs.
@@ -113,3 +102,19 @@ storeTT (TT v mask) !age !key !depth !score !flag !move = do
       let (_, _, !oldDepth, _, !oldAge) = unpackData oldData
       when (oldAge /= currentAgeMasked || depth >= oldDepth || flag == TTExact) $
         writeEntry
+{-# INLINE probeTTFast #-}
+probeTTFast :: TT -> Word64 -> IO (Word64, Word64)
+probeTTFast (TT v mask) !key = do
+    let !idx = ttIndex mask key
+    !entryKey <- UM.unsafeRead v idx
+    !entryData <- UM.unsafeRead v (idx + 1)
+    return (entryKey, entryData)
+
+{-# INLINE unpackDataFast #-}
+unpackDataFast :: Word64 -> (Move, Int, Depth, TTFlag)
+unpackDataFast !w =
+    let !m = coerce (fromIntegral (w .&. 0xFFFF) :: Word16) :: Move
+        !s = fromIntegral ((w `shiftR` 16) .&. 0xFFFF) - 32768
+        !d = Depth (fromIntegral ((w `shiftR` 32) .&. 0xFF))
+        !f = toEnum (fromIntegral ((w `shiftR` 40) .&. 0x3))
+    in (m, s, d, f)
