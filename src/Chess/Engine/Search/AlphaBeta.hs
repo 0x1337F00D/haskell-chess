@@ -27,7 +27,7 @@ import qualified Chess.Board.MoveGen as MoveGen
 import qualified Chess.Board.MoveGen.KingSafety as KingSafety
 import Chess.Engine.Evaluation (Evaluate(..), evaluatePos)
 import Chess.Board.Phase (Position(..))
-import Chess.Engine.TT (TT, cloneTT, probeTT, storeTT, TTFlag(..))
+import Chess.Engine.TT (TT, cloneTT, probeTTFast, unpackDataFast, storeTT, TTFlag(..))
 import Chess.Engine.Search.Types
 import Chess.Engine.Search.Pruning (lmrTable)
 import Chess.Engine.Search.Ordering
@@ -102,8 +102,8 @@ alphaBetaRoot ctx vBoard tt depth nodes stopFlag limits = do
     let moves = legalMovesValidated vBoard
     let board = getBoard vBoard
     let hash = GS.zobristHash (state board)
-    ttEntry <- probeTT tt hash
-    let ttMove = case ttEntry of Just (m, _, _, _) -> Just m; Nothing -> Nothing
+    (entryKey, entryData) <- probeTTFast tt hash
+    let ttMove = if entryKey == hash then let (m, _, _, _) = unpackDataFast entryData in Just m else Nothing
 
     let sortedMoves = Ordering.orderGenMoves vBoard moves ttMove
 
@@ -305,13 +305,14 @@ alphaBetaBody ctx vBoard tt lastMove depth alpha beta nodes stopFlag limits = do
         else do
 
 
-                    ttEntry <- probeTT tt hash
-                    let (ttMove, ttScore, ttDepth, ttFlag) = case ttEntry of
-                            Just (m, s, d, f) -> (Just m, s, d, f)
-                            Nothing -> (Nothing, 0, mkDepth (-1), TTExact)
+                    (entryKey, entryData) <- probeTTFast tt hash
+                    let ttHit = entryKey == hash
+                    let (ttMove, ttScore, ttDepth, ttFlag) = if ttHit
+                            then let (m, s, d, f) = unpackDataFast entryData in (Just m, s, d, f)
+                            else (Nothing, 0, mkDepth (-1), TTExact)
+                    let ttHit2 = ttHit && ttDepth >= depth
 
-                    let ttHit = isJust ttEntry && ttDepth >= depth
-                    let ttCutoff = if ttHit
+                    let ttCutoff = if ttHit2
                                    then case ttFlag of
                                        TTExact -> True
                                        TTLower -> ttScore >= beta'
