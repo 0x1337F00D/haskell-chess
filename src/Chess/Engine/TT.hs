@@ -84,6 +84,26 @@ probeTT (TT v mask) !key = do
         return $ Just (m, s, d, f)
     else return Nothing
 
+{-# INLINE probeTTFast #-}
+probeTTFast :: TT -> Word64 -> IO (Word64, Word64)
+probeTTFast (TT v mask) !key = do
+    let !idx = ttIndex mask key
+    !entryKey <- UM.unsafeRead v idx
+    -- Only read entry data on a cache hit to avoid unnecessary memory reads on misses
+    !entryData <- if entryKey == key
+                  then UM.unsafeRead v (idx + 1)
+                  else return 0
+    return (entryKey, entryData)
+
+{-# INLINE unpackDataFast #-}
+unpackDataFast :: Word64 -> (Move, Int, Depth, TTFlag)
+unpackDataFast !w =
+    let !m = coerce (fromIntegral (w .&. 0xFFFF) :: Word16) :: Move
+        !s = fromIntegral ((w `shiftR` 16) .&. 0xFFFF) - 32768
+        !d = Depth (fromIntegral ((w `shiftR` 32) .&. 0xFF))
+        !f = toEnum (fromIntegral ((w `shiftR` 40) .&. 0x3))
+    in (m, s, d, f)
+
 -- | Store in TT.
 -- Replacement strategy: Always replace if age differs.
 -- Otherwise, depth-preferred or always replace for exact matches.
